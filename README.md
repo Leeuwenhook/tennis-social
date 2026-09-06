@@ -19,4 +19,4 @@ npm run dev
 
 The demo uses browser local storage. It does not take real payments or send email/SMS messages.
 
-See [PLAN.md](PLAN.md) for the product scope and acceptance criteria.
+See [PLAN.public.md](PLAN.public.md) for the product scope and acceptance criteria.

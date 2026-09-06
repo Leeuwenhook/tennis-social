@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Settings2,
   ShieldCheck,
+  Timer,
   TriangleAlert,
   Users,
 } from 'lucide-react';
@@ -590,6 +591,16 @@ function parseMinutes(time: string) {
   return hours * 60 + minutes;
 }
 
+function formatDuration(startTime: string, endTime: string, language: Language) {
+  const minutes = Math.max(0, parseMinutes(endTime) - parseMinutes(startTime));
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (language === 'zh') {
+    return hours ? `${hours}小时${remainder ? ` ${remainder}分钟` : ''}` : `${remainder}分钟`;
+  }
+  return hours ? `${hours}h${remainder ? ` ${remainder}m` : ''}` : `${remainder}m`;
+}
+
 function isPast(session: Session) {
   return new Date(`${session.date}T${session.endTime}:00+01:00`).getTime() < Date.now();
 }
@@ -675,6 +686,7 @@ export default function Home() {
     phone: '',
     participants: [''],
     racketCount: 0,
+    includeFriends: false,
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [paymentFailed, setPaymentFailed] = useState(false);
@@ -827,7 +839,7 @@ export default function Home() {
   function beginBooking() {
     if (!selectedSession || selectedSession.status !== 'published') return;
     if (selectedSession.capacity - selectedSession.bookedSpots < 1) return;
-    setBookingForm({ name: '', email: '', phone: '', participants: [''], racketCount: 0 });
+    setBookingForm({ name: '', email: '', phone: '', participants: [''], racketCount: 0, includeFriends: false });
     setBookingStage('details');
     setFormErrors({});
     setPaymentFailed(false);
@@ -847,6 +859,7 @@ export default function Home() {
         ...current,
         participants,
         racketCount: Math.min(current.racketCount, value),
+        includeFriends: value > 1 ? true : current.includeFriends,
       };
     });
     setFormErrors((current) => ({ ...current, participants: '' }));
@@ -855,6 +868,24 @@ export default function Home() {
     } else {
       setAdjustmentNotice('');
     }
+  }
+
+  function toggleFriends(enabled: boolean) {
+    const hadFriends = bookingForm.participants.length > 1;
+    const hadExtraRackets = bookingForm.racketCount > 1;
+    if (!enabled && hadFriends) {
+      setBookingForm((current) => ({
+        ...current,
+        includeFriends: false,
+        participants: [current.participants[0] ?? ''],
+        racketCount: Math.min(current.racketCount, 1),
+      }));
+      setFormErrors((current) => ({ ...current, participants: '' }));
+      setAdjustmentNotice(hadExtraRackets ? `${t.participantAdjusted} ${t.racketAdjusted}` : t.participantAdjusted);
+      return;
+    }
+    setBookingForm((current) => ({ ...current, includeFriends: enabled }));
+    setAdjustmentNotice('');
   }
 
   function updateParticipant(index: number, level: string) {
@@ -1180,6 +1211,7 @@ export default function Home() {
             <div className="detail-facts">
               <div><CalendarDays size={19} /><span><small>{t.date}</small><strong>{formatLongDate(selectedSession.date, language)}</strong></span></div>
               <div><Clock3 size={19} /><span><small>{t.time}</small><strong>{selectedSession.startTime}–{selectedSession.endTime} · {t.london}</strong></span></div>
+              <div><Timer size={19} /><span><small>{t.duration}</small><strong>{formatDuration(selectedSession.startTime, selectedSession.endTime, language)}</strong></span></div>
               <div><Users size={19} /><span><small>{t.availability}</small><strong>{full ? t.full : `${spots} ${spots === 1 ? t.spotLeft : t.spotsLeft}`}</strong></span></div>
               <div><CreditCard size={19} /><span><small>{t.pricePerPerson}</small><strong>{formatMoney(selectedSession.pricePence, language)}</strong></span></div>
             </div>
@@ -1271,7 +1303,21 @@ export default function Home() {
             <div className="field"><Label htmlFor="phone">{t.phone} <small>({t.optional})</small></Label><Input id="phone" inputMode="tel" value={bookingForm.phone} onChange={(event) => setBookingForm((current) => ({ ...current, phone: event.target.value }))} autoComplete="tel" /></div>
             {formErrors.contact || formErrors.email ? <div className="inline-error"><TriangleAlert size={16} /> {formErrors.contact || formErrors.email}</div> : null}
             <div className="form-divider" />
-            <div className="form-section-heading"><div><h2>{t.participants}</h2><p>{t.allLevels}</p></div><QuantityControl label={t.groupSize} value={bookingForm.participants.length} min={1} max={selectedSession.capacity - selectedSession.bookedSpots} onChange={updateGroupSize} /></div>
+            <div className="form-section-heading">
+              <div><h2>{t.participants}</h2><p>{t.allLevels}</p></div>
+              <div className="participant-controls">
+                <label className="friends-toggle">
+                  <input
+                    type="checkbox"
+                    checked={bookingForm.includeFriends}
+                    disabled={selectedSession.capacity - selectedSession.bookedSpots < 2}
+                    onChange={(event) => toggleFriends(event.target.checked)}
+                  />
+                  <span>{t.addFriends}</span>
+                </label>
+                {bookingForm.includeFriends ? <QuantityControl label={t.groupSize} value={bookingForm.participants.length} min={1} max={selectedSession.capacity - selectedSession.bookedSpots} onChange={updateGroupSize} /> : <span className="single-person-count">1 {t.person}</span>}
+              </div>
+            </div>
             <div className="level-list">
               {bookingForm.participants.map((level, index) => (
                 <div className="field" key={`${index}-${bookingForm.participants.length}`}><Label htmlFor={`level-${index}`}>{index === 0 ? t.yourLevel : `${t.friendLevel} ${index}` } <em>*</em></Label><select id={`level-${index}`} value={level} onChange={(event) => updateParticipant(index, event.target.value)} className="native-select"><option value="">{language === 'zh' ? '请选择水平' : 'Select level'}</option>{LEVELS.map((option) => <option key={option} value={option}>{option}</option>)}</select></div>

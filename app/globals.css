@@ -1001,6 +1001,49 @@
   background: #fff;
 }
 
+.participant-controls {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.friends-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.friends-toggle input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+.friends-toggle input:disabled {
+  cursor: not-allowed;
+}
+
+.friends-toggle:has(input:disabled) {
+  color: var(--muted-foreground);
+  cursor: not-allowed;
+}
+
+.single-person-count {
+  min-width: 52px;
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+}
+
 .quantity-button {
   display: grid;
   place-items: center;

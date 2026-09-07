@@ -20,3 +20,7 @@ npm run dev
 The demo uses browser local storage. It does not take real payments or send email/SMS messages.
 
 See [PLAN.public.md](PLAN.public.md) for the product scope and acceptance criteria.
+
+## Deploy to Vercel
+
+Import this repository into Vercel. The included `vercel.json` uses the Vinext/Nitro Vercel target and runs `npm run build:vercel`. Nitro writes the Vercel Build Output API files to `.vercel/output`, which Vercel detects automatically. The project requires Node.js 22.13 or newer.

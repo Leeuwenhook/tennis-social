@@ -1,25 +1,23 @@
 'use client';
 
-import {
-  ArrowLeft,
-  ArrowRight,
-  CalendarDays,
-  Check,
-  ChevronRight,
-  Clock3,
-  CreditCard,
-  Globe2,
-  MapPin,
-  Minus,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Settings2,
-  ShieldCheck,
-  Timer,
-  TriangleAlert,
-  Users,
-} from 'lucide-react';
+import ArrowLeft from 'lucide-react/dist/esm/icons/arrow-left.mjs';
+import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.mjs';
+import CalendarDays from 'lucide-react/dist/esm/icons/calendar-days.mjs';
+import Check from 'lucide-react/dist/esm/icons/check.mjs';
+import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right.mjs';
+import Clock3 from 'lucide-react/dist/esm/icons/clock-3.mjs';
+import CreditCard from 'lucide-react/dist/esm/icons/credit-card.mjs';
+import Globe2 from 'lucide-react/dist/esm/icons/globe-2.mjs';
+import MapPin from 'lucide-react/dist/esm/icons/map-pin.mjs';
+import Minus from 'lucide-react/dist/esm/icons/minus.mjs';
+import Pencil from 'lucide-react/dist/esm/icons/pencil.mjs';
+import Plus from 'lucide-react/dist/esm/icons/plus.mjs';
+import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw.mjs';
+import Settings2 from 'lucide-react/dist/esm/icons/settings-2.mjs';
+import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check.mjs';
+import Timer from 'lucide-react/dist/esm/icons/timer.mjs';
+import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs';
+import Users from 'lucide-react/dist/esm/icons/users.mjs';
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 
 import { Badge } from '@/components/ui/badge';

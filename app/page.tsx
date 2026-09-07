@@ -670,12 +670,12 @@ function QuantityControl({
   );
 }
 
-export default function Home() {
+export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }) {
   const [language, setLanguageValue] = useState<Language>('en');
   const [sessions, setSessions] = useState<Session[]>(seededSessions);
   const [bookings, setBookings] = useState<Booking[]>(seededBookings);
   const [hydrated, setHydrated] = useState(false);
-  const [view, setView] = useState<View>('home');
+  const [view, setView] = useState<View>(initialView);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [bookingStage, setBookingStage] = useState<BookingStage>('details');
   const [bookingForm, setBookingForm] = useState({
@@ -748,9 +748,26 @@ export default function Home() {
   }
 
   function navigate(nextView: View) {
+    if (typeof window !== 'undefined' && (view === 'admin' || nextView === 'admin')) {
+      const nextPath = nextView === 'admin' ? '/admin' : '/';
+      const currentPath = window.location.pathname.replace(/\/+$/, '') || '/';
+      if (currentPath !== nextPath) window.history.pushState({}, '', nextPath);
+    }
     setView(nextView);
     scrollTop();
   }
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname.replace(/\/+$/, '') || '/';
+      setView(path === '/admin' ? 'admin' : 'home');
+      setSelectedSessionId(null);
+      setConfirmation(null);
+      setBookingStage('details');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   function openSession(sessionId: string) {
     setSelectedSessionId(sessionId);
@@ -1088,9 +1105,6 @@ export default function Home() {
           <button type="button" className={view === 'home' ? 'active' : ''} onClick={() => navigate('home')}>
             {t.sessions}
           </button>
-          <button type="button" className={view === 'admin' ? 'active' : ''} onClick={() => navigate('admin')}>
-            {t.admin}
-          </button>
         </nav>
         <div className="header-actions">
           <button
@@ -1414,4 +1428,8 @@ export default function Home() {
       <footer className="site-footer page-width"><span><AppMark /> Tennis Social</span><small>{t.demoNotice}</small></footer>
     </div>
   );
+}
+
+export default function Home() {
+  return <TennisSocialApp />;
 }

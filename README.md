@@ -8,7 +8,7 @@ Responsive bilingual tennis session booking community demo for London.
 - Desktop and mobile layouts with real venue photos.
 - Session browsing, detail pages, participant levels, friend bookings and racket rental.
 - Simulated payment success and failure states with a clear fee breakdown.
-- Demo admin for session editing, booking review, cancellation and data reset.
+- Demo admin at `/admin` for session editing, booking review, cancellation and data reset.
 
 ## Run locally
 

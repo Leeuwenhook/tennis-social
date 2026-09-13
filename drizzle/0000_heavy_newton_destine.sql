@@ -52,14 +52,14 @@ CREATE TRIGGER `bookings_validate_reservation`
 BEFORE INSERT ON `bookings`
 WHEN NEW.`status` = 'pending_payment'
 BEGIN
-  SELECT CASE
+  SELECT (CASE
     WHEN NOT EXISTS (
       SELECT 1 FROM `sessions`
       WHERE `id` = NEW.`session_id`
         AND `status` = 'published'
         AND `booked_spots` + NEW.`participant_count` <= `capacity`
     ) THEN RAISE(ABORT, 'session_unavailable')
-  END;
+  END);
 END;
 --> statement-breakpoint
 CREATE TRIGGER `bookings_reserve_places`

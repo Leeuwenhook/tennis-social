@@ -7,8 +7,8 @@ Responsive bilingual tennis session booking community demo for London.
 - English by default with a Simplified Chinese switch.
 - Desktop and mobile layouts with real venue photos.
 - Session browsing, detail pages, participant levels, friend bookings and racket rental.
-- Simulated payment success and failure states with a clear fee breakdown.
-- Demo admin at `/admin` for session editing, booking review, cancellation and data reset.
+- Stripe Checkout handoff with server-side pricing, 30-minute reservations and webhook confirmation.
+- Demo admin at `/admin` for local session editing, booking review, cancellation and data reset.
 
 ## Run locally
 
@@ -17,7 +17,7 @@ npm install
 npm run dev
 ```
 
-The public session catalogue has a browser fallback for local previews, but real checkout uses the platform database and Stripe Checkout. It does not send email/SMS messages yet.
+The public session catalogue has a browser fallback for local previews, but real checkout uses the platform database and Stripe Checkout. The demo admin state is still browser-local, and it does not send email/SMS messages yet.
 
 ## Stripe test setup
 

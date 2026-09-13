@@ -17,7 +17,18 @@ npm install
 npm run dev
 ```
 
-The demo uses browser local storage. It does not take real payments or send email/SMS messages.
+The public session catalogue has a browser fallback for local previews, but real checkout uses the platform database and Stripe Checkout. It does not send email/SMS messages yet.
+
+## Stripe test setup
+
+Copy `.dev.vars.example` to `.dev.vars` for local Cloudflare development and add Stripe test-mode values. Keep the secret values out of Git:
+
+```text
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
+The database migration is in `drizzle/`. A pending booking reserves its places for 30 minutes; `checkout.session.completed` confirms it and `checkout.session.expired` releases it. Configure the same two values as hosted runtime secrets before accepting real payments. Use Stripe test cards until the full refund and cancellation policy is in place.
 
 See [PLAN.public.md](PLAN.public.md) for the product scope and acceptance criteria.
 

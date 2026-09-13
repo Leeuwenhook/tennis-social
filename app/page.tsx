@@ -30,7 +30,7 @@ type View = 'home' | 'detail' | 'booking' | 'confirmation' | 'admin';
 type BookingStage = 'details' | 'payment';
 type AdminTab = 'sessions' | 'bookings';
 type SessionStatus = 'published' | 'draft';
-type BookingStatus = 'confirmed' | 'cancelled';
+type BookingStatus = 'pending_payment' | 'confirmed' | 'expired' | 'payment_failed' | 'cancelled' | 'refunded';
 
 type ModelContext = {
   registerTool: (
@@ -391,12 +391,12 @@ const translations = {
     total: 'Total',
     continuePayment: 'Continue to payment',
     payment: 'Payment',
-    paymentIntro: 'This is a demo checkout. No card details are collected.',
-    demoPayment: 'Demo payment',
-    demoPaymentIntro: 'Choose a result to test the booking flow.',
-    simulateSuccess: 'Simulate successful payment',
+    paymentIntro: 'Your place will be held for 30 minutes while you pay.',
+    demoPayment: 'Secure checkout',
+    demoPaymentIntro: 'Continue to Stripe to pay by card, Apple Pay or Google Pay when available.',
+    simulateSuccess: 'Pay securely with Stripe',
     simulateFailure: 'Simulate failed payment',
-    paymentFailed: 'The demo payment failed. Your details are still here so you can try again.',
+    paymentFailed: 'We could not start the secure checkout. Your details are still here, so you can try again.',
     confirmed: 'Booking confirmed',
     confirmationIntro: 'You’re booked in. Keep this reference for the session.',
     bookingReference: 'Booking reference',
@@ -406,7 +406,7 @@ const translations = {
     levels: 'levels',
     bookingConfirmed: 'Confirmed',
     actions: 'Actions',
-    demoNotice: 'Demo mode: no money will be taken and no messages will be sent.',
+    demoNotice: 'Payment is securely processed by Stripe. We never receive your card details.',
     browseMore: 'Browse more sessions',
     adminTitle: 'Demo admin',
     adminIntro: 'Manage the local demo schedule and inspect test bookings.',
@@ -497,12 +497,12 @@ const translations = {
     total: '总计',
     continuePayment: '继续付款',
     payment: '付款',
-    paymentIntro: '这是演示付款，不会收集银行卡信息。',
-    demoPayment: '演示付款',
-    demoPaymentIntro: '选择一个结果来测试报名流程。',
-    simulateSuccess: '模拟付款成功',
+    paymentIntro: '付款期间将为你保留名额 30 分钟。',
+    demoPayment: '安全付款',
+    demoPaymentIntro: '前往 Stripe 使用银行卡付款；设备支持时也可使用 Apple Pay 或 Google Pay。',
+    simulateSuccess: '使用 Stripe 安全付款',
     simulateFailure: '模拟付款失败',
-    paymentFailed: '演示付款失败。你的信息仍然保留，可以再次尝试。',
+    paymentFailed: '暂时无法开始安全付款。你的信息仍然保留，可以再次尝试。',
     confirmed: '报名成功',
     confirmationIntro: '你已报名成功，请保存这个编号。',
     bookingReference: '报名编号',
@@ -512,7 +512,7 @@ const translations = {
     levels: '水平',
     bookingConfirmed: '已确认',
     actions: '操作',
-    demoNotice: '演示模式：不会实际扣款，也不会发送消息。',
+    demoNotice: '付款由 Stripe 安全处理，我们不会接触你的银行卡信息。',
     browseMore: '浏览更多场次',
     adminTitle: '演示后台',
     adminIntro: '管理本地演示场次，并查看测试报名。',
@@ -688,6 +688,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [paymentFailed, setPaymentFailed] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [adjustmentNotice, setAdjustmentNotice] = useState('');
   const [confirmation, setConfirmation] = useState<Booking | null>(null);
   const [adminTab, setAdminTab] = useState<AdminTab>('sessions');
@@ -717,6 +718,51 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       setHydrated(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    let cancelled = false;
+
+    const loadSessions = async () => {
+      try {
+        const response = await fetch('/api/sessions', { cache: 'no-store' });
+        if (!response.ok) return;
+        const data = await response.json() as { sessions?: Session[] };
+        if (!cancelled && data.sessions?.length) setSessions(data.sessions);
+      } catch {
+        // The seeded read-only demo remains visible if the server is unavailable.
+      }
+    };
+
+    const reconcileCheckout = async () => {
+      const query = new URLSearchParams(window.location.search);
+      if (query.get('checkout') !== 'success') return;
+      const bookingId = query.get('booking_id');
+      const checkoutSessionId = query.get('checkout_session_id');
+      if (!bookingId || !checkoutSessionId) return;
+      try {
+        const response = await fetch(
+          `/api/bookings/${encodeURIComponent(bookingId)}?checkout_session_id=${encodeURIComponent(checkoutSessionId)}`,
+          { cache: 'no-store' },
+        );
+        if (!response.ok) throw new Error('booking_unavailable');
+        const data = await response.json() as { booking?: Booking };
+        if (!cancelled && data.booking?.status === 'confirmed') {
+          setSelectedSessionId(data.booking.sessionId);
+          setConfirmation(data.booking);
+          setView('confirmation');
+          window.history.replaceState({}, '', '/');
+          window.scrollTo({ top: 0 });
+        }
+      } catch {
+        if (!cancelled) setPaymentFailed(true);
+      }
+    };
+
+    void loadSessions();
+    void reconcileCheckout();
+    return () => { cancelled = true; };
+  }, [hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -937,15 +983,14 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     }
   }
 
-  function completePayment(success: boolean) {
-    if (!success) {
-      setPaymentFailed(true);
-      return;
-    }
+  async function completePayment() {
     if (paymentSubmittingRef.current) return;
     paymentSubmittingRef.current = true;
+    setCheckoutLoading(true);
+    setPaymentFailed(false);
     if (!selectedSession) {
       paymentSubmittingRef.current = false;
+      setCheckoutLoading(false);
       return;
     }
     const liveSession = sessions.find((session) => session.id === selectedSession.id);
@@ -956,35 +1001,42 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       bookingForm.participants.length > liveSession.capacity - liveSession.bookedSpots
     ) {
       paymentSubmittingRef.current = false;
+      setCheckoutLoading(false);
       setBookingStage('details');
       setFormErrors({ participants: t.notEnoughSpots });
       return;
     }
-    const bookingTotalPence =
-      liveSession.pricePence * bookingForm.participants.length +
-      bookingForm.racketCount * RACKET_PRICE_PENCE;
-    const booking: Booking = {
-      id: `TS-${String(Date.now()).slice(-6)}`,
-      sessionId: liveSession.id,
-      contactName: bookingForm.name.trim(),
-      email: bookingForm.email.trim(),
-      phone: bookingForm.phone.trim(),
-      participants: bookingForm.participants,
-      racketCount: bookingForm.racketCount,
-      totalPence: bookingTotalPence,
-      status: 'confirmed',
-      createdAt: new Date().toISOString(),
-    };
-    setBookings((current) => [booking, ...current]);
-    setSessions((current) =>
-      current.map((session) =>
-        session.id === liveSession.id
-          ? { ...session, bookedSpots: session.bookedSpots + booking.participants.length }
-          : session,
-      ),
-    );
-    setConfirmation(booking);
-    navigate('confirmation');
+    try {
+      const response = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: liveSession.id,
+          name: bookingForm.name,
+          email: bookingForm.email,
+          phone: bookingForm.phone,
+          participants: bookingForm.participants,
+          racketCount: bookingForm.racketCount,
+        }),
+      });
+      const data = await response.json() as { checkoutUrl?: string; error?: string };
+      if (!response.ok || !data.checkoutUrl) {
+        if (response.status === 409) {
+          setBookingStage('details');
+          setFormErrors({ participants: t.notEnoughSpots });
+        } else {
+          setPaymentFailed(true);
+        }
+        paymentSubmittingRef.current = false;
+        setCheckoutLoading(false);
+        return;
+      }
+      window.location.assign(data.checkoutUrl);
+    } catch {
+      paymentSubmittingRef.current = false;
+      setCheckoutLoading(false);
+      setPaymentFailed(true);
+    }
   }
 
   function resetDemo() {
@@ -1286,12 +1338,11 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
               <div className="demo-payment-card">
                 <div className="demo-card-icon"><CreditCard size={24} /></div>
                 <div><strong>{t.demoPayment}</strong><span>{t.demoPaymentIntro}</span></div>
-                <Badge variant="secondary">TEST</Badge>
+                <Badge variant="secondary">STRIPE</Badge>
               </div>
               {paymentFailed ? <div className="inline-error"><TriangleAlert size={16} /> {t.paymentFailed}</div> : null}
               <div className="payment-actions">
-                <Button size="lg" className="primary-wide" onClick={() => completePayment(true)}>{t.simulateSuccess}<Check size={17} /></Button>
-                <Button variant="outline" size="lg" className="primary-wide" onClick={() => completePayment(false)}>{t.simulateFailure}</Button>
+                <Button size="lg" className="primary-wide" disabled={checkoutLoading} onClick={() => void completePayment()}>{checkoutLoading ? (language === 'zh' ? '正在打开安全付款…' : 'Opening secure checkout…') : t.simulateSuccess}<ArrowRight size={17} /></Button>
               </div>
             </div>
             {renderSummary()}

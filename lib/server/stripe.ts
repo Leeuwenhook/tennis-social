@@ -1,4 +1,5 @@
 import { getRuntimeEnv } from './runtime';
+import type { GameFormat } from '../demo-data';
 
 type StripeCheckoutSession = {
   id: string;
@@ -23,6 +24,7 @@ async function stripeRequest<T>(path: string, init: RequestInit = {}, idempotenc
 export async function createCheckoutSession(input: {
   bookingId: string;
   sessionId: string;
+  format: GameFormat;
   venueName: string;
   participantCount: number;
   sessionPricePence: number;
@@ -39,13 +41,15 @@ export async function createCheckoutSession(input: {
   params.set('client_reference_id', input.bookingId);
   params.set('metadata[booking_id]', input.bookingId);
   params.set('metadata[session_id]', input.sessionId);
+  params.set('metadata[format]', input.format);
   params.set('payment_intent_data[metadata][booking_id]', input.bookingId);
+  params.set('payment_intent_data[metadata][format]', input.format);
   params.set('expires_at', String(input.expiresAtSeconds));
   params.set('success_url', `${input.origin}/?checkout=success&booking_id=${encodeURIComponent(input.bookingId)}&checkout_session_id={CHECKOUT_SESSION_ID}`);
   params.set('cancel_url', `${input.origin}/?checkout=cancelled&booking_id=${encodeURIComponent(input.bookingId)}`);
   params.set('line_items[0][price_data][currency]', 'gbp');
   params.set('line_items[0][price_data][unit_amount]', String(input.sessionPricePence));
-  params.set('line_items[0][price_data][product_data][name]', `${input.venueName} tennis session`);
+  params.set('line_items[0][price_data][product_data][name]', `${input.venueName} ${input.format} tennis session`);
   params.set('line_items[0][quantity]', String(input.participantCount));
   if (input.racketCount > 0) {
     params.set('line_items[1][price_data][currency]', 'gbp');

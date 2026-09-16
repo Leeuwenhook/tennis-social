@@ -1,8 +1,15 @@
-import { database, ensureSeeded, expireStaleReservations, type BookingRow, type SessionRow } from '@/lib/server/database';
+import {
+  database,
+  DatabaseNotConfiguredError,
+  ensureSeeded,
+  expireStaleReservations,
+  releaseBooking,
+  type BookingRow,
+} from '@/lib/server/database';
+import { GAME_FORMATS, RACKET_PRICE_PENCE, type GameFormat } from '@/lib/demo-data';
 import { createCheckoutSession } from '@/lib/server/stripe';
 
 const LEVELS = new Set(['1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0']);
-const RACKET_PRICE_PENCE = 200;
 const VENUE_NAMES: Record<string, string> = {
   'victoria-park': 'Victoria Park',
   'vauxhall-park': 'Vauxhall Park',
@@ -17,6 +24,7 @@ type CheckoutInput = {
   email?: unknown;
   phone?: unknown;
   participants?: unknown;
+  format?: unknown;
   racketCount?: unknown;
 };
 
@@ -24,7 +32,39 @@ function cleanString(value: unknown, maxLength: number) {
   return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
 }
 
+function parseFormats(value: string): GameFormat[] {
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (Array.isArray(parsed)) {
+      const valid = parsed.filter((format): format is GameFormat => GAME_FORMATS.includes(format as GameFormat));
+      if (valid.length) return [...new Set(valid)];
+    }
+  } catch {
+    // A legacy or malformed value falls back to the original all-format behaviour.
+  }
+  return [...GAME_FORMATS];
+}
+
+function londonClock() {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return {
+    date: `${values.year}-${values.month}-${values.day}`,
+    time: `${values.hour}:${values.minute}:${values.second}`,
+  };
+}
+
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
   let input: CheckoutInput;
@@ -39,81 +79,111 @@ export async function POST(request: Request) {
   const email = cleanString(input.email, 254).toLowerCase();
   const phone = cleanString(input.phone, 40);
   const participants = Array.isArray(input.participants)
-    ? input.participants.filter((level): level is string => typeof level === 'string')
+    ? input.participants.map((level) => typeof level === 'string' ? level : '')
     : [];
+  const format = GAME_FORMATS.includes(input.format as GameFormat) ? input.format as GameFormat : '';
   const racketCount = Number(input.racketCount);
   if (
     !sessionId || !name || !/^\S+@\S+\.\S+$/.test(email) ||
     participants.length < 1 || participants.length > 8 || participants.some((level) => !LEVELS.has(level)) ||
+    !format ||
     !Number.isInteger(racketCount) || racketCount < 0 || racketCount > participants.length
   ) {
     return Response.json({ error: 'invalid_booking' }, { status: 400 });
   }
 
-  const db = database();
-  await ensureSeeded(db);
-  await expireStaleReservations(db);
-  const session = await db.prepare(`
-    SELECT id, venue_id, date, start_time, end_time, price_pence, capacity,
-           booked_spots, status, description, description_zh
-    FROM sessions WHERE id = ?
-  `).bind(sessionId).first<SessionRow>();
-  if (!session || session.status !== 'published') {
-    return Response.json({ error: 'session_unavailable' }, { status: 409 });
-  }
-
-  const bookingId = `TS-${crypto.randomUUID()}`;
-  const now = new Date();
-  const expiresAtSeconds = Math.floor(now.getTime() / 1000) + 30 * 60;
-  const expiresAt = new Date(expiresAtSeconds * 1000).toISOString();
-  const totalPence = session.price_pence * participants.length + RACKET_PRICE_PENCE * racketCount;
-
   try {
-    await db.prepare(`
+    const db = database();
+    await ensureSeeded(db);
+    await expireStaleReservations(db);
+
+    const formatRows = await db`
+      SELECT formats_json
+      FROM sessions
+      WHERE id = ${sessionId}
+    ` as Array<{ formats_json: string }>;
+    if (!formatRows[0]) return Response.json({ error: 'session_unavailable' }, { status: 409 });
+    if (!parseFormats(formatRows[0].formats_json).includes(format)) {
+      return Response.json({ error: 'format_unavailable' }, { status: 409 });
+    }
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const expiresAtSeconds = Math.floor(now.getTime() / 1000) + 30 * 60;
+    const expiresAt = new Date(expiresAtSeconds * 1000).toISOString();
+    const clock = londonClock();
+    const bookingId = `TS-${crypto.randomUUID()}`;
+
+    // The conditional update and insert are one Postgres statement, so two
+    // visitors cannot reserve the same last place at the same time.
+    const rows = await db`
+      WITH reserved AS (
+        UPDATE sessions
+        SET booked_spots = booked_spots + ${participants.length}, updated_at = ${nowIso}
+        WHERE id = ${sessionId}
+          AND status = 'published'
+          AND (date > ${clock.date} OR (date = ${clock.date} AND end_time > ${clock.time}))
+          AND booked_spots + ${participants.length} <= capacity
+        RETURNING id, venue_id, price_pence
+      )
       INSERT INTO bookings (
         id, session_id, contact_name, email, phone, participants_json,
-        participant_count, racket_count, session_price_pence, racket_price_pence,
+        format, participant_count, racket_count, session_price_pence, racket_price_pence,
         total_pence, status, expires_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending_payment', ?, ?, ?)
-    `).bind(
-      bookingId, session.id, name, email, phone, JSON.stringify(participants),
-      participants.length, racketCount, session.price_pence, RACKET_PRICE_PENCE,
-      totalPence, expiresAt, now.toISOString(), now.toISOString(),
-    ).run();
-  } catch (error) {
-    console.error('Unable to reserve places', error);
-    return Response.json({ error: 'not_enough_spots' }, { status: 409 });
-  }
+      )
+      SELECT
+        ${bookingId}, reserved.id, ${name}, ${email}, ${phone}, ${JSON.stringify(participants)},
+        ${format}, ${participants.length}, ${racketCount}, reserved.price_pence, ${RACKET_PRICE_PENCE},
+        reserved.price_pence * ${participants.length} + ${RACKET_PRICE_PENCE * racketCount},
+        'pending_payment', ${expiresAt}, ${nowIso}, ${nowIso}
+      FROM reserved
+      RETURNING id, session_id, contact_name, email, phone, participants_json,
+                format, participant_count, racket_count, session_price_pence, racket_price_pence,
+                total_pence, status, stripe_checkout_session_id,
+                stripe_payment_intent_id, checkout_url, expires_at, created_at, updated_at
+    ` as BookingRow[];
+    const booking = rows[0];
+    if (!booking) return Response.json({ error: 'session_unavailable' }, { status: 409 });
 
-  try {
-    const checkout = await createCheckoutSession({
-      bookingId,
-      sessionId: session.id,
-      venueName: VENUE_NAMES[session.venue_id] ?? 'Tennis Social',
-      participantCount: participants.length,
-      sessionPricePence: session.price_pence,
-      racketCount,
-      racketPricePence: RACKET_PRICE_PENCE,
-      email,
-      origin: new URL(request.url).origin,
-      expiresAtSeconds,
-    });
-    if (!checkout.url) throw new Error('stripe_checkout_url_missing');
-    await db.prepare(`
-      UPDATE bookings
-      SET stripe_checkout_session_id = ?, checkout_url = ?, updated_at = ?
-      WHERE id = ? AND status = 'pending_payment'
-    `).bind(checkout.id, checkout.url, new Date().toISOString(), bookingId).run();
-    return Response.json({ bookingId, checkoutUrl: checkout.url, expiresAt });
+    try {
+      const venueRows = await db`
+        SELECT venue_id
+        FROM sessions
+        WHERE id = ${booking.session_id}
+      ` as Array<{ venue_id: string }>;
+      const checkout = await createCheckoutSession({
+        bookingId: booking.id,
+        sessionId: booking.session_id,
+        format: booking.format,
+        venueName: VENUE_NAMES[venueRows[0]?.venue_id] ?? 'Tennis Social',
+        participantCount: booking.participant_count,
+        sessionPricePence: booking.session_price_pence,
+        racketCount: booking.racket_count,
+        racketPricePence: booking.racket_price_pence,
+        email: booking.email,
+        origin: new URL(request.url).origin,
+        expiresAtSeconds,
+      });
+      if (!checkout.url) throw new Error('stripe_checkout_url_missing');
+      await db`
+        UPDATE bookings
+        SET stripe_checkout_session_id = ${checkout.id}, checkout_url = ${checkout.url}, updated_at = ${new Date().toISOString()}
+        WHERE id = ${booking.id} AND status = 'pending_payment'
+      `;
+      return Response.json({ bookingId: booking.id, checkoutUrl: checkout.url, expiresAt });
+    } catch (error) {
+      console.error('Unable to create Stripe Checkout Session', error);
+      await releaseBooking(db, booking.id, 'payment_failed');
+      const message = error instanceof Error && error.message === 'stripe_not_configured'
+        ? 'stripe_not_configured'
+        : 'payment_service_unavailable';
+      return Response.json({ error: message }, { status: 503 });
+    }
   } catch (error) {
-    console.error('Unable to create Stripe Checkout Session', error);
-    await db.prepare(`
-      UPDATE bookings SET status = 'payment_failed', updated_at = ?
-      WHERE id = ? AND status = 'pending_payment'
-    `).bind(new Date().toISOString(), bookingId).run();
-    const message = error instanceof Error && error.message === 'stripe_not_configured'
-      ? 'stripe_not_configured'
-      : 'payment_service_unavailable';
-    return Response.json({ error: message }, { status: 503 });
+    if (error instanceof DatabaseNotConfiguredError) {
+      return Response.json({ error: 'database_not_configured' }, { status: 503 });
+    }
+    console.error('Unable to reserve places', error);
+    return Response.json({ error: 'database_unavailable' }, { status: 503 });
   }
 }

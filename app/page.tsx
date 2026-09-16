@@ -6,6 +6,7 @@ import CalendarDays from 'lucide-react/dist/esm/icons/calendar-days.mjs';
 import Check from 'lucide-react/dist/esm/icons/check.mjs';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right.mjs';
 import Clock3 from 'lucide-react/dist/esm/icons/clock-3.mjs';
+import CircleDot from 'lucide-react/dist/esm/icons/circle-dot.mjs';
 import CreditCard from 'lucide-react/dist/esm/icons/credit-card.mjs';
 import Globe2 from 'lucide-react/dist/esm/icons/globe-2.mjs';
 import MapPin from 'lucide-react/dist/esm/icons/map-pin.mjs';
@@ -24,6 +25,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  createDemoBookings,
+  createDemoSessions,
+  GAME_FORMATS,
+  RACKET_PRICE_PENCE,
+  venues,
+  type GameFormat,
+  type Venue,
+} from '@/lib/demo-data';
 
 type Language = 'en' | 'zh';
 type View = 'home' | 'detail' | 'booking' | 'confirmation' | 'admin';
@@ -46,15 +56,6 @@ type ModelContext = {
   ) => void | Promise<void>;
 };
 
-type Venue = {
-  id: string;
-  name: string;
-  nameZh: string;
-  area: string;
-  areaZh: string;
-  photo: string;
-};
-
 type Session = {
   id: string;
   venueId: string;
@@ -64,6 +65,7 @@ type Session = {
   pricePence: number;
   capacity: number;
   bookedSpots: number;
+  formats: GameFormat[];
   status: SessionStatus;
   description: string;
   descriptionZh: string;
@@ -76,6 +78,7 @@ type Booking = {
   email: string;
   phone: string;
   participants: string[];
+  format: GameFormat;
   racketCount: number;
   totalPence: number;
   status: BookingStatus;
@@ -90,252 +93,20 @@ type SessionDraft = {
   endTime: string;
   price: string;
   capacity: string;
+  formats: GameFormat[];
   description: string;
   descriptionZh: string;
   status: SessionStatus;
 };
 
 const LEVELS = ['1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0'];
-const RACKET_PRICE_PENCE = 200;
-const SESSION_STORAGE_KEY = 'tennis-social-sessions-v1';
-const BOOKING_STORAGE_KEY = 'tennis-social-bookings-v1';
+const SESSION_STORAGE_KEY = 'tennis-social-sessions-v2';
+const BOOKING_STORAGE_KEY = 'tennis-social-bookings-v2';
 const LANGUAGE_STORAGE_KEY = 'tennis-social-language-v1';
 
-const venues: Venue[] = [
-  {
-    id: 'victoria-park',
-    name: 'Victoria Park',
-    nameZh: '维多利亚公园',
-    area: 'Tower Hamlets',
-    areaZh: 'Tower Hamlets 区',
-    photo: '/venues/victoria-park.jpg',
-  },
-  {
-    id: 'vauxhall-park',
-    name: 'Vauxhall Park',
-    nameZh: '沃克斯豪尔公园',
-    area: 'Lambeth',
-    areaZh: 'Lambeth 区',
-    photo: '/venues/vauxhall-park.jpg',
-  },
-  {
-    id: 'bethnal-green',
-    name: 'Bethnal Green',
-    nameZh: '贝斯纳尔格林',
-    area: 'East London',
-    areaZh: '东伦敦',
-    photo: '/venues/bethnal-green.jpg',
-  },
-  {
-    id: 'poplar-rec-ground',
-    name: 'Poplar Rec Ground',
-    nameZh: 'Poplar Rec Ground',
-    area: 'Poplar',
-    areaZh: 'Poplar 区',
-    photo: '/venues/poplar-rec-ground.jpg',
-  },
-  {
-    id: 'king-edward-memorial-park',
-    name: 'King Edward Memorial Park',
-    nameZh: 'King Edward Memorial Park',
-    area: 'Shadwell',
-    areaZh: 'Shadwell 区',
-    photo: '/venues/king-edward-memorial-park.jpg',
-  },
-];
+const seededSessions: Session[] = createDemoSessions();
 
-const seededSessions: Session[] = [
-  {
-    id: 'session-victoria-thursday',
-    venueId: 'victoria-park',
-    date: '2026-09-10',
-    startTime: '18:30',
-    endTime: '20:30',
-    pricePence: 1000,
-    capacity: 8,
-    bookedSpots: 4,
-    status: 'published',
-    description: 'A relaxed midweek hit with rotating doubles and friendly match play.',
-    descriptionZh: '轻松的工作日晚间约球，轮换双打并穿插友谊赛。',
-  },
-  {
-    id: 'session-vauxhall-friday',
-    venueId: 'vauxhall-park',
-    date: '2026-09-11',
-    startTime: '18:00',
-    endTime: '20:30',
-    pricePence: 1200,
-    capacity: 6,
-    bookedSpots: 5,
-    status: 'published',
-    description: 'Friday evening tennis on a bright, quiet court. One place left.',
-    descriptionZh: '周五晚在安静明亮的球场打球，目前只剩 1 个名额。',
-  },
-  {
-    id: 'session-bethnal-saturday',
-    venueId: 'bethnal-green',
-    date: '2026-09-12',
-    startTime: '10:00',
-    endTime: '12:00',
-    pricePence: 900,
-    capacity: 8,
-    bookedSpots: 8,
-    status: 'published',
-    description: 'A full Saturday morning group with structured doubles rotations.',
-    descriptionZh: '周六上午的固定小组活动，安排双打轮换。',
-  },
-  {
-    id: 'session-poplar-sunday',
-    venueId: 'poplar-rec-ground',
-    date: '2026-09-13',
-    startTime: '11:30',
-    endTime: '14:00',
-    pricePence: 800,
-    capacity: 6,
-    bookedSpots: 2,
-    status: 'published',
-    description: 'Longer Sunday session with plenty of time to warm up and play through.',
-    descriptionZh: '周日较长时段，留出充分热身和连续对打时间。',
-  },
-  {
-    id: 'session-king-edward-tuesday',
-    venueId: 'king-edward-memorial-park',
-    date: '2026-09-15',
-    startTime: '18:30',
-    endTime: '21:00',
-    pricePence: 1100,
-    capacity: 6,
-    bookedSpots: 3,
-    status: 'published',
-    description: 'A riverside evening session with a mix of drills and open games.',
-    descriptionZh: '河边晚间活动，结合简单练习和自由对打。',
-  },
-  {
-    id: 'session-victoria-wednesday',
-    venueId: 'victoria-park',
-    date: '2026-09-16',
-    startTime: '19:00',
-    endTime: '21:00',
-    pricePence: 1500,
-    capacity: 4,
-    bookedSpots: 3,
-    status: 'published',
-    description: 'Small-group evening tennis for focused rallies and competitive points.',
-    descriptionZh: '小组晚间约球，适合专注对拉和更有竞争感的回合。',
-  },
-  {
-    id: 'session-vauxhall-saturday',
-    venueId: 'vauxhall-park',
-    date: '2026-09-19',
-    startTime: '09:30',
-    endTime: '12:00',
-    pricePence: 1000,
-    capacity: 8,
-    bookedSpots: 0,
-    status: 'published',
-    description: 'A fresh Saturday morning start for singles, doubles and new faces.',
-    descriptionZh: '周六上午轻松开场，欢迎单打、双打和第一次来的朋友。',
-  },
-];
-
-const seededBookings: Booking[] = [
-  {
-    id: 'TS-DEMO01',
-    sessionId: 'session-victoria-thursday',
-    contactName: 'Alex Morgan',
-    email: 'alex@example.com',
-    phone: '',
-    participants: ['3.0', '3.5'],
-    racketCount: 0,
-    totalPence: 2000,
-    status: 'confirmed',
-    createdAt: '2026-09-01T09:30:00.000Z',
-  },
-  {
-    id: 'TS-DEMO02',
-    sessionId: 'session-victoria-thursday',
-    contactName: 'Jamie Chen',
-    email: 'jamie@example.com',
-    phone: '',
-    participants: ['2.5', '3.0'],
-    racketCount: 0,
-    totalPence: 2000,
-    status: 'confirmed',
-    createdAt: '2026-09-02T14:15:00.000Z',
-  },
-  {
-    id: 'TS-DEMO03',
-    sessionId: 'session-vauxhall-friday',
-    contactName: 'Sam Taylor',
-    email: 'sam@example.com',
-    phone: '',
-    participants: ['4.0'],
-    racketCount: 1,
-    totalPence: 1400,
-    status: 'confirmed',
-    createdAt: '2026-09-03T10:00:00.000Z',
-  },
-  {
-    id: 'TS-DEMO04',
-    sessionId: 'session-vauxhall-friday',
-    contactName: 'Morgan Lee',
-    email: 'morgan@example.com',
-    phone: '',
-    participants: ['3.5'],
-    racketCount: 0,
-    totalPence: 1200,
-    status: 'confirmed',
-    createdAt: '2026-09-03T17:45:00.000Z',
-  },
-  {
-    id: 'TS-DEMO05',
-    sessionId: 'session-vauxhall-friday',
-    contactName: 'Priya Shah',
-    email: 'priya@example.com',
-    phone: '',
-    participants: ['3.0'],
-    racketCount: 0,
-    totalPence: 1200,
-    status: 'confirmed',
-    createdAt: '2026-09-04T08:20:00.000Z',
-  },
-  {
-    id: 'TS-DEMO06',
-    sessionId: 'session-vauxhall-friday',
-    contactName: 'Chris Wood',
-    email: 'chris@example.com',
-    phone: '',
-    participants: ['2.0'],
-    racketCount: 0,
-    totalPence: 1200,
-    status: 'confirmed',
-    createdAt: '2026-09-04T11:05:00.000Z',
-  },
-  {
-    id: 'TS-DEMO07',
-    sessionId: 'session-vauxhall-friday',
-    contactName: 'Taylor Jones',
-    email: 'taylor@example.com',
-    phone: '',
-    participants: ['4.5'],
-    racketCount: 0,
-    totalPence: 1200,
-    status: 'confirmed',
-    createdAt: '2026-09-04T16:40:00.000Z',
-  },
-  {
-    id: 'TS-DEMO08',
-    sessionId: 'session-vauxhall-friday',
-    contactName: 'Robin Green',
-    email: 'robin@example.com',
-    phone: '',
-    participants: ['3.5'],
-    racketCount: 0,
-    totalPence: 1200,
-    status: 'confirmed',
-    createdAt: '2026-09-05T12:20:00.000Z',
-  },
-];
+const seededBookings: Booking[] = createDemoBookings(seededSessions);
 
 const translations = {
   en: {
@@ -364,6 +135,13 @@ const translations = {
     location: 'Location',
     duration: 'Duration',
     pricePerPerson: 'Price per person',
+    format: 'Format',
+    formats: 'Formats',
+    singles: 'Singles',
+    doubles: 'Doubles',
+    availableFormats: 'Available formats',
+    chooseFormat: 'Choose a format.',
+    chooseAtLeastOneFormat: 'Choose at least one format.',
     availability: 'Availability',
     noLevelLimit: 'No level limit for this session',
     bringFriends: 'Bring friends',
@@ -397,6 +175,7 @@ const translations = {
     simulateSuccess: 'Pay securely with Stripe',
     simulateFailure: 'Simulate failed payment',
     paymentFailed: 'We could not start the secure checkout. Your details are still here, so you can try again.',
+    paymentCancelled: 'Checkout was cancelled. Your details are still here if you want to try again.',
     confirmed: 'Booking confirmed',
     confirmationIntro: 'You’re booked in. Keep this reference for the session.',
     bookingReference: 'Booking reference',
@@ -409,7 +188,7 @@ const translations = {
     demoNotice: 'Payment is securely processed by Stripe. We never receive your card details.',
     browseMore: 'Browse more sessions',
     adminTitle: 'Demo admin',
-    adminIntro: 'Manage the local demo schedule and inspect test bookings.',
+    adminIntro: 'Manage the shared demo schedule and inspect test bookings.',
     manageSessions: 'Manage sessions',
     viewBookings: 'View bookings',
     addSession: 'Add session',
@@ -443,6 +222,12 @@ const translations = {
     lockedFields: 'Venue, date, time and price are locked while this session has active bookings.',
     emptyBookings: 'No bookings yet.',
     saveFailed: 'Please check the session details.',
+    saving: 'Saving…',
+    pendingPayment: 'Payment pending',
+    expired: 'Expired',
+    paymentFailedStatus: 'Payment failed',
+    refunded: 'Refunded',
+    dataUnavailable: 'The shared demo data is unavailable right now.',
     london: 'London time',
   },
   zh: {
@@ -470,6 +255,13 @@ const translations = {
     location: '地点',
     duration: '时长',
     pricePerPerson: '每人价格',
+    format: '比赛形式',
+    formats: '比赛形式',
+    singles: '单打',
+    doubles: '双打',
+    availableFormats: '可选比赛形式',
+    chooseFormat: '请选择单打或双打。',
+    chooseAtLeastOneFormat: '请至少选择一种比赛形式。',
     availability: '名额情况',
     noLevelLimit: '本场暂不设水平限制',
     bringFriends: '带朋友一起',
@@ -503,6 +295,7 @@ const translations = {
     simulateSuccess: '使用 Stripe 安全付款',
     simulateFailure: '模拟付款失败',
     paymentFailed: '暂时无法开始安全付款。你的信息仍然保留，可以再次尝试。',
+    paymentCancelled: '你已取消付款。报名信息仍然保留，可以再次尝试。',
     confirmed: '报名成功',
     confirmationIntro: '你已报名成功，请保存这个编号。',
     bookingReference: '报名编号',
@@ -515,7 +308,7 @@ const translations = {
     demoNotice: '付款由 Stripe 安全处理，我们不会接触你的银行卡信息。',
     browseMore: '浏览更多场次',
     adminTitle: '演示后台',
-    adminIntro: '管理本地演示场次，并查看测试报名。',
+    adminIntro: '管理共享演示场次，并查看测试报名。',
     manageSessions: '管理场次',
     viewBookings: '查看报名',
     addSession: '新增场次',
@@ -549,12 +342,61 @@ const translations = {
     lockedFields: '该场次已有有效报名，场地、日期、时间和价格已锁定。',
     emptyBookings: '还没有报名记录。',
     saveFailed: '请检查场次信息。',
+    saving: '保存中…',
+    pendingPayment: '待付款',
+    expired: '已过期',
+    paymentFailedStatus: '付款失败',
+    refunded: '已退款',
+    dataUnavailable: '共享演示数据暂时不可用。',
     london: '伦敦当地时间',
   },
 } as const;
 
-function getVenue(venueId: string) {
+function getVenue(venueId: string): Venue {
   return venues.find((venue) => venue.id === venueId) ?? venues[0];
+}
+
+function validFormats(value: unknown): GameFormat[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((format): format is GameFormat => GAME_FORMATS.includes(format as GameFormat)))];
+}
+
+function normalizeFormats(value: unknown): GameFormat[] {
+  const formats = validFormats(value);
+  return formats.length ? formats : [...GAME_FORMATS];
+}
+
+function formatNames(
+  formats: GameFormat[],
+  labels: { singles: string; doubles: string },
+) {
+  return formats.map((format) => labels[format]).join(' · ');
+}
+
+function normalizeSession(session: Session): Session {
+  return { ...session, formats: normalizeFormats((session as Session & { formats?: unknown }).formats) };
+}
+
+function normalizeBooking(booking: Booking): Booking {
+  const format = (booking as Booking & { format?: unknown }).format;
+  return {
+    ...booking,
+    format: GAME_FORMATS.includes(format as GameFormat) ? format as GameFormat : 'singles',
+  };
+}
+
+function bookingStatusLabel(
+  status: BookingStatus,
+  labels: Record<'bookingConfirmed' | 'pendingPayment' | 'expired' | 'paymentFailedStatus' | 'refunded' | 'cancelled', string>,
+) {
+  switch (status) {
+    case 'confirmed': return labels.bookingConfirmed;
+    case 'pending_payment': return labels.pendingPayment;
+    case 'expired': return labels.expired;
+    case 'payment_failed': return labels.paymentFailedStatus;
+    case 'refunded': return labels.refunded;
+    case 'cancelled': return labels.cancelled;
+  }
 }
 
 function formatMoney(pence: number, language: Language) {
@@ -600,7 +442,19 @@ function formatDuration(startTime: string, endTime: string, language: Language) 
 }
 
 function isPast(session: Session) {
-  return new Date(`${session.date}T${session.endTime}:00+01:00`).getTime() < Date.now();
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  const londonNow = `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}:${values.second}`;
+  return `${session.date}T${session.endTime}:00` <= londonNow;
 }
 
 function sessionSort(a: Session, b: Session) {
@@ -608,14 +462,16 @@ function sessionSort(a: Session, b: Session) {
 }
 
 function emptyDraft(): SessionDraft {
+  const defaultDate = createDemoSessions()[6]?.date ?? createDemoSessions()[0]?.date ?? '';
   return {
     id: null,
     venueId: venues[0].id,
-    date: '2026-09-20',
+    date: defaultDate,
     startTime: '18:30',
     endTime: '20:30',
     price: '10',
     capacity: '8',
+    formats: [...GAME_FORMATS],
     description: 'A friendly tennis session for new and returning players.',
     descriptionZh: '适合新朋友和熟悉球友的轻松网球活动。',
     status: 'published',
@@ -683,17 +539,20 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     email: '',
     phone: '',
     participants: [''],
+    format: '' as GameFormat | '',
     racketCount: 0,
     includeFriends: false,
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [paymentFailed, setPaymentFailed] = useState(false);
+  const [paymentCancelled, setPaymentCancelled] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [adjustmentNotice, setAdjustmentNotice] = useState('');
   const [confirmation, setConfirmation] = useState<Booking | null>(null);
   const [adminTab, setAdminTab] = useState<AdminTab>('sessions');
   const [draft, setDraft] = useState<SessionDraft>(emptyDraft);
   const [adminMessage, setAdminMessage] = useState('');
+  const [adminBusy, setAdminBusy] = useState(false);
   const sessionsRef = useRef(sessions);
   const openSessionRef = useRef<(sessionId: string) => void>(() => undefined);
   const paymentSubmittingRef = useRef(false);
@@ -709,8 +568,14 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       const savedSessions = window.localStorage.getItem(SESSION_STORAGE_KEY);
       const savedBookings = window.localStorage.getItem(BOOKING_STORAGE_KEY);
       const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-      if (savedSessions) setSessions(JSON.parse(savedSessions) as Session[]);
-      if (savedBookings) setBookings(JSON.parse(savedBookings) as Booking[]);
+      if (savedSessions) {
+        const parsedSessions = JSON.parse(savedSessions) as Session[];
+        setSessions(parsedSessions.map(normalizeSession));
+      }
+      if (savedBookings) {
+        const parsedBookings = JSON.parse(savedBookings) as Booking[];
+        setBookings(parsedBookings.map(normalizeBooking));
+      }
       if (savedLanguage === 'en' || savedLanguage === 'zh') setLanguageValue(savedLanguage);
     } catch {
       // If local storage is unavailable, the seeded demo remains usable.
@@ -728,7 +593,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         const response = await fetch('/api/sessions', { cache: 'no-store' });
         if (!response.ok) return;
         const data = await response.json() as { sessions?: Session[] };
-        if (!cancelled && data.sessions?.length) setSessions(data.sessions);
+        if (!cancelled && data.sessions?.length) setSessions(data.sessions.map(normalizeSession));
       } catch {
         // The seeded read-only demo remains visible if the server is unavailable.
       }
@@ -736,7 +601,38 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
 
     const reconcileCheckout = async () => {
       const query = new URLSearchParams(window.location.search);
-      if (query.get('checkout') !== 'success') return;
+      const checkoutState = query.get('checkout');
+      if (checkoutState === 'cancelled') {
+        const draftValue = window.sessionStorage.getItem('tennis-social-checkout-draft-v1');
+        if (draftValue) {
+          try {
+            const saved = JSON.parse(draftValue) as {
+              sessionId?: unknown;
+              bookingForm?: typeof bookingForm;
+            };
+            if (typeof saved.sessionId === 'string' && saved.bookingForm?.participants?.length) {
+              const restoredSession = sessionsRef.current.find((session) => session.id === saved.sessionId);
+              const availableFormats = restoredSession?.formats ?? [...GAME_FORMATS];
+              const savedFormat = saved.bookingForm.format;
+              const restoredFormat = GAME_FORMATS.includes(savedFormat as GameFormat) && availableFormats.includes(savedFormat as GameFormat)
+                ? savedFormat as GameFormat
+                : availableFormats[0];
+              setSelectedSessionId(saved.sessionId);
+              setBookingForm({ ...saved.bookingForm, format: restoredFormat });
+              setBookingStage('payment');
+              setPaymentCancelled(true);
+              setView('booking');
+              window.sessionStorage.removeItem('tennis-social-checkout-draft-v1');
+              window.history.replaceState({}, '', '/');
+              window.scrollTo({ top: 0 });
+            }
+          } catch {
+            window.sessionStorage.removeItem('tennis-social-checkout-draft-v1');
+          }
+        }
+        return;
+      }
+      if (checkoutState !== 'success') return;
       const bookingId = query.get('booking_id');
       const checkoutSessionId = query.get('checkout_session_id');
       if (!bookingId || !checkoutSessionId) return;
@@ -749,8 +645,9 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         const data = await response.json() as { booking?: Booking };
         if (!cancelled && data.booking?.status === 'confirmed') {
           setSelectedSessionId(data.booking.sessionId);
-          setConfirmation(data.booking);
+          setConfirmation(normalizeBooking(data.booking));
           setView('confirmation');
+          window.sessionStorage.removeItem('tennis-social-checkout-draft-v1');
           window.history.replaceState({}, '', '/');
           window.scrollTo({ top: 0 });
         }
@@ -763,6 +660,23 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     void reconcileCheckout();
     return () => { cancelled = true; };
   }, [hydrated]);
+
+  useEffect(() => {
+    if (!hydrated || view !== 'admin') return;
+    let cancelled = false;
+    const loadAdminBookings = async () => {
+      try {
+        const response = await fetch('/api/admin/bookings', { cache: 'no-store' });
+        if (!response.ok) return;
+        const data = await response.json() as { bookings?: Booking[] };
+        if (!cancelled && data.bookings) setBookings(data.bookings.map(normalizeBooking));
+      } catch {
+        // The browser cache remains available for local previews without a database.
+      }
+    };
+    void loadAdminBookings();
+    return () => { cancelled = true; };
+  }, [hydrated, view]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -819,6 +733,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     setSelectedSessionId(sessionId);
     setFormErrors({});
     setPaymentFailed(false);
+    setPaymentCancelled(false);
     navigate('detail');
   }
 
@@ -854,6 +769,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                     startTime: session.startTime,
                     endTime: session.endTime,
                     pricePence: session.pricePence,
+                    formats: session.formats,
                     placesLeft: Math.max(0, session.capacity - session.bookedSpots),
                   };
                 }),
@@ -900,10 +816,19 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   function beginBooking() {
     if (!selectedSession || selectedSession.status !== 'published') return;
     if (selectedSession.capacity - selectedSession.bookedSpots < 1) return;
-    setBookingForm({ name: '', email: '', phone: '', participants: [''], racketCount: 0, includeFriends: false });
+    setBookingForm({
+      name: '',
+      email: '',
+      phone: '',
+      participants: [''],
+      format: selectedSession.formats[0] ?? GAME_FORMATS[0],
+      racketCount: 0,
+      includeFriends: false,
+    });
     setBookingStage('details');
     setFormErrors({});
     setPaymentFailed(false);
+    setPaymentCancelled(false);
     setAdjustmentNotice('');
     paymentSubmittingRef.current = false;
     navigate('booking');
@@ -963,6 +888,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     const errors: Record<string, string> = {};
     if (!bookingForm.name.trim() || !bookingForm.email.trim()) errors.contact = t.allRequired;
     if (bookingForm.email && !/^\S+@\S+\.\S+$/.test(bookingForm.email)) errors.email = t.validEmail;
+    if (!selectedSession || !bookingForm.format || !selectedSession.formats.includes(bookingForm.format)) errors.format = t.chooseFormat;
     if (bookingForm.participants.some((level) => !level)) errors.participants = t.chooseLevels;
     if (
       selectedSession &&
@@ -978,6 +904,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     event.preventDefault();
     if (validateBooking()) {
       setPaymentFailed(false);
+      setPaymentCancelled(false);
       setBookingStage('payment');
       scrollTop();
     }
@@ -988,22 +915,25 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     paymentSubmittingRef.current = true;
     setCheckoutLoading(true);
     setPaymentFailed(false);
+    setPaymentCancelled(false);
     if (!selectedSession) {
       paymentSubmittingRef.current = false;
       setCheckoutLoading(false);
       return;
     }
     const liveSession = sessions.find((session) => session.id === selectedSession.id);
+    const formatUnavailable = !bookingForm.format || !liveSession?.formats.includes(bookingForm.format);
     if (
       !liveSession ||
       liveSession.status !== 'published' ||
       isPast(liveSession) ||
+      formatUnavailable ||
       bookingForm.participants.length > liveSession.capacity - liveSession.bookedSpots
     ) {
       paymentSubmittingRef.current = false;
       setCheckoutLoading(false);
       setBookingStage('details');
-      setFormErrors({ participants: t.notEnoughSpots });
+      setFormErrors(formatUnavailable ? { format: t.chooseFormat } : { participants: t.notEnoughSpots });
       return;
     }
     try {
@@ -1016,6 +946,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           email: bookingForm.email,
           phone: bookingForm.phone,
           participants: bookingForm.participants,
+          format: bookingForm.format,
           racketCount: bookingForm.racketCount,
         }),
       });
@@ -1023,7 +954,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       if (!response.ok || !data.checkoutUrl) {
         if (response.status === 409) {
           setBookingStage('details');
-          setFormErrors({ participants: t.notEnoughSpots });
+          setFormErrors(data.error === 'format_unavailable' ? { format: t.chooseFormat } : { participants: t.notEnoughSpots });
         } else {
           setPaymentFailed(true);
         }
@@ -1031,6 +962,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         setCheckoutLoading(false);
         return;
       }
+      window.sessionStorage.setItem('tennis-social-checkout-draft-v1', JSON.stringify({
+        sessionId: liveSession.id,
+        bookingForm,
+      }));
       window.location.assign(data.checkoutUrl);
     } catch {
       paymentSubmittingRef.current = false;
@@ -1039,16 +974,35 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     }
   }
 
-  function resetDemo() {
+  async function resetDemo() {
     if (!window.confirm(t.resetConfirm)) return;
-    setSessions(seededSessions);
-    setBookings(seededBookings);
+    setAdminBusy(true);
+    let resetFromServer = false;
+    try {
+      const response = await fetch('/api/admin/reset', { method: 'POST' });
+      if (response.ok) {
+        const data = await response.json() as { sessions?: Session[]; bookings?: Booking[] };
+        if (data.sessions && data.bookings) {
+          setSessions(data.sessions);
+          setBookings(data.bookings);
+          resetFromServer = true;
+        }
+      }
+    } catch {
+      // Fall back to a browser-only reset for local previews without Postgres.
+    }
+    if (!resetFromServer) {
+      const nextSessions = createDemoSessions() as Session[];
+      setSessions(nextSessions);
+      setBookings(createDemoBookings(nextSessions) as Booking[]);
+    }
     setConfirmation(null);
     setSelectedSessionId(null);
     setDraft(emptyDraft());
     setAdminMessage(t.resetDone);
     paymentSubmittingRef.current = false;
     cancellingBookingRef.current.clear();
+    setAdminBusy(false);
     navigate('admin');
   }
 
@@ -1061,6 +1015,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       endTime: session.endTime,
       price: String(session.pricePence / 100),
       capacity: String(session.capacity),
+      formats: normalizeFormats(session.formats),
       description: session.description,
       descriptionZh: session.descriptionZh,
       status: session.status,
@@ -1069,10 +1024,15 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     scrollTop();
   }
 
-  function saveDraft(event: FormEvent<HTMLFormElement>) {
+  async function saveDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const pricePence = Math.round(Number(draft.price) * 100);
     const capacity = Number(draft.capacity);
+    const formats = validFormats(draft.formats);
+    if (!formats.length) {
+      setAdminMessage(t.chooseAtLeastOneFormat);
+      return;
+    }
     if (
       !draft.date ||
       !draft.startTime ||
@@ -1097,7 +1057,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       return;
     }
     const nextSession: Session = {
-      id: draft.id ?? `session-${Date.now()}`,
+      id: draft.id ?? `session-${crypto.randomUUID()}`,
       venueId: draft.venueId,
       date: draft.date,
       startTime: draft.startTime,
@@ -1105,20 +1065,67 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       pricePence,
       capacity,
       bookedSpots: existing?.bookedSpots ?? 0,
+      formats,
       status: draft.status,
       description: draft.description.trim(),
       descriptionZh: draft.descriptionZh.trim(),
     };
-    setSessions((current) =>
-      existing
+    const payload = {
+      venueId: nextSession.venueId,
+      date: nextSession.date,
+      startTime: nextSession.startTime,
+      endTime: nextSession.endTime,
+      pricePence: nextSession.pricePence,
+      capacity: nextSession.capacity,
+      formats: nextSession.formats,
+      description: nextSession.description,
+      descriptionZh: nextSession.descriptionZh,
+      status: nextSession.status,
+    };
+    setAdminBusy(true);
+    let savedOnServer = false;
+    let useLocalFallback = false;
+    try {
+      const response = await fetch(
+        existing ? `/api/admin/sessions/${encodeURIComponent(existing.id)}` : '/api/admin/sessions',
+        {
+          method: existing ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        },
+      );
+      const data = await response.json() as { session?: Session; error?: string };
+      if (response.ok && data.session) {
+        setSessions((current) => existing
+          ? current.map((session) => (session.id === existing.id ? data.session as Session : session))
+          : [...current, data.session as Session]);
+        savedOnServer = true;
+      } else if (data.error === 'locked_fields') {
+        setAdminMessage(t.lockedFields);
+      } else if (data.error === 'capacity_too_low') {
+        setAdminMessage(t.cannotReduceCapacity);
+      } else if (response.status < 500) {
+        setAdminMessage(t.saveFailed);
+      } else {
+        useLocalFallback = true;
+      }
+    } catch {
+      // Fall back to local editing when the shared database is not configured.
+      useLocalFallback = true;
+    }
+    if (!savedOnServer && useLocalFallback) {
+      setSessions((current) => existing
         ? current.map((session) => (session.id === existing.id ? nextSession : session))
-        : [...current, nextSession],
-    );
-    setDraft(emptyDraft());
-    setAdminMessage(t.sessionSaved);
+        : [...current, nextSession]);
+      setAdminMessage(t.sessionSaved);
+    } else if (savedOnServer) {
+      setAdminMessage(t.sessionSaved);
+    }
+    if (savedOnServer || useLocalFallback) setDraft(emptyDraft());
+    setAdminBusy(false);
   }
 
-  function cancelBooking(bookingId: string) {
+  async function cancelBooking(bookingId: string) {
     const booking = bookings.find((item) => item.id === bookingId);
     if (
       !booking ||
@@ -1127,16 +1134,28 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       !window.confirm(t.cancelConfirm)
     ) return;
     cancellingBookingRef.current.add(bookingId);
-    setBookings((current) =>
-      current.map((item) => (item.id === bookingId ? { ...item, status: 'cancelled' } : item)),
-    );
-    setSessions((current) =>
-      current.map((session) =>
-        session.id === booking.sessionId
-          ? { ...session, bookedSpots: Math.max(0, session.bookedSpots - booking.participants.length) }
-          : session,
-      ),
-    );
+    setAdminBusy(true);
+    let cancelledOnServer = false;
+    let useLocalFallback = false;
+    try {
+      const response = await fetch(`/api/admin/bookings/${encodeURIComponent(bookingId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'cancelled' }),
+      });
+      if (response.ok) cancelledOnServer = true;
+      else if (response.status >= 500) useLocalFallback = true;
+    } catch {
+      // Fall back to local cancellation for local previews without Postgres.
+      useLocalFallback = true;
+    }
+    if (cancelledOnServer || useLocalFallback) {
+      setBookings((current) => current.map((item) => (item.id === bookingId ? { ...item, status: 'cancelled' } : item)));
+      setSessions((current) => current.map((session) => session.id === booking.sessionId
+        ? { ...session, bookedSpots: Math.max(0, session.bookedSpots - booking.participants.length) }
+        : session));
+    }
+    setAdminBusy(false);
   }
 
   function setLanguage(nextLanguage: Language) {
@@ -1203,6 +1222,9 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <div className="session-meta-row">
             <span><CalendarDays size={15} /> {formatDate(session.date, language)}</span>
             <span><Clock3 size={15} /> {session.startTime}–{session.endTime}</span>
+          </div>
+          <div className="session-format-tags" aria-label={t.formats}>
+            {session.formats.map((format) => <span key={format}>{formatNames([format], t)}</span>)}
           </div>
           <div className="session-card-footer">
             <span className={isFull ? 'spots full' : spots === 1 ? 'spots urgent' : 'spots'}>
@@ -1276,6 +1298,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
               <div><CalendarDays size={19} /><span><small>{t.date}</small><strong>{formatLongDate(selectedSession.date, language)}</strong></span></div>
               <div><Clock3 size={19} /><span><small>{t.time}</small><strong>{selectedSession.startTime}–{selectedSession.endTime} · {t.london}</strong></span></div>
               <div><Timer size={19} /><span><small>{t.duration}</small><strong>{formatDuration(selectedSession.startTime, selectedSession.endTime, language)}</strong></span></div>
+              <div><CircleDot size={19} /><span><small>{t.formats}</small><strong>{formatNames(selectedSession.formats, t)}</strong></span></div>
               <div><Users size={19} /><span><small>{t.availability}</small><strong>{full ? t.full : `${spots} ${spots === 1 ? t.spotLeft : t.spotsLeft}`}</strong></span></div>
               <div><CreditCard size={19} /><span><small>{t.pricePerPerson}</small><strong>{formatMoney(selectedSession.pricePence, language)}</strong></span></div>
             </div>
@@ -1312,6 +1335,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <p className="eyebrow muted">{t.orderSummary}</p>
           <h3>{language === 'zh' ? selectedVenue.nameZh : selectedVenue.name}</h3>
           <p className="summary-date"><CalendarDays size={15} /> {formatDate(selectedSession.date, language)} · {selectedSession.startTime}–{selectedSession.endTime}</p>
+          <p className="summary-format"><CircleDot size={15} /> {t.format}: {bookingForm.format ? formatNames([bookingForm.format], t) : ''}</p>
           <div className="summary-lines">
             <div><span>{t.sessionFee} × {bookingForm.participants.length}</span><strong>{formatMoney(selectedSession.pricePence * bookingForm.participants.length, language)}</strong></div>
             <div><span>{t.racketFee} × {bookingForm.racketCount}</span><strong>{formatMoney(bookingForm.racketCount * RACKET_PRICE_PENCE, language)}</strong></div>
@@ -1340,7 +1364,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                 <div><strong>{t.demoPayment}</strong><span>{t.demoPaymentIntro}</span></div>
                 <Badge variant="secondary">STRIPE</Badge>
               </div>
-              {paymentFailed ? <div className="inline-error"><TriangleAlert size={16} /> {t.paymentFailed}</div> : null}
+              {paymentFailed || paymentCancelled ? <div className="inline-error"><TriangleAlert size={16} /> {paymentCancelled ? t.paymentCancelled : t.paymentFailed}</div> : null}
               <div className="payment-actions">
                 <Button size="lg" className="primary-wide" disabled={checkoutLoading} onClick={() => void completePayment()}>{checkoutLoading ? (language === 'zh' ? '正在打开安全付款…' : 'Opening secure checkout…') : t.simulateSuccess}<ArrowRight size={17} /></Button>
               </div>
@@ -1365,6 +1389,28 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             </div>
             <div className="field"><Label htmlFor="phone">{t.phone} <small>({t.optional})</small></Label><Input id="phone" inputMode="tel" value={bookingForm.phone} onChange={(event) => setBookingForm((current) => ({ ...current, phone: event.target.value }))} autoComplete="tel" /></div>
             {formErrors.contact || formErrors.email ? <div className="inline-error"><TriangleAlert size={16} /> {formErrors.contact || formErrors.email}</div> : null}
+            <div className="form-divider" />
+            <div className="format-selection">
+              <div className="form-section-heading"><div><h2>{t.format}</h2><p>{t.availableFormats}</p></div></div>
+              <div className="format-options" role="radiogroup" aria-label={t.format}>
+                {selectedSession.formats.map((format) => (
+                  <label className={`format-option${bookingForm.format === format ? ' selected' : ''}`} key={format}>
+                    <input
+                      type="radio"
+                      name="session-format"
+                      value={format}
+                      checked={bookingForm.format === format}
+                      onChange={() => {
+                        setBookingForm((current) => ({ ...current, format }));
+                        setFormErrors((current) => ({ ...current, format: '' }));
+                      }}
+                    />
+                    <span>{formatNames([format], t)}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            {formErrors.format ? <div className="inline-error"><TriangleAlert size={16} /> {formErrors.format}</div> : null}
             <div className="form-divider" />
             <div className="form-section-heading">
               <div><h2>{t.participants}</h2><p>{t.allLevels}</p></div>
@@ -1415,6 +1461,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <div className="confirmation-details">
             <div><img src={venue.photo} alt="" /><span><small>{t.location}</small><strong>{language === 'zh' ? venue.nameZh : venue.name}</strong></span></div>
             <div><CalendarDays size={18} /><span><small>{t.date}</small><strong>{formatLongDate(session.date, language)}</strong></span></div>
+            <div><CircleDot size={18} /><span><small>{t.format}</small><strong>{formatNames([confirmation.format], t)}</strong></span></div>
             <div><Users size={18} /><span><small>{t.participants}</small><strong>{confirmation.participants.length} {confirmation.participants.length === 1 ? t.person : t.people}</strong></span></div>
             <div><CreditCard size={18} /><span><small>{t.rental}</small><strong>{confirmation.racketCount} {confirmation.racketCount === 1 ? t.racket : t.rackets}</strong></span></div>
             <div><CreditCard size={18} /><span><small>{t.total}</small><strong>{formatMoney(confirmation.totalPence, language)}</strong></span></div>
@@ -1446,22 +1493,109 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <div className="field"><Label htmlFor="admin-price">{t.pricePerPerson}</Label><div className="input-prefix"><span>£</span><Input id="admin-price" inputMode="decimal" value={draft.price} onChange={(event) => setDraft((current) => ({ ...current, price: event.target.value }))} disabled={hasActiveBookings} /></div></div>
           <div className="field"><Label htmlFor="admin-capacity">{t.capacity}</Label><Input id="admin-capacity" type="number" min="1" value={draft.capacity} onChange={(event) => setDraft((current) => ({ ...current, capacity: event.target.value }))} /></div>
           <div className="field"><Label htmlFor="admin-status">{t.status}</Label><select id="admin-status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value as SessionStatus }))} className="native-select"><option value="published">{t.published}</option><option value="draft">{t.draft}</option></select></div>
+          <div className="field admin-format-field"><span className="field-label">{t.formats}</span><fieldset className="format-checkboxes"><legend className="sr-only">{t.formats}</legend>{GAME_FORMATS.map((format) => <label className="format-checkbox" key={format}><input type="checkbox" checked={draft.formats.includes(format)} onChange={(event) => setDraft((current) => ({ ...current, formats: event.target.checked ? [...new Set([...current.formats, format])] : current.formats.filter((item) => item !== format) }))} /><span>{formatNames([format], t)}</span></label>)}</fieldset></div>
         </div>
         {hasActiveBookings ? <p className="admin-field-note"><ShieldCheck size={15} /> {t.lockedFields}</p> : null}
         <div className="form-grid two-col"><div className="field"><Label htmlFor="admin-description">English description</Label><textarea id="admin-description" value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} className="native-textarea" rows={3} /></div><div className="field"><Label htmlFor="admin-description-zh">中文介绍</Label><textarea id="admin-description-zh" value={draft.descriptionZh} onChange={(event) => setDraft((current) => ({ ...current, descriptionZh: event.target.value }))} className="native-textarea" rows={3} /></div></div>
         {adminMessage ? <div className="admin-message"><Check size={15} /> {adminMessage}</div> : null}
-        <Button type="submit"><Check size={16} /> {t.saveSession}</Button>
+        <Button type="submit" disabled={adminBusy}><Check size={16} /> {adminBusy ? t.saving : t.saveSession}</Button>
       </form>
     );
   }
 
   function renderAdmin() {
+    const publishedCount = sessions.filter((session) => session.status === 'published').length;
+    const openSpots = sessions.reduce(
+      (sum, session) => sum + Math.max(0, session.capacity - session.bookedSpots),
+      0,
+    );
     return (
       <section className="admin-page page-width">
-        <div className="admin-heading"><div><p className="eyebrow"><Settings2 size={14} /> {t.admin}</p><h1>{t.adminTitle}</h1><p>{t.adminIntro}</p></div><Button variant="outline" onClick={resetDemo}><RefreshCw size={15} /> {t.resetDemo}</Button></div>
-        <div className="admin-stats"><div><span>{sessions.filter((session) => session.status === 'published').length}</span><small>{t.published}</small></div><div><span>{activeBookings.length}</span><small>{t.activeBookings}</small></div><div><span>{sessions.reduce((sum, session) => sum + Math.max(0, session.capacity - session.bookedSpots), 0)}</span><small>{t.spotsLeft}</small></div></div>
-        <div className="admin-tabs" role="tablist"><button type="button" className={adminTab === 'sessions' ? 'active' : ''} onClick={() => setAdminTab('sessions')}>{t.manageSessions}</button><button type="button" className={adminTab === 'bookings' ? 'active' : ''} onClick={() => setAdminTab('bookings')}>{t.viewBookings}</button></div>
-        {adminTab === 'sessions' ? <div className="admin-session-layout"><div className="admin-session-list"><div className="admin-list-heading"><div><p className="eyebrow muted">{t.sessions}</p><h2>{t.upcoming}</h2></div><Badge variant="secondary">{allSessions.length}</Badge></div>{allSessions.map((session) => { const venue = getVenue(session.venueId); const spots = Math.max(0, session.capacity - session.bookedSpots); return <div className="admin-session-row" key={session.id}><img src={venue.photo} alt="" /><div className="admin-session-row-main"><div><strong>{language === 'zh' ? venue.nameZh : venue.name}</strong><Badge variant={session.status === 'published' ? 'default' : 'outline'}>{session.status === 'published' ? t.published : t.draft}</Badge></div><span>{formatDate(session.date, language)} · {session.startTime}–{session.endTime}</span><small>{session.bookedSpots}/{session.capacity} {t.booked} · {spots} {t.spotsLeft}</small></div><Button variant="outline" size="sm" onClick={() => startEdit(session)}><Pencil size={14} /> {t.edit}</Button></div>; })}</div>{renderSessionEditor()}</div> : <div className="admin-bookings"><div className="admin-list-heading"><div><p className="eyebrow muted">{t.admin}</p><h2>{t.bookingList}</h2><p>{t.bookingListIntro}</p></div><Badge variant="secondary">{bookings.length}</Badge></div>{bookings.length ? <div className="booking-table-wrap"><table className="booking-table"><thead><tr><th>{t.contact}</th><th>{t.sessions}</th><th>{t.participants}</th><th>{t.total}</th><th>{t.status}</th><th scope="col">{t.actions}</th></tr></thead><tbody>{bookings.map((booking) => { const session = sessions.find((item) => item.id === booking.sessionId); const venue = session ? getVenue(session.venueId) : venues[0]; return <tr key={booking.id}><td><strong>{booking.contactName}</strong><span>{booking.email}</span>{booking.phone ? <span>{booking.phone}</span> : null}</td><td><strong>{language === 'zh' ? venue.nameZh : venue.name}</strong><span>{session ? formatDate(session.date, language) : ''}</span></td><td><strong>{booking.participants.length} {booking.participants.length === 1 ? t.person : t.people}</strong><span>{booking.participants.join(' · ')}</span></td><td>{formatMoney(booking.totalPence, language)}</td><td><Badge variant={booking.status === 'confirmed' ? 'default' : 'outline'}>{booking.status === 'confirmed' ? t.bookingConfirmed : t.cancelled}</Badge></td><td>{booking.status === 'confirmed' ? <Button variant="ghost" size="sm" onClick={() => cancelBooking(booking.id)}>{t.cancelBooking}</Button> : null}</td></tr>; })}</tbody></table></div> : <div className="empty-state">{t.emptyBookings}</div>}</div>}
+        <div className="admin-heading">
+          <div>
+            <p className="eyebrow"><Settings2 size={14} /> {t.admin}</p>
+            <h1>{t.adminTitle}</h1>
+            <p>{t.adminIntro}</p>
+          </div>
+          <Button variant="outline" onClick={() => void resetDemo()} disabled={adminBusy}>
+            <RefreshCw size={15} /> {t.resetDemo}
+          </Button>
+        </div>
+        <div className="admin-stats">
+          <div><span>{publishedCount}</span><small>{t.published}</small></div>
+          <div><span>{activeBookings.length}</span><small>{t.activeBookings}</small></div>
+          <div><span>{openSpots}</span><small>{t.spotsLeft}</small></div>
+        </div>
+        <div className="admin-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={adminTab === 'sessions'} className={adminTab === 'sessions' ? 'active' : ''} onClick={() => setAdminTab('sessions')}>
+            {t.manageSessions}
+          </button>
+          <button type="button" role="tab" aria-selected={adminTab === 'bookings'} className={adminTab === 'bookings' ? 'active' : ''} onClick={() => setAdminTab('bookings')}>
+            {t.viewBookings}
+          </button>
+        </div>
+        {adminTab === 'sessions' ? (
+          <div className="admin-session-layout">
+            <div className="admin-session-list">
+              <div className="admin-list-heading">
+                <div><p className="eyebrow muted">{t.sessions}</p><h2>{t.upcoming}</h2></div>
+                <Badge variant="secondary">{allSessions.length}</Badge>
+              </div>
+              {allSessions.map((session) => {
+                const venue = getVenue(session.venueId);
+                const spots = Math.max(0, session.capacity - session.bookedSpots);
+                return (
+                  <div className="admin-session-row" key={session.id}>
+                    <img src={venue.photo} alt="" />
+                    <div className="admin-session-row-main">
+                      <div>
+                        <strong>{language === 'zh' ? venue.nameZh : venue.name}</strong>
+                        <Badge variant={session.status === 'published' ? 'default' : 'outline'}>{session.status === 'published' ? t.published : t.draft}</Badge>
+                      </div>
+                      <span>{formatDate(session.date, language)} · {session.startTime}–{session.endTime}</span>
+                      <small>{formatNames(session.formats, t)} · {session.bookedSpots}/{session.capacity} {t.booked} · {spots} {t.spotsLeft}</small>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => startEdit(session)} disabled={adminBusy}>
+                      <Pencil size={14} /> {t.edit}
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+            {renderSessionEditor()}
+          </div>
+        ) : (
+          <div className="admin-bookings">
+            <div className="admin-list-heading">
+              <div><p className="eyebrow muted">{t.admin}</p><h2>{t.bookingList}</h2><p>{t.bookingListIntro}</p></div>
+              <Badge variant="secondary">{bookings.length}</Badge>
+            </div>
+            {bookings.length ? (
+              <div className="booking-table-wrap">
+                <table className="booking-table">
+                  <thead><tr><th>{t.contact}</th><th>{t.sessions}</th><th>{t.format}</th><th>{t.participants}</th><th>{t.total}</th><th>{t.status}</th><th scope="col">{t.actions}</th></tr></thead>
+                  <tbody>
+                    {bookings.map((booking) => {
+                      const session = sessions.find((item) => item.id === booking.sessionId);
+                      const venue = session ? getVenue(session.venueId) : venues[0];
+                      return (
+                        <tr key={booking.id}>
+                          <td><strong>{booking.contactName}</strong><span>{booking.email}</span>{booking.phone ? <span>{booking.phone}</span> : null}</td>
+                          <td><strong>{language === 'zh' ? venue.nameZh : venue.name}</strong><span>{session ? formatDate(session.date, language) : ''}</span></td>
+                          <td><strong>{formatNames([booking.format], t)}</strong></td>
+                          <td><strong>{booking.participants.length} {booking.participants.length === 1 ? t.person : t.people}</strong><span>{booking.participants.join(' · ')}</span></td>
+                          <td>{formatMoney(booking.totalPence, language)}</td>
+                          <td><Badge variant={booking.status === 'confirmed' ? 'default' : 'outline'}>{bookingStatusLabel(booking.status, t)}</Badge></td>
+                          <td>{booking.status === 'confirmed' ? <Button variant="ghost" size="sm" onClick={() => void cancelBooking(booking.id)} disabled={adminBusy}>{t.cancelBooking}</Button> : null}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : <div className="empty-state">{t.emptyBookings}</div>}
+          </div>
+        )}
       </section>
     );
   }

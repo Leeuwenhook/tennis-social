@@ -29,12 +29,14 @@ yarn-error.log*
 # local environment
 .env*
 !.env.example
-!.dev.vars.example
 
 # deployment and generated files
-.vercel
+/.vercel/
 next-env.d.ts
 /dist/
-/.wrangler/
+/output/
+/.output/
 /outputs/
 /work/
+*.tsbuildinfo
+.vercel

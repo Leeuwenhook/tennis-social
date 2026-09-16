@@ -72,7 +72,7 @@ Victoria Park、Vauxhall Park、Bethnal Green、Poplar Rec Ground、King Edward 
 
 ## 4. 实现方式与开发顺序
 
-采用 Sites 标准 React／TypeScript 项目与配套组件，沿用生成项目的构建配置；首版使用浏览器本地存储，不接真实数据库或支付服务。
+采用 Vercel 上的 Vinext/Nitro React／TypeScript 项目与配套组件；共享场次、报名和库存使用 Neon Postgres，付款使用 Stripe Checkout。浏览器本地存储仅作为未配置数据库时的本地预览回退，不作为线上库存来源。
 
 核心数据包含 `Venue`、`Session`、`Booking`。报名记录保存联系人、按顺序排列的参与者水平、租拍数量、价格快照、费用明细和状态；总人数由参与者列表计算。金额以整数便士计算，日期使用 `Europe/London` 时区显示。
 

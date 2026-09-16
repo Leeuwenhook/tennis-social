@@ -624,9 +624,32 @@
   font-weight: 700;
 }
 
+.session-format-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.session-format-tags span,
+.format-option,
+.format-checkbox {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 800;
+  padding: 6px 10px;
+}
+
+.session-format-tags span {
+  background: var(--secondary);
+}
+
 .session-meta-row span,
 .spots,
 .summary-date,
+.summary-format,
 .detail-image-caption,
 .rental-hint,
 .detail-note,
@@ -798,6 +821,13 @@
   font-weight: 700;
 }
 
+.summary-format {
+  margin: -12px 0 20px;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .primary-wide {
   width: 100%;
   justify-content: center;
@@ -924,6 +954,12 @@
   font-weight: 800;
 }
 
+.field-label {
+  color: var(--foreground);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .field label em {
   color: #b9473e;
   font-style: normal;
@@ -988,6 +1024,59 @@
   margin: 6px 0 0;
   color: var(--muted-foreground);
   font-size: 13px;
+}
+
+.format-selection {
+  max-width: 540px;
+}
+
+.format-options,
+.format-checkboxes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.format-checkboxes {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.format-option,
+.format-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  background: #fff;
+  cursor: pointer;
+  transition: 160ms ease;
+}
+
+.format-option:hover,
+.format-checkbox:hover,
+.format-option.selected {
+  border-color: var(--ring);
+  background: var(--secondary);
+}
+
+.format-option input,
+.format-checkbox input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--primary);
+}
+
+.format-checkboxes {
+  min-height: 44px;
+  align-items: center;
+}
+
+.format-checkbox {
+  min-height: 36px;
+  padding: 5px 9px;
 }
 
 .quantity-control {
@@ -1627,6 +1716,10 @@
   margin-top: 17px;
 }
 
+.admin-format-field {
+  grid-column: 1 / -1;
+}
+
 .admin-editor > .button {
   margin-top: 21px;
   border-radius: 999px;
@@ -1649,7 +1742,7 @@
 
 .booking-table {
   width: 100%;
-  min-width: 730px;
+  min-width: 800px;
   border-collapse: collapse;
   text-align: left;
 }

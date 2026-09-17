@@ -870,7 +870,17 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       setAdjustmentNotice(hadExtraRackets ? `${t.participantAdjusted} ${t.racketAdjusted}` : t.participantAdjusted);
       return;
     }
-    setBookingForm((current) => ({ ...current, includeFriends: enabled }));
+    setBookingForm((current) => ({
+      ...current,
+      includeFriends: enabled,
+      // Checking the friends option represents adding the first friend.
+      // Keep the participant list in sync so their level field is available
+      // immediately instead of requiring an extra quantity increment.
+      participants: enabled && current.participants.length === 1
+        ? [...current.participants, '']
+        : current.participants,
+    }));
+    setFormErrors((current) => ({ ...current, participants: '' }));
     setAdjustmentNotice('');
   }
 

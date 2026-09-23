@@ -8,16 +8,9 @@ import {
 } from '@/lib/server/database';
 import { GAME_FORMATS, RACKET_PRICE_PENCE, type GameFormat } from '@/lib/demo-data';
 import { createCheckoutSession } from '@/lib/server/stripe';
+import { getAuthenticatedUser } from '@/lib/server/user-auth';
 
 const LEVELS = new Set(['1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0']);
-const VENUE_NAMES: Record<string, string> = {
-  'victoria-park': 'Victoria Park',
-  'vauxhall-park': 'Vauxhall Park',
-  'bethnal-green': 'Bethnal Green',
-  'poplar-rec-ground': 'Poplar Rec Ground',
-  'king-edward-memorial-park': 'King Edward Memorial Park',
-};
-
 type CheckoutInput = {
   sessionId?: unknown;
   name?: unknown;
@@ -96,6 +89,7 @@ export async function POST(request: Request) {
     const db = database();
     await ensureSeeded(db);
     await expireStaleReservations(db);
+    const authenticatedUser = await getAuthenticatedUser(request, db);
 
     const formatRows = await db`
       SELECT formats_json
@@ -127,12 +121,12 @@ export async function POST(request: Request) {
         RETURNING id, venue_id, price_pence
       )
       INSERT INTO bookings (
-        id, session_id, contact_name, email, phone, participants_json,
+        id, session_id, user_id, contact_name, email, phone, participants_json,
         format, participant_count, racket_count, session_price_pence, racket_price_pence,
         total_pence, status, expires_at, created_at, updated_at
       )
       SELECT
-        ${bookingId}, reserved.id, ${name}, ${email}, ${phone}, ${JSON.stringify(participants)},
+        ${bookingId}, reserved.id, ${authenticatedUser?.id ?? null}, ${name}, ${email}, ${phone}, ${JSON.stringify(participants)},
         ${format}, ${participants.length}, ${racketCount}, reserved.price_pence, ${RACKET_PRICE_PENCE},
         reserved.price_pence * ${participants.length} + ${RACKET_PRICE_PENCE * racketCount},
         'pending_payment', ${expiresAt}, ${nowIso}, ${nowIso}
@@ -147,15 +141,16 @@ export async function POST(request: Request) {
 
     try {
       const venueRows = await db`
-        SELECT venue_id
+        SELECT venues.name AS venue_name
         FROM sessions
-        WHERE id = ${booking.session_id}
-      ` as Array<{ venue_id: string }>;
+        LEFT JOIN venues ON venues.id = sessions.venue_id
+        WHERE sessions.id = ${booking.session_id}
+      ` as Array<{ venue_name: string | null }>;
       const checkout = await createCheckoutSession({
         bookingId: booking.id,
         sessionId: booking.session_id,
         format: booking.format,
-        venueName: VENUE_NAMES[venueRows[0]?.venue_id] ?? 'Tennis Social',
+        venueName: venueRows[0]?.venue_name ?? 'Tennis Social',
         participantCount: booking.participant_count,
         sessionPricePence: booking.session_price_pence,
         racketCount: booking.racket_count,

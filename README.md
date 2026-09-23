@@ -8,7 +8,8 @@ Responsive bilingual tennis session booking community demo for London.
 - Desktop and mobile layouts with real venue photos.
 - Session browsing, detail pages, participant levels, friend bookings and racket rental.
 - Stripe Checkout handoff with server-side pricing, 30-minute reservations and webhook confirmation.
-- Shared demo sessions and bookings backed by Neon Postgres, with a demo admin at `/admin` for session editing, booking review, cancellation and data reset.
+- Payment confirmation emails sent through Resend with booking details and an attached `.ics` calendar invite.
+- Shared demo sessions, bookings and venues backed by Neon Postgres, with a protected admin at `/admin` for session editing, venue/image management, default pricing, booking review, cancellation and data reset.
 - Vercel-ready Vinext/Nitro build output; browser storage remains only as a local preview fallback.
 
 ## Run locally
@@ -20,7 +21,7 @@ npm run db:migrate
 npm run dev
 ```
 
-Before running the migration, set `DATABASE_URL` in `.env` to your Neon Postgres connection string. Without a database, the public catalogue can use its browser fallback, but shared admin changes and checkout are unavailable. The demo admin intentionally has no authentication, and the app does not send email/SMS messages yet.
+Before running the migration, set `DATABASE_URL` in `.env` to your Neon Postgres connection string. Without a database, the public catalogue and browser-only admin preview remain available, but shared admin changes and checkout are unavailable. The local demo login defaults to `admin` / `admin1234`; set `ADMIN_USERNAME`, `ADMIN_PASSWORD` and a strong `ADMIN_SESSION_SECRET` before deploying. The app does not send SMS messages.
 
 ## Vercel, Neon and Stripe test setup
 
@@ -40,7 +41,14 @@ STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 ```
 
-The migration is in `db/migrations/`. A pending booking reserves its places for 30 minutes; `checkout.session.completed` confirms it and `checkout.session.expired` releases it. Point the Stripe webhook to `https://<your-vercel-domain>/api/stripe/webhook`. Use Stripe test cards until the full refund and cancellation policy is in place.
+Set the Resend values as well. `EMAIL_FROM` must use a sender address from a verified Resend domain; the API key must stay server-side:
+
+```text
+RESEND_API_KEY=re_...
+EMAIL_FROM=Tennis Social <bookings@your-verified-domain.example>
+```
+
+Run `npm run db:migrate` after pulling the new migration. Venue images can be entered as public paths/URLs or selected locally from the admin form (up to 1 MB). A pending booking reserves its places for 30 minutes; `checkout.session.completed` confirms it and triggers the confirmation email; `checkout.session.expired` releases it. The email includes the booking summary, activity description and a `tennis-social-booking.ics` calendar attachment. Point the Stripe webhook to `https://<your-vercel-domain>/api/stripe/webhook`. Use Stripe test cards until the full refund and cancellation policy is in place.
 
 See [PLAN.public.md](PLAN.public.md) for the product scope and acceptance criteria.
 

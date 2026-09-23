@@ -5,11 +5,14 @@ import {
   serializeBooking,
   type BookingRow,
 } from '@/lib/server/database';
+import { requireAdmin } from '@/lib/server/admin-auth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  const unauthorized = requireAdmin(request);
+  if (unauthorized) return unauthorized;
   const { id } = await context.params;
   let input: { status?: unknown };
   try {

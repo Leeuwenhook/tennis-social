@@ -3,6 +3,7 @@ import {
   DatabaseNotConfiguredError,
   releaseBooking,
 } from '@/lib/server/database';
+import { sendConfirmedBookingEmail } from '@/lib/server/booking-email';
 import { verifyStripeWebhook } from '@/lib/server/stripe';
 
 type StripeEvent = {
@@ -61,6 +62,10 @@ export async function POST(request: Request) {
               AND stripe_checkout_session_id = ${object.id}
               AND status = 'pending_payment'
           `;
+          // The email is also attempted when the booking was already confirmed,
+          // so a delayed webhook or a second successful payment event can
+          // recover an earlier delivery failure.
+          await sendConfirmedBookingEmail(db, bookingId);
         }
       } else if (bookingId && event.type === 'checkout.session.expired') {
         await releaseBooking(db, bookingId, 'expired');

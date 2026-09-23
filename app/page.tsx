@@ -3,6 +3,7 @@
 import ArrowLeft from 'lucide-react/dist/esm/icons/arrow-left.mjs';
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.mjs';
 import CalendarDays from 'lucide-react/dist/esm/icons/calendar-days.mjs';
+import CalendarPlus from 'lucide-react/dist/esm/icons/calendar-plus.mjs';
 import Check from 'lucide-react/dist/esm/icons/check.mjs';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right.mjs';
 import Clock3 from 'lucide-react/dist/esm/icons/clock-3.mjs';
@@ -18,8 +19,9 @@ import Settings2 from 'lucide-react/dist/esm/icons/settings-2.mjs';
 import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check.mjs';
 import Timer from 'lucide-react/dist/esm/icons/timer.mjs';
 import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs';
+import UserRound from 'lucide-react/dist/esm/icons/user-round.mjs';
 import Users from 'lucide-react/dist/esm/icons/users.mjs';
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,6 +30,8 @@ import { Label } from '@/components/ui/label';
 import {
   createDemoBookings,
   createDemoSessions,
+  DEFAULT_OFF_PEAK_PRICE_PENCE,
+  DEFAULT_PEAK_PRICE_PENCE,
   GAME_FORMATS,
   RACKET_PRICE_PENCE,
   venues,
@@ -36,11 +40,13 @@ import {
 } from '@/lib/demo-data';
 
 type Language = 'en' | 'zh';
-type View = 'home' | 'detail' | 'booking' | 'confirmation' | 'admin';
+type View = 'home' | 'detail' | 'booking' | 'confirmation' | 'account' | 'request' | 'admin';
 type BookingStage = 'details' | 'payment';
-type AdminTab = 'sessions' | 'bookings';
+type AuthMode = 'login' | 'register';
+type AdminTab = 'sessions' | 'bookings' | 'requests' | 'venues';
 type SessionStatus = 'published' | 'draft';
 type BookingStatus = 'pending_payment' | 'confirmed' | 'expired' | 'payment_failed' | 'cancelled' | 'refunded';
+type ConfirmationEmailStatus = 'sent' | 'skipped' | 'in_progress' | 'failed' | 'not_applicable';
 
 type ModelContext = {
   registerTool: (
@@ -99,9 +105,49 @@ type SessionDraft = {
   status: SessionStatus;
 };
 
+type VenueDraft = {
+  id: string | null;
+  name: string;
+  nameZh: string;
+  area: string;
+  areaZh: string;
+  photo: string;
+  peakPrice: string;
+  offPeakPrice: string;
+};
+
+type ReservationRequestStatus = 'pending' | 'reviewing' | 'completed';
+type ReservationRequest = {
+  id: string;
+  venueId: string;
+  preferredDate: string;
+  startTime: string;
+  endTime: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  message: string;
+  status: ReservationRequestStatus;
+  createdAt: string;
+};
+
+type PreferredTime = 'weekends' | 'weekday_evenings' | 'anytime' | 'mornings' | 'afternoons';
+type UserProfile = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  postcode: string;
+  tennisLevel: string;
+  preferredTime: PreferredTime;
+  preferredFormat: GameFormat;
+};
+
 const LEVELS = ['1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0'];
+const PREFERRED_TIMES: PreferredTime[] = ['weekends', 'weekday_evenings', 'anytime', 'mornings', 'afternoons'];
 const SESSION_STORAGE_KEY = 'tennis-social-sessions-v2';
 const BOOKING_STORAGE_KEY = 'tennis-social-bookings-v2';
+const VENUE_STORAGE_KEY = 'tennis-social-venues-v1';
 const LANGUAGE_STORAGE_KEY = 'tennis-social-language-v1';
 
 const seededSessions: Session[] = createDemoSessions();
@@ -111,7 +157,7 @@ const seededBookings: Booking[] = createDemoBookings(seededSessions);
 const translations = {
   en: {
     sessions: 'Sessions',
-    admin: 'Demo admin',
+    admin: 'Admin',
     brandTag: 'London tennis community',
     eyebrow: 'FIND YOUR NEXT COURT',
     headline: 'Good tennis is better together.',
@@ -120,7 +166,7 @@ const translations = {
     upcoming: 'Upcoming sessions',
     upcomingIntro: 'Choose a time that works for you. Every session is open to all levels.',
     allLevels: 'All levels welcome',
-    noSignUp: 'No account needed',
+    noSignUp: 'No account required',
     courtReady: 'Court booked for you',
     spotsLeft: 'spots left',
     spotLeft: 'spot left',
@@ -179,6 +225,10 @@ const translations = {
     confirmed: 'Booking confirmed',
     confirmationIntro: 'You’re booked in. Keep this reference for the session.',
     bookingReference: 'Booking reference',
+    emailConfirmationSent: 'Booking details and a calendar invite were sent to',
+    emailConfirmationPending: 'Your booking is confirmed. The confirmation email will be sent shortly.',
+    emailConfirmationSkipped: 'Your booking is confirmed, but email delivery is not configured for this preview.',
+    emailConfirmationFailed: 'Your booking is confirmed, but the confirmation email could not be sent yet. Please keep this reference.',
     contact: 'Contact',
     participants: 'Participants',
     level: 'level',
@@ -187,8 +237,8 @@ const translations = {
     actions: 'Actions',
     demoNotice: 'Payment is securely processed by Stripe. We never receive your card details.',
     browseMore: 'Browse more sessions',
-    adminTitle: 'Demo admin',
-    adminIntro: 'Manage the shared demo schedule and inspect test bookings.',
+    adminTitle: 'Admin dashboard',
+    adminIntro: 'Manage sessions, venues, bookings and advance court requests.',
     manageSessions: 'Manage sessions',
     viewBookings: 'View bookings',
     addSession: 'Add session',
@@ -210,6 +260,58 @@ const translations = {
     resetDemo: 'Reset demo data',
     resetConfirm: 'Reset sessions and bookings to the original demo data?',
     resetDone: 'Demo data reset.',
+    adminLoginTitle: 'Admin sign in',
+    adminLoginIntro: 'Sign in to manage sessions, venues, images and prices.',
+    username: 'Username',
+    password: 'Password',
+    signIn: 'Sign in',
+    signingIn: 'Signing in…',
+    account: 'Account',
+    createAccount: 'Create account',
+    accountTitle: 'Your tennis profile',
+    accountIntro: 'Save your details and playing preferences for faster booking.',
+    welcomeBack: 'Welcome back',
+    loginIntro: 'Sign in to pre-fill your next booking.',
+    registerIntro: 'Tell us how and when you like to play. We’ll use it as your booking default.',
+    postcode: 'Home postcode',
+    preferredTime: 'Preferred playing time',
+    preferredFormat: 'Preferred format',
+    weekends: 'Weekends',
+    weekdayEvenings: 'Weekday evenings',
+    anytime: 'Any time',
+    mornings: 'Mornings',
+    afternoons: 'Afternoons',
+    passwordHint: 'At least 8 characters',
+    creatingAccount: 'Creating account…',
+    emailExists: 'An account already exists for this email.',
+    registrationInvalid: 'Please complete all fields and use a password of at least 8 characters.',
+    signedInPrefill: 'Your saved profile has been pre-filled. You can still change it for this booking.',
+    memberSince: 'Saved playing preferences',
+    invalidCredentials: 'Incorrect username or password.',
+    checkingAccess: 'Checking admin access…',
+    logout: 'Sign out',
+    manageVenues: 'Manage venues',
+    venueList: 'Venue list',
+    venueListIntro: 'Update venue details, images and default peak/off-peak prices.',
+    addVenue: 'Add venue',
+    editVenue: 'Edit venue',
+    saveVenue: 'Save venue',
+    venueName: 'Venue name',
+    venueNameZh: 'Chinese name',
+    area: 'Area',
+    areaZh: 'Chinese area',
+    venueImage: 'Venue image',
+    imageUrl: 'Image URL or public path',
+    uploadImage: 'Choose image',
+    imageHelp: 'Use a public image URL, a path such as /venues/example.jpg, or choose a local image up to 1 MB.',
+    peakPrice: 'Peak default price',
+    offPeakPrice: 'Off-peak default price',
+    usePeakPrice: 'Use peak default',
+    useOffPeakPrice: 'Use off-peak default',
+    priceRule: 'Peak price must be at least the off-peak price.',
+    venueSaved: 'Venue saved.',
+    venueSaveFailed: 'Please complete all venue fields and check the prices.',
+    imageTooLarge: 'Please choose an image smaller than 1 MB.',
     sessionSaved: 'Session saved.',
     allRequired: 'Please complete the required fields.',
     validEmail: 'Enter a valid email address.',
@@ -229,10 +331,35 @@ const translations = {
     refunded: 'Refunded',
     dataUnavailable: 'The shared demo data is unavailable right now.',
     london: 'London time',
+    requestCta: "Can't find the session you want? Request a court",
+    requestCtaHint: 'Tell us your preferred court and time.',
+    requestTitle: 'Request a tennis session',
+    requestIntro: 'Leave your preferred court and time. No account is required.',
+    requestPromise: 'Requests made at least 7 days ahead are guaranteed. Sessions within 7 days cannot be guaranteed.',
+    preferredDate: 'Preferred date',
+    preferredTimeRange: 'Preferred time',
+    requestMessage: 'Message',
+    requestMessageHint: 'Player count, alternative times, or anything else we should know.',
+    submitRequest: 'Submit request',
+    submittingRequest: 'Submitting…',
+    requestSubmitted: 'Request received',
+    requestSubmittedIntro: 'We have saved your court request and will contact you using the details below.',
+    requestReference: 'Request reference',
+    requestInvalid: 'Please complete the required fields and check the date and time.',
+    requestList: 'Court requests',
+    requestListIntro: 'Review advance requests and update their progress.',
+    manageRequests: 'Court requests',
+    noRequests: 'No court requests yet.',
+    requestedOn: 'Submitted',
+    pendingRequest: 'New',
+    reviewingRequest: 'Reviewing',
+    completedRequest: 'Completed',
+    markReviewing: 'Start review',
+    markCompleted: 'Mark completed',
   },
   zh: {
     sessions: '场次',
-    admin: '演示后台',
+    admin: '后台管理',
     brandTag: '伦敦网球社群',
     eyebrow: '寻找下一场约球',
     headline: '一起打球，会更开心。',
@@ -299,6 +426,10 @@ const translations = {
     confirmed: '报名成功',
     confirmationIntro: '你已报名成功，请保存这个编号。',
     bookingReference: '报名编号',
+    emailConfirmationSent: '订票信息和日程邀请已发送至',
+    emailConfirmationPending: '报名已确认，确认邮件很快会发送。',
+    emailConfirmationSkipped: '报名已确认，但当前演示环境尚未配置邮件发送。',
+    emailConfirmationFailed: '报名已确认，但确认邮件暂时发送失败，请保存这个报名编号。',
     contact: '联系人',
     participants: '参与者',
     level: '水平',
@@ -307,8 +438,8 @@ const translations = {
     actions: '操作',
     demoNotice: '付款由 Stripe 安全处理，我们不会接触你的银行卡信息。',
     browseMore: '浏览更多场次',
-    adminTitle: '演示后台',
-    adminIntro: '管理共享演示场次，并查看测试报名。',
+    adminTitle: '后台管理',
+    adminIntro: '管理场次、场地、报名以及用户的提前预约请求。',
     manageSessions: '管理场次',
     viewBookings: '查看报名',
     addSession: '新增场次',
@@ -330,6 +461,58 @@ const translations = {
     resetDemo: '重置演示数据',
     resetConfirm: '将场次和报名恢复为初始演示数据？',
     resetDone: '演示数据已重置。',
+    adminLoginTitle: '后台登录',
+    adminLoginIntro: '登录后管理场次、场地、图片以及默认价格。',
+    username: '用户名',
+    password: '密码',
+    signIn: '登录',
+    signingIn: '登录中…',
+    account: '账户',
+    createAccount: '注册账户',
+    accountTitle: '你的网球档案',
+    accountIntro: '保存联系方式与打球偏好，下次报名更快捷。',
+    welcomeBack: '欢迎回来',
+    loginIntro: '登录后，下次报名会自动填写你的资料。',
+    registerIntro: '告诉我们你喜欢怎么打、什么时候打，这些信息会成为报名默认值。',
+    postcode: '居住地区 Postcode',
+    preferredTime: '偏好的打球时间',
+    preferredFormat: '偏好的比赛形式',
+    weekends: '周末',
+    weekdayEvenings: '工作日晚上',
+    anytime: '任意时间都可以',
+    mornings: '上午',
+    afternoons: '下午',
+    passwordHint: '至少 8 个字符',
+    creatingAccount: '正在注册…',
+    emailExists: '该邮箱已经注册，请直接登录。',
+    registrationInvalid: '请填写所有必填项，密码至少需要 8 个字符。',
+    signedInPrefill: '已自动填写你保存的资料；本次报名仍可修改。',
+    memberSince: '已保存的打球偏好',
+    invalidCredentials: '用户名或密码不正确。',
+    checkingAccess: '正在检查后台权限…',
+    logout: '退出登录',
+    manageVenues: '管理场地',
+    venueList: '场地列表',
+    venueListIntro: '更新场地信息、图片以及忙时/闲时默认价格。',
+    addVenue: '新增场地',
+    editVenue: '编辑场地',
+    saveVenue: '保存场地',
+    venueName: '场地名称',
+    venueNameZh: '中文名称',
+    area: '区域',
+    areaZh: '中文区域',
+    venueImage: '场地图片',
+    imageUrl: '图片 URL 或公开路径',
+    uploadImage: '选择图片',
+    imageHelp: '可填写公开图片 URL、/venues/example.jpg 路径，或选择 1 MB 以内的本地图片。',
+    peakPrice: '忙时默认价格',
+    offPeakPrice: '闲时默认价格',
+    usePeakPrice: '使用忙时默认价',
+    useOffPeakPrice: '使用闲时默认价',
+    priceRule: '忙时价格应不低于闲时价格。',
+    venueSaved: '场地已保存。',
+    venueSaveFailed: '请填写完整场地信息，并检查价格。',
+    imageTooLarge: '请选择小于 1 MB 的图片。',
     sessionSaved: '场次已保存。',
     allRequired: '请填写所有必填项。',
     validEmail: '请输入有效的邮箱地址。',
@@ -349,11 +532,36 @@ const translations = {
     refunded: '已退款',
     dataUnavailable: '共享演示数据暂时不可用。',
     london: '伦敦当地时间',
+    requestCta: '没找到想要的场次？点击预约！',
+    requestCtaHint: '告诉我们你想要的场地和时间。',
+    requestTitle: '预约指定场地和时间',
+    requestIntro: '留下你想要的场地和时间，无需注册账号。',
+    requestPromise: '提前七天一定能约上，七天内场次不能保证。',
+    preferredDate: '预约日期',
+    preferredTimeRange: '预约时间',
+    requestMessage: '留言',
+    requestMessageHint: '可填写人数、备选时间或其他需要说明的信息。',
+    submitRequest: '提交预约',
+    submittingRequest: '提交中…',
+    requestSubmitted: '预约请求已收到',
+    requestSubmittedIntro: '我们已保存你的预约请求，并会通过下方联系方式与你联系。',
+    requestReference: '预约编号',
+    requestInvalid: '请填写所有必填项，并检查日期和时间。',
+    requestList: '预约请求',
+    requestListIntro: '查看用户的提前预约，并更新处理进度。',
+    manageRequests: '预约请求',
+    noRequests: '暂时没有预约请求。',
+    requestedOn: '提交时间',
+    pendingRequest: '新请求',
+    reviewingRequest: '处理中',
+    completedRequest: '已完成',
+    markReviewing: '开始处理',
+    markCompleted: '标记完成',
   },
 } as const;
 
-function getVenue(venueId: string): Venue {
-  return venues.find((venue) => venue.id === venueId) ?? venues[0];
+function getVenue(venueId: string, venueList: Venue[] = venues): Venue {
+  return venueList.find((venue) => venue.id === venueId) ?? venueList[0] ?? venues[0];
 }
 
 function validFormats(value: unknown): GameFormat[] {
@@ -373,6 +581,23 @@ function formatNames(
   return formats.map((format) => labels[format]).join(' · ');
 }
 
+function preferredTimeLabel(value: PreferredTime, t: {
+  weekends: string;
+  weekdayEvenings: string;
+  anytime: string;
+  mornings: string;
+  afternoons: string;
+}) {
+  const labels: Record<PreferredTime, string> = {
+    weekends: t.weekends,
+    weekday_evenings: t.weekdayEvenings,
+    anytime: t.anytime,
+    mornings: t.mornings,
+    afternoons: t.afternoons,
+  };
+  return labels[value];
+}
+
 function normalizeSession(session: Session): Session {
   return { ...session, formats: normalizeFormats((session as Session & { formats?: unknown }).formats) };
 }
@@ -382,6 +607,29 @@ function normalizeBooking(booking: Booking): Booking {
   return {
     ...booking,
     format: GAME_FORMATS.includes(format as GameFormat) ? format as GameFormat : 'singles',
+  };
+}
+
+function normalizeVenue(value: unknown): Venue | null {
+  if (!value || typeof value !== 'object') return null;
+  const venue = value as Partial<Venue>;
+  if (
+    typeof venue.id !== 'string' || typeof venue.name !== 'string' ||
+    typeof venue.nameZh !== 'string' || typeof venue.area !== 'string' ||
+    typeof venue.areaZh !== 'string' || typeof venue.photo !== 'string'
+  ) return null;
+  const peakPricePence = Number(venue.peakPricePence);
+  const offPeakPricePence = Number(venue.offPeakPricePence);
+  if (!Number.isInteger(peakPricePence) || !Number.isInteger(offPeakPricePence)) return null;
+  return {
+    id: venue.id,
+    name: venue.name,
+    nameZh: venue.nameZh,
+    area: venue.area,
+    areaZh: venue.areaZh,
+    photo: venue.photo,
+    peakPricePence,
+    offPeakPricePence,
   };
 }
 
@@ -461,20 +709,51 @@ function sessionSort(a: Session, b: Session) {
   return `${a.date}T${a.startTime}`.localeCompare(`${b.date}T${b.startTime}`);
 }
 
-function emptyDraft(): SessionDraft {
+function dateFromToday(days: number) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function requestStatusLabel(status: ReservationRequestStatus, labels: {
+  pendingRequest: string;
+  reviewingRequest: string;
+  completedRequest: string;
+}) {
+  if (status === 'reviewing') return labels.reviewingRequest;
+  if (status === 'completed') return labels.completedRequest;
+  return labels.pendingRequest;
+}
+
+function emptyDraft(venueList: Venue[] = venues): SessionDraft {
   const defaultDate = createDemoSessions()[6]?.date ?? createDemoSessions()[0]?.date ?? '';
+  const venue = getVenue(venueList[0]?.id ?? venues[0].id, venueList);
   return {
     id: null,
-    venueId: venues[0].id,
+    venueId: venue.id,
     date: defaultDate,
     startTime: '18:30',
     endTime: '20:30',
-    price: '10',
+    price: String(venue.offPeakPricePence / 100),
     capacity: '8',
     formats: [...GAME_FORMATS],
     description: 'A friendly tennis session for new and returning players.',
     descriptionZh: '适合新朋友和熟悉球友的轻松网球活动。',
     status: 'published',
+  };
+}
+
+function emptyVenueDraft(venueList: Venue[] = venues): VenueDraft {
+  const venue = venueList[0];
+  return {
+    id: null,
+    name: '',
+    nameZh: '',
+    area: '',
+    areaZh: '',
+    photo: '',
+    peakPrice: String((venue?.peakPricePence ?? DEFAULT_PEAK_PRICE_PENCE) / 100),
+    offPeakPrice: String((venue?.offPeakPricePence ?? DEFAULT_OFF_PEAK_PRICE_PENCE) / 100),
   };
 }
 
@@ -528,8 +807,10 @@ function QuantityControl({
 
 export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }) {
   const [language, setLanguageValue] = useState<Language>('en');
+  const [venueList, setVenueList] = useState<Venue[]>(venues);
   const [sessions, setSessions] = useState<Session[]>(seededSessions);
   const [bookings, setBookings] = useState<Booking[]>(seededBookings);
+  const [reservationRequests, setReservationRequests] = useState<ReservationRequest[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [view, setView] = useState<View>(initialView);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -549,10 +830,46 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [adjustmentNotice, setAdjustmentNotice] = useState('');
   const [confirmation, setConfirmation] = useState<Booking | null>(null);
+  const [confirmationEmailStatus, setConfirmationEmailStatus] = useState<ConfirmationEmailStatus>('not_applicable');
   const [adminTab, setAdminTab] = useState<AdminTab>('sessions');
-  const [draft, setDraft] = useState<SessionDraft>(emptyDraft);
+  const [draft, setDraft] = useState<SessionDraft>(() => emptyDraft(venues));
+  const [venueDraft, setVenueDraft] = useState<VenueDraft>(() => emptyVenueDraft(venues));
   const [adminMessage, setAdminMessage] = useState('');
   const [adminBusy, setAdminBusy] = useState(false);
+  const [adminAuthChecked, setAdminAuthChecked] = useState(false);
+  const [adminAuthenticated, setAdminAuthenticated] = useState(false);
+  const [adminAuthBusy, setAdminAuthBusy] = useState(false);
+  const [adminAuthError, setAdminAuthError] = useState('');
+  const [adminLogin, setAdminLogin] = useState({ username: '', password: '' });
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [userAuthChecked, setUserAuthChecked] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>('login');
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [registrationForm, setRegistrationForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    password: '',
+    postcode: '',
+    tennisLevel: '',
+    preferredTime: 'weekends' as PreferredTime,
+    preferredFormat: 'singles' as GameFormat,
+  });
+  const [requestForm, setRequestForm] = useState({
+    venueId: venues[0].id,
+    preferredDate: dateFromToday(7),
+    startTime: '18:00',
+    endTime: '20:00',
+    contactName: '',
+    email: '',
+    phone: '',
+    message: '',
+  });
+  const [requestBusy, setRequestBusy] = useState(false);
+  const [requestError, setRequestError] = useState('');
+  const [submittedRequest, setSubmittedRequest] = useState<ReservationRequest | null>(null);
   const sessionsRef = useRef(sessions);
   const openSessionRef = useRef<(sessionId: string) => void>(() => undefined);
   const paymentSubmittingRef = useRef(false);
@@ -560,13 +877,14 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
 
   const t = translations[language];
   const selectedSession = sessions.find((session) => session.id === selectedSessionId);
-  const selectedVenue = selectedSession ? getVenue(selectedSession.venueId) : null;
+  const selectedVenue = selectedSession ? getVenue(selectedSession.venueId, venueList) : null;
   const activeBookings = bookings.filter((booking) => booking.status === 'confirmed');
 
   useEffect(() => {
     try {
       const savedSessions = window.localStorage.getItem(SESSION_STORAGE_KEY);
       const savedBookings = window.localStorage.getItem(BOOKING_STORAGE_KEY);
+      const savedVenues = window.localStorage.getItem(VENUE_STORAGE_KEY);
       const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
       if (savedSessions) {
         const parsedSessions = JSON.parse(savedSessions) as Session[];
@@ -575,6 +893,11 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       if (savedBookings) {
         const parsedBookings = JSON.parse(savedBookings) as Booking[];
         setBookings(parsedBookings.map(normalizeBooking));
+      }
+      if (savedVenues) {
+        const parsedVenues = JSON.parse(savedVenues) as unknown[];
+        const normalizedVenues = parsedVenues.map(normalizeVenue).filter((venue): venue is Venue => Boolean(venue));
+        if (normalizedVenues.length) setVenueList(normalizedVenues);
       }
       if (savedLanguage === 'en' || savedLanguage === 'zh') setLanguageValue(savedLanguage);
     } catch {
@@ -588,6 +911,18 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     if (!hydrated) return;
     let cancelled = false;
 
+    const loadUserSession = async () => {
+      try {
+        const response = await fetch('/api/auth/session', { cache: 'no-store' });
+        const data = await response.json() as { user?: UserProfile };
+        if (!cancelled && response.ok && data.user) setUser(data.user);
+      } catch {
+        // Booking remains available to guests when account services are offline.
+      } finally {
+        if (!cancelled) setUserAuthChecked(true);
+      }
+    };
+
     const loadSessions = async () => {
       try {
         const response = await fetch('/api/sessions', { cache: 'no-store' });
@@ -596,6 +931,18 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         if (!cancelled && data.sessions?.length) setSessions(data.sessions.map(normalizeSession));
       } catch {
         // The seeded read-only demo remains visible if the server is unavailable.
+      }
+    };
+
+    const loadVenues = async () => {
+      try {
+        const response = await fetch('/api/venues', { cache: 'no-store' });
+        if (!response.ok) return;
+        const data = await response.json() as { venues?: unknown[]; source?: string };
+        const nextVenues = data.venues?.map(normalizeVenue).filter((venue): venue is Venue => Boolean(venue)) ?? [];
+        if (!cancelled && data.source === 'database' && nextVenues.length) setVenueList(nextVenues);
+      } catch {
+        // The seeded browser data remains visible if the server is unavailable.
       }
     };
 
@@ -642,10 +989,11 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           { cache: 'no-store' },
         );
         if (!response.ok) throw new Error('booking_unavailable');
-        const data = await response.json() as { booking?: Booking };
+        const data = await response.json() as { booking?: Booking; confirmationEmailStatus?: ConfirmationEmailStatus };
         if (!cancelled && data.booking?.status === 'confirmed') {
           setSelectedSessionId(data.booking.sessionId);
           setConfirmation(normalizeBooking(data.booking));
+          setConfirmationEmailStatus(data.confirmationEmailStatus ?? 'in_progress');
           setView('confirmation');
           window.sessionStorage.removeItem('tennis-social-checkout-draft-v1');
           window.history.replaceState({}, '', '/');
@@ -657,6 +1005,8 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     };
 
     void loadSessions();
+    void loadVenues();
+    void loadUserSession();
     void reconcileCheckout();
     return () => { cancelled = true; };
   }, [hydrated]);
@@ -664,9 +1014,30 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   useEffect(() => {
     if (!hydrated || view !== 'admin') return;
     let cancelled = false;
+    const checkAdminSession = async () => {
+      try {
+        const response = await fetch('/api/admin/auth/session', { cache: 'no-store' });
+        if (!cancelled) setAdminAuthenticated(response.ok);
+      } catch {
+        if (!cancelled) setAdminAuthenticated(false);
+      } finally {
+        if (!cancelled) setAdminAuthChecked(true);
+      }
+    };
+    void checkAdminSession();
+    return () => { cancelled = true; };
+  }, [hydrated, view]);
+
+  useEffect(() => {
+    if (!hydrated || view !== 'admin' || !adminAuthChecked || !adminAuthenticated) return;
+    let cancelled = false;
     const loadAdminBookings = async () => {
       try {
         const response = await fetch('/api/admin/bookings', { cache: 'no-store' });
+        if (response.status === 401) {
+          if (!cancelled) setAdminAuthenticated(false);
+          return;
+        }
         if (!response.ok) return;
         const data = await response.json() as { bookings?: Booking[] };
         if (!cancelled && data.bookings) setBookings(data.bookings.map(normalizeBooking));
@@ -674,16 +1045,48 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         // The browser cache remains available for local previews without a database.
       }
     };
+    const loadAdminVenues = async () => {
+      try {
+        const response = await fetch('/api/admin/venues', { cache: 'no-store' });
+        if (response.status === 401) {
+          if (!cancelled) setAdminAuthenticated(false);
+          return;
+        }
+        if (!response.ok) return;
+        const data = await response.json() as { venues?: unknown[] };
+        const nextVenues = data.venues?.map(normalizeVenue).filter((venue): venue is Venue => Boolean(venue)) ?? [];
+        if (!cancelled && nextVenues.length) setVenueList(nextVenues);
+      } catch {
+        // The browser cache remains available for local previews without a database.
+      }
+    };
+    const loadReservationRequests = async () => {
+      try {
+        const response = await fetch('/api/admin/reservation-requests', { cache: 'no-store' });
+        if (response.status === 401) {
+          if (!cancelled) setAdminAuthenticated(false);
+          return;
+        }
+        if (!response.ok) return;
+        const data = await response.json() as { requests?: ReservationRequest[] };
+        if (!cancelled && data.requests) setReservationRequests(data.requests);
+      } catch {
+        // The rest of the admin dashboard remains usable if requests are unavailable.
+      }
+    };
     void loadAdminBookings();
+    void loadAdminVenues();
+    void loadReservationRequests();
     return () => { cancelled = true; };
-  }, [hydrated, view]);
+  }, [adminAuthChecked, adminAuthenticated, hydrated, view]);
 
   useEffect(() => {
     if (!hydrated) return;
     window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessions));
     window.localStorage.setItem(BOOKING_STORAGE_KEY, JSON.stringify(bookings));
+    window.localStorage.setItem(VENUE_STORAGE_KEY, JSON.stringify(venueList));
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
-  }, [bookings, hydrated, language, sessions]);
+  }, [bookings, hydrated, language, sessions, venueList]);
 
   useEffect(() => {
     document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
@@ -713,6 +1116,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       const currentPath = window.location.pathname.replace(/\/+$/, '') || '/';
       if (currentPath !== nextPath) window.history.pushState({}, '', nextPath);
     }
+    if (nextView === 'admin' && view !== 'admin') {
+      setAdminAuthenticated(false);
+      setAdminAuthChecked(false);
+    }
     setView(nextView);
     scrollTop();
   }
@@ -720,6 +1127,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname.replace(/\/+$/, '') || '/';
+      if (path === '/admin') {
+        setAdminAuthenticated(false);
+        setAdminAuthChecked(false);
+      }
       setView(path === '/admin' ? 'admin' : 'home');
       setSelectedSessionId(null);
       setConfirmation(null);
@@ -735,6 +1146,19 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     setPaymentFailed(false);
     setPaymentCancelled(false);
     navigate('detail');
+  }
+
+  function openReservationRequest() {
+    setRequestForm((current) => ({
+      ...current,
+      venueId: venueList.some((venue) => venue.id === current.venueId) ? current.venueId : venueList[0]?.id ?? '',
+      contactName: current.contactName || user?.name || '',
+      email: current.email || user?.email || '',
+      phone: current.phone || user?.phone || '',
+    }));
+    setRequestError('');
+    setSubmittedRequest(null);
+    navigate('request');
   }
 
   sessionsRef.current = sessions;
@@ -761,7 +1185,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                 .filter((session) => session.status === 'published' && !isPast(session))
                 .sort(sessionSort)
                 .map((session) => {
-                  const venue = getVenue(session.venueId);
+                  const venue = getVenue(session.venueId, venueList);
                   return {
                     id: session.id,
                     venue: venue.name,
@@ -811,17 +1235,19 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
 
     void registerTools();
     return () => lifecycle.abort();
-  }, []);
+  }, [venueList]);
 
   function beginBooking() {
     if (!selectedSession || selectedSession.status !== 'published') return;
     if (selectedSession.capacity - selectedSession.bookedSpots < 1) return;
     setBookingForm({
-      name: '',
-      email: '',
-      phone: '',
-      participants: [''],
-      format: selectedSession.formats[0] ?? GAME_FORMATS[0],
+      name: user?.name ?? '',
+      email: user?.email ?? '',
+      phone: user?.phone ?? '',
+      participants: [user?.tennisLevel ?? ''],
+      format: user && selectedSession.formats.includes(user.preferredFormat)
+        ? user.preferredFormat
+        : selectedSession.formats[0] ?? GAME_FORMATS[0],
       racketCount: 0,
       includeFriends: false,
     });
@@ -832,6 +1258,109 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     setAdjustmentNotice('');
     paymentSubmittingRef.current = false;
     navigate('booking');
+  }
+
+  async function submitReservationRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (requestBusy) return;
+    const valid = requestForm.venueId && requestForm.preferredDate >= dateFromToday(0) &&
+      requestForm.startTime && requestForm.endTime &&
+      parseMinutes(requestForm.endTime) > parseMinutes(requestForm.startTime) &&
+      requestForm.contactName.trim() && /^\S+@\S+\.\S+$/.test(requestForm.email);
+    if (!valid) {
+      setRequestError(t.requestInvalid);
+      return;
+    }
+    setRequestBusy(true);
+    setRequestError('');
+    try {
+      const response = await fetch('/api/reservation-requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestForm),
+      });
+      const data = await response.json() as { request?: ReservationRequest };
+      if (!response.ok || !data.request) {
+        setRequestError(response.status === 400 ? t.requestInvalid : t.dataUnavailable);
+        return;
+      }
+      setSubmittedRequest(data.request);
+      setReservationRequests((current) => [data.request as ReservationRequest, ...current]);
+      scrollTop();
+    } catch {
+      setRequestError(t.dataUnavailable);
+    } finally {
+      setRequestBusy(false);
+    }
+  }
+
+  async function updateReservationRequestStatus(id: string, status: ReservationRequestStatus) {
+    if (adminBusy) return;
+    setAdminBusy(true);
+    setAdminMessage('');
+    try {
+      const response = await fetch(`/api/admin/reservation-requests/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      const data = await response.json() as { request?: ReservationRequest };
+      if (response.status === 401) {
+        setAdminAuthenticated(false);
+      } else if (response.ok && data.request) {
+        setReservationRequests((current) => current.map((item) => item.id === id ? data.request as ReservationRequest : item));
+      } else {
+        setAdminMessage(t.dataUnavailable);
+      }
+    } catch {
+      setAdminMessage(t.dataUnavailable);
+    } finally {
+      setAdminBusy(false);
+    }
+  }
+
+  async function submitUserAuth(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (authBusy) return;
+    setAuthBusy(true);
+    setAuthError('');
+    const endpoint = authMode === 'login' ? '/api/auth/login' : '/api/auth/register';
+    const payload = authMode === 'login' ? loginForm : registrationForm;
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json() as { user?: UserProfile; error?: string };
+      if (!response.ok || !data.user) {
+        if (data.error === 'email_exists') setAuthError(t.emailExists);
+        else if (data.error === 'invalid_registration') setAuthError(t.registrationInvalid);
+        else if (response.status === 401) setAuthError(t.invalidCredentials);
+        else setAuthError(t.dataUnavailable);
+        return;
+      }
+      setUser(data.user);
+      setUserAuthChecked(true);
+      setLoginForm({ email: data.user.email, password: '' });
+      setRegistrationForm((current) => ({ ...current, password: '' }));
+    } catch {
+      setAuthError(t.dataUnavailable);
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function logoutUser() {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // Always clear local account state so a stale UI is not shown.
+    }
+    setUser(null);
+    setAuthMode('login');
+    setAuthError('');
+    navigate('home');
   }
 
   function updateGroupSize(value: number) {
@@ -984,31 +1513,200 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     }
   }
 
+  async function submitAdminLogin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (adminAuthBusy) return;
+    setAdminAuthBusy(true);
+    setAdminAuthError('');
+    try {
+      const response = await fetch('/api/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(adminLogin),
+      });
+      if (!response.ok) {
+        setAdminAuthError(t.invalidCredentials);
+        return;
+      }
+      setAdminAuthenticated(true);
+      setAdminAuthChecked(true);
+      setAdminLogin((current) => ({ ...current, password: '' }));
+    } catch {
+      setAdminAuthError(t.dataUnavailable);
+    } finally {
+      setAdminAuthBusy(false);
+    }
+  }
+
+  async function logoutAdmin() {
+    try {
+      await fetch('/api/admin/auth/logout', { method: 'POST' });
+    } catch {
+      // The client state is cleared even if the network is unavailable.
+    }
+    setAdminAuthenticated(false);
+    setAdminAuthChecked(true);
+    navigate('home');
+  }
+
+  function startEditVenue(venue: Venue) {
+    setVenueDraft({
+      id: venue.id,
+      name: venue.name,
+      nameZh: venue.nameZh,
+      area: venue.area,
+      areaZh: venue.areaZh,
+      photo: venue.photo,
+      peakPrice: String(venue.peakPricePence / 100),
+      offPeakPrice: String(venue.offPeakPricePence / 100),
+    });
+    setAdminMessage('');
+    scrollTop();
+  }
+
+  function chooseVenueImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    if (!file) return;
+    if (file.size > 1024 * 1024) {
+      setAdminMessage(t.imageTooLarge);
+      event.currentTarget.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setVenueDraft((current) => ({ ...current, photo: reader.result as string }));
+        setAdminMessage('');
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function applyVenueDefaultPrice(kind: 'peak' | 'offPeak') {
+    const venue = getVenue(draft.venueId, venueList);
+    const pricePence = kind === 'peak' ? venue.peakPricePence : venue.offPeakPricePence;
+    setDraft((current) => ({ ...current, price: String(pricePence / 100) }));
+  }
+
+  async function saveVenue(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const peakPricePence = Math.round(Number(venueDraft.peakPrice) * 100);
+    const offPeakPricePence = Math.round(Number(venueDraft.offPeakPrice) * 100);
+    if (
+      !venueDraft.name.trim() || !venueDraft.nameZh.trim() || !venueDraft.area.trim() ||
+      !venueDraft.areaZh.trim() || !venueDraft.photo.trim() ||
+      !venueDraft.peakPrice.trim() || !venueDraft.offPeakPrice.trim() ||
+      !Number.isInteger(peakPricePence) || peakPricePence < 0 ||
+      !Number.isInteger(offPeakPricePence) || offPeakPricePence < 0 ||
+      peakPricePence < offPeakPricePence
+    ) {
+      setAdminMessage(peakPricePence < offPeakPricePence ? t.priceRule : t.venueSaveFailed);
+      return;
+    }
+    const existing = venueDraft.id ? venueList.find((venue) => venue.id === venueDraft.id) : undefined;
+    const nextVenue: Venue = {
+      id: venueDraft.id ?? `venue-${crypto.randomUUID()}`,
+      name: venueDraft.name.trim(),
+      nameZh: venueDraft.nameZh.trim(),
+      area: venueDraft.area.trim(),
+      areaZh: venueDraft.areaZh.trim(),
+      photo: venueDraft.photo.trim(),
+      peakPricePence,
+      offPeakPricePence,
+    };
+    setAdminBusy(true);
+    let savedOnServer = false;
+    let useLocalFallback = false;
+    try {
+      const response = await fetch(
+        existing ? `/api/admin/venues/${encodeURIComponent(existing.id)}` : '/api/admin/venues',
+        {
+          method: existing ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: nextVenue.name,
+            nameZh: nextVenue.nameZh,
+            area: nextVenue.area,
+            areaZh: nextVenue.areaZh,
+            photo: nextVenue.photo,
+            peakPricePence,
+            offPeakPricePence,
+          }),
+        },
+      );
+      const data = await response.json() as { venue?: unknown; error?: string };
+      if (response.status === 401) {
+        setAdminAuthenticated(false);
+        setAdminMessage(t.invalidCredentials);
+      } else if (response.ok) {
+        const savedVenue = normalizeVenue(data.venue);
+        if (savedVenue) {
+          setVenueList((current) => existing
+            ? current.map((venue) => (venue.id === existing.id ? savedVenue : venue))
+            : [...current, savedVenue]);
+          savedOnServer = true;
+        }
+      } else if (response.status >= 500) {
+        useLocalFallback = true;
+      } else {
+        setAdminMessage(t.venueSaveFailed);
+      }
+    } catch {
+      useLocalFallback = true;
+    }
+    if (!savedOnServer && useLocalFallback) {
+      setVenueList((current) => existing
+        ? current.map((venue) => (venue.id === existing.id ? nextVenue : venue))
+        : [...current, nextVenue]);
+    }
+    if (savedOnServer || useLocalFallback) {
+      setVenueDraft(emptyVenueDraft(venueList));
+      setAdminMessage(t.venueSaved);
+    }
+    setAdminBusy(false);
+  }
+
   async function resetDemo() {
     if (!window.confirm(t.resetConfirm)) return;
     setAdminBusy(true);
     let resetFromServer = false;
+    let resetUnauthorized = false;
+    let nextVenues = venueList;
     try {
       const response = await fetch('/api/admin/reset', { method: 'POST' });
+      if (response.status === 401) {
+        resetUnauthorized = true;
+        setAdminAuthenticated(false);
+      }
       if (response.ok) {
-        const data = await response.json() as { sessions?: Session[]; bookings?: Booking[] };
+        const data = await response.json() as { venues?: unknown[]; sessions?: Session[]; bookings?: Booking[] };
+        const resetVenues = data.venues?.map(normalizeVenue).filter((venue): venue is Venue => Boolean(venue));
         if (data.sessions && data.bookings) {
           setSessions(data.sessions);
           setBookings(data.bookings);
+          if (resetVenues?.length) {
+            nextVenues = resetVenues;
+            setVenueList(resetVenues);
+          }
           resetFromServer = true;
         }
       }
     } catch {
       // Fall back to a browser-only reset for local previews without Postgres.
     }
-    if (!resetFromServer) {
+    if (resetUnauthorized) {
+      setAdminBusy(false);
+      return;
+    }
+    if (!resetFromServer && !resetUnauthorized) {
       const nextSessions = createDemoSessions() as Session[];
       setSessions(nextSessions);
       setBookings(createDemoBookings(nextSessions) as Booking[]);
     }
     setConfirmation(null);
     setSelectedSessionId(null);
-    setDraft(emptyDraft());
+    setDraft(emptyDraft(nextVenues));
+    setVenueDraft(emptyVenueDraft(nextVenues));
     setAdminMessage(t.resetDone);
     paymentSubmittingRef.current = false;
     cancellingBookingRef.current.clear();
@@ -1131,7 +1829,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     } else if (savedOnServer) {
       setAdminMessage(t.sessionSaved);
     }
-    if (savedOnServer || useLocalFallback) setDraft(emptyDraft());
+    if (savedOnServer || useLocalFallback) setDraft(emptyDraft(venueList));
     setAdminBusy(false);
   }
 
@@ -1186,6 +1884,9 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <button type="button" className={view === 'home' ? 'active' : ''} onClick={() => navigate('home')}>
             {t.sessions}
           </button>
+          <button type="button" className={view === 'account' ? 'active' : ''} onClick={() => navigate('account')}>
+            <UserRound size={15} /> {user ? user.name : t.account}
+          </button>
         </nav>
         <div className="header-actions">
           <button
@@ -1207,7 +1908,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   );
 
   function sessionCard(session: Session) {
-    const venue = getVenue(session.venueId);
+    const venue = getVenue(session.venueId, venueList);
     const spots = Math.max(0, session.capacity - session.bookedSpots);
     const isFull = spots === 0;
     return (
@@ -1263,6 +1964,11 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
               <span><Check size={15} /> {t.noSignUp}</span>
               <span><Check size={15} /> {t.courtReady}</span>
             </div>
+            <button type="button" className="request-cta" onClick={openReservationRequest}>
+              <span className="request-cta-icon"><CalendarPlus size={19} /></span>
+              <span><strong>{t.requestCta}</strong><small>{t.requestCtaHint}</small></span>
+              <ArrowRight size={17} />
+            </button>
           </div>
           <div className="intro-photo-grid" aria-label="London tennis courts">
             <img className="intro-photo-large" src="/venues/victoria-park.jpg" alt="Victoria Park tennis court" />
@@ -1285,6 +1991,57 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           </div>
         </section>
       </>
+    );
+  }
+
+  function renderReservationRequest() {
+    if (submittedRequest) {
+      const venue = getVenue(submittedRequest.venueId, venueList);
+      return (
+        <section className="request-page page-width">
+          <div className="request-card request-success-card">
+            <div className="success-icon"><Check size={28} /></div>
+            <p className="eyebrow">{t.requestSubmitted}</p>
+            <h1>{t.requestSubmitted}</h1>
+            <p className="form-intro">{t.requestSubmittedIntro}</p>
+            <div className="reference-box"><span>{t.requestReference}</span><strong>{submittedRequest.id}</strong></div>
+            <div className="request-summary">
+              <div><small>{t.location}</small><strong>{language === 'zh' ? venue.nameZh : venue.name}</strong></div>
+              <div><small>{t.preferredDate}</small><strong>{formatLongDate(submittedRequest.preferredDate, language)}</strong></div>
+              <div><small>{t.preferredTimeRange}</small><strong>{submittedRequest.startTime}–{submittedRequest.endTime}</strong></div>
+              <div><small>{t.contact}</small><strong>{submittedRequest.contactName}</strong><span>{submittedRequest.email}</span></div>
+            </div>
+            <div className="request-guarantee"><ShieldCheck size={18} /><span>{t.requestPromise}</span></div>
+            <Button size="lg" className="primary-wide" onClick={() => navigate('home')}>{t.browseMore}<ArrowRight size={17} /></Button>
+          </div>
+        </section>
+      );
+    }
+    return (
+      <section className="request-page page-width">
+        <button type="button" className="back-link" onClick={() => navigate('home')}><ArrowLeft size={16} /> {t.back}</button>
+        <div className="request-card">
+          <div className="request-heading">
+            <p className="eyebrow"><CalendarPlus size={14} /> {t.requestCta}</p>
+            <h1>{t.requestTitle}</h1>
+            <p className="form-intro">{t.requestIntro}</p>
+            <div className="request-guarantee"><ShieldCheck size={18} /><span>{t.requestPromise}</span></div>
+          </div>
+          <form onSubmit={submitReservationRequest}>
+            <div className="form-grid two-col">
+              <div className="field"><Label htmlFor="request-venue">{t.location} <em>*</em></Label><select id="request-venue" className="native-select" value={requestForm.venueId} onChange={(event) => setRequestForm((current) => ({ ...current, venueId: event.target.value }))}>{venueList.map((venue) => <option key={venue.id} value={venue.id}>{language === 'zh' ? `${venue.nameZh} · ${venue.areaZh}` : `${venue.name} · ${venue.area}`}</option>)}</select></div>
+              <div className="field"><Label htmlFor="request-date">{t.preferredDate} <em>*</em></Label><Input id="request-date" type="date" min={dateFromToday(0)} value={requestForm.preferredDate} onChange={(event) => setRequestForm((current) => ({ ...current, preferredDate: event.target.value }))} /></div>
+              <div className="field request-time-field"><Label htmlFor="request-start">{t.preferredTimeRange} <em>*</em></Label><div className="time-pair"><Input id="request-start" type="time" value={requestForm.startTime} onChange={(event) => setRequestForm((current) => ({ ...current, startTime: event.target.value }))} /><span>–</span><Input aria-label={language === 'zh' ? '结束时间' : 'End time'} type="time" value={requestForm.endTime} onChange={(event) => setRequestForm((current) => ({ ...current, endTime: event.target.value }))} /></div></div>
+              <div className="field"><Label htmlFor="request-name">{t.name} <em>*</em></Label><Input id="request-name" autoComplete="name" value={requestForm.contactName} onChange={(event) => setRequestForm((current) => ({ ...current, contactName: event.target.value }))} /></div>
+              <div className="field"><Label htmlFor="request-email">{t.email} <em>*</em></Label><Input id="request-email" type="email" autoComplete="email" value={requestForm.email} onChange={(event) => setRequestForm((current) => ({ ...current, email: event.target.value }))} /></div>
+              <div className="field"><Label htmlFor="request-phone">{t.phone} <small>({t.optional})</small></Label><Input id="request-phone" type="tel" autoComplete="tel" value={requestForm.phone} onChange={(event) => setRequestForm((current) => ({ ...current, phone: event.target.value }))} /></div>
+              <div className="field request-message-field"><Label htmlFor="request-message">{t.requestMessage} <small>({t.optional})</small></Label><textarea id="request-message" className="native-textarea" rows={4} maxLength={1000} placeholder={t.requestMessageHint} value={requestForm.message} onChange={(event) => setRequestForm((current) => ({ ...current, message: event.target.value }))} /></div>
+            </div>
+            {requestError ? <div className="inline-error"><TriangleAlert size={16} /> {requestError}</div> : null}
+            <Button type="submit" size="lg" className="request-submit" disabled={requestBusy}>{requestBusy ? t.submittingRequest : t.submitRequest}<ArrowRight size={17} /></Button>
+          </form>
+        </div>
+      </section>
     );
   }
 
@@ -1393,6 +2150,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             <p className="eyebrow"><span className="eyebrow-dot" /> {t.bookYourPlace}</p>
             <h1>{t.contactDetails}</h1>
             <p className="form-intro">{t.contactIntro}</p>
+            {user ? <p className="profile-prefill-notice"><Check size={15} /> {t.signedInPrefill}</p> : null}
             <div className="form-grid two-col">
               <div className="field"><Label htmlFor="name">{t.name} <em>*</em></Label><Input id="name" value={bookingForm.name} onChange={(event) => setBookingForm((current) => ({ ...current, name: event.target.value }))} autoComplete="name" /></div>
               <div className="field"><Label htmlFor="email">{t.email} <em>*</em></Label><Input id="email" inputMode="email" value={bookingForm.email} onChange={(event) => setBookingForm((current) => ({ ...current, email: event.target.value }))} autoComplete="email" /></div>
@@ -1459,7 +2217,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     if (!confirmation) return renderHome();
     const session = sessions.find((item) => item.id === confirmation.sessionId);
     if (!session) return renderHome();
-    const venue = getVenue(session.venueId);
+    const venue = getVenue(session.venueId, venueList);
     return (
       <section className="confirmation-page page-width">
         <div className="confirmation-card">
@@ -1482,8 +2240,78 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             <div><span>{t.racketFee} × {confirmation.racketCount}</span><strong>{formatMoney(confirmation.racketCount * RACKET_PRICE_PENCE, language)}</strong></div>
             <div><span>{t.total}</span><strong>{formatMoney(confirmation.totalPence, language)}</strong></div>
           </div>
+          {confirmationEmailStatus === 'sent' ? <p className="confirmation-notice"><CalendarDays size={15} /> {t.emailConfirmationSent} <strong>{confirmation.email}</strong>.</p> : null}
+          {confirmationEmailStatus === 'in_progress' ? <p className="confirmation-notice"><CalendarDays size={15} /> {t.emailConfirmationPending}</p> : null}
+          {confirmationEmailStatus === 'skipped' ? <p className="confirmation-notice"><TriangleAlert size={15} /> {t.emailConfirmationSkipped}</p> : null}
+          {confirmationEmailStatus === 'failed' ? <p className="confirmation-notice"><TriangleAlert size={15} /> {t.emailConfirmationFailed}</p> : null}
           <p className="confirmation-notice"><ShieldCheck size={15} /> {t.demoNotice}</p>
           <Button size="lg" className="primary-wide" onClick={() => navigate('home')}>{t.browseMore}<ArrowRight size={17} /></Button>
+        </div>
+      </section>
+    );
+  }
+
+  function renderAccount() {
+    if (!userAuthChecked) {
+      return <section className="account-page page-width"><div className="account-card"><p>{t.checkingAccess}</p></div></section>;
+    }
+    if (user) {
+      return (
+        <section className="account-page page-width">
+          <div className="account-card profile-card">
+            <div className="profile-avatar"><UserRound size={28} /></div>
+            <p className="eyebrow"><span className="eyebrow-dot" /> {t.memberSince}</p>
+            <h1>{t.welcomeBack}, {user.name}</h1>
+            <p className="form-intro">{t.accountIntro}</p>
+            <div className="profile-details">
+              <div><small>{t.email}</small><strong>{user.email}</strong></div>
+              {user.phone ? <div><small>{t.phone}</small><strong>{user.phone}</strong></div> : null}
+              <div><small>{t.postcode}</small><strong>{user.postcode}</strong></div>
+              <div><small>{t.tennisLevel}</small><strong>{user.tennisLevel}</strong></div>
+              <div><small>{t.preferredTime}</small><strong>{preferredTimeLabel(user.preferredTime, t)}</strong></div>
+              <div><small>{t.preferredFormat}</small><strong>{formatNames([user.preferredFormat], t)}</strong></div>
+            </div>
+            <div className="account-actions">
+              <Button size="lg" onClick={() => navigate('home')}>{t.browseMore}<ArrowRight size={16} /></Button>
+              <Button size="lg" variant="outline" onClick={() => void logoutUser()}>{t.logout}</Button>
+            </div>
+          </div>
+        </section>
+      );
+    }
+    return (
+      <section className="account-page page-width">
+        <div className="account-card">
+          <p className="eyebrow"><span className="eyebrow-dot" /> {t.accountTitle}</p>
+          <h1>{authMode === 'login' ? t.signIn : t.createAccount}</h1>
+          <p className="form-intro">{authMode === 'login' ? t.loginIntro : t.registerIntro}</p>
+          <div className="auth-tabs" role="tablist">
+            <button type="button" className={authMode === 'login' ? 'active' : ''} onClick={() => { setAuthMode('login'); setAuthError(''); }}>{t.signIn}</button>
+            <button type="button" className={authMode === 'register' ? 'active' : ''} onClick={() => { setAuthMode('register'); setAuthError(''); }}>{t.createAccount}</button>
+          </div>
+          <form onSubmit={submitUserAuth} noValidate>
+            <div className="login-fields">
+              {authMode === 'register' ? <>
+                <div className="form-grid two-col">
+                  <div className="field"><Label htmlFor="register-name">{t.name} <em>*</em></Label><Input id="register-name" autoComplete="name" required value={registrationForm.name} onChange={(event) => setRegistrationForm((current) => ({ ...current, name: event.target.value }))} /></div>
+                  <div className="field"><Label htmlFor="register-phone">{t.phone} <small>({t.optional})</small></Label><Input id="register-phone" autoComplete="tel" inputMode="tel" value={registrationForm.phone} onChange={(event) => setRegistrationForm((current) => ({ ...current, phone: event.target.value }))} /></div>
+                </div>
+                <div className="field"><Label htmlFor="register-email">{t.email} <em>*</em></Label><Input id="register-email" autoComplete="email" inputMode="email" required value={registrationForm.email} onChange={(event) => setRegistrationForm((current) => ({ ...current, email: event.target.value }))} /></div>
+                <div className="field"><Label htmlFor="register-password">{t.password} <em>*</em> <small>({t.passwordHint})</small></Label><Input id="register-password" type="password" autoComplete="new-password" minLength={8} required value={registrationForm.password} onChange={(event) => setRegistrationForm((current) => ({ ...current, password: event.target.value }))} /></div>
+                <div className="field"><Label htmlFor="register-postcode">{t.postcode} <em>*</em></Label><Input id="register-postcode" autoComplete="postal-code" required value={registrationForm.postcode} onChange={(event) => setRegistrationForm((current) => ({ ...current, postcode: event.target.value.toUpperCase() }))} /></div>
+                <div className="form-grid two-col">
+                  <div className="field"><Label htmlFor="register-level">{t.tennisLevel} <em>*</em></Label><select id="register-level" required className="native-select" value={registrationForm.tennisLevel} onChange={(event) => setRegistrationForm((current) => ({ ...current, tennisLevel: event.target.value }))}><option value="">{language === 'zh' ? '请选择水平' : 'Select level'}</option>{LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></div>
+                  <div className="field"><Label htmlFor="register-format">{t.preferredFormat} <em>*</em></Label><select id="register-format" className="native-select" value={registrationForm.preferredFormat} onChange={(event) => setRegistrationForm((current) => ({ ...current, preferredFormat: event.target.value as GameFormat }))}>{GAME_FORMATS.map((format) => <option key={format} value={format}>{formatNames([format], t)}</option>)}</select></div>
+                </div>
+                <div className="field"><Label htmlFor="register-time">{t.preferredTime} <em>*</em></Label><select id="register-time" className="native-select" value={registrationForm.preferredTime} onChange={(event) => setRegistrationForm((current) => ({ ...current, preferredTime: event.target.value as PreferredTime }))}>{PREFERRED_TIMES.map((time) => <option key={time} value={time}>{preferredTimeLabel(time, t)}</option>)}</select></div>
+              </> : <>
+                <div className="field"><Label htmlFor="login-email">{t.email}</Label><Input id="login-email" autoComplete="email" inputMode="email" required value={loginForm.email} onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))} /></div>
+                <div className="field"><Label htmlFor="login-password">{t.password}</Label><Input id="login-password" type="password" autoComplete="current-password" required value={loginForm.password} onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))} /></div>
+              </>}
+            </div>
+            {authError ? <div className="inline-error"><TriangleAlert size={16} /> {authError}</div> : null}
+            <Button type="submit" size="lg" className="primary-wide account-submit" disabled={authBusy}>{authBusy ? (authMode === 'login' ? t.signingIn : t.creatingAccount) : (authMode === 'login' ? t.signIn : t.createAccount)}<ArrowRight size={16} /></Button>
+          </form>
         </div>
       </section>
     );
@@ -1495,12 +2323,12 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       : false;
     return (
       <form className="admin-editor" onSubmit={saveDraft}>
-        <div className="admin-editor-heading"><div><p className="eyebrow muted">{draft.id ? t.editSession : t.addSession}</p><h2>{draft.id ? t.editSession : t.addSession}</h2></div>{draft.id ? <button type="button" className="text-button" onClick={() => setDraft(emptyDraft())}>{t.cancelEdit}</button> : null}</div>
+        <div className="admin-editor-heading"><div><p className="eyebrow muted">{draft.id ? t.editSession : t.addSession}</p><h2>{draft.id ? t.editSession : t.addSession}</h2></div>{draft.id ? <button type="button" className="text-button" onClick={() => setDraft(emptyDraft(venueList))}>{t.cancelEdit}</button> : null}</div>
         <div className="form-grid two-col">
-          <div className="field"><Label htmlFor="admin-venue">{t.location}</Label><select id="admin-venue" value={draft.venueId} onChange={(event) => setDraft((current) => ({ ...current, venueId: event.target.value }))} className="native-select" disabled={hasActiveBookings}>{venues.map((venue) => <option key={venue.id} value={venue.id}>{language === 'zh' ? venue.nameZh : venue.name}</option>)}</select></div>
+          <div className="field"><Label htmlFor="admin-venue">{t.location}</Label><select id="admin-venue" value={draft.venueId} onChange={(event) => setDraft((current) => { const venue = getVenue(event.target.value, venueList); return { ...current, venueId: event.target.value, price: current.id ? current.price : String(venue.offPeakPricePence / 100) }; })} className="native-select" disabled={hasActiveBookings}>{venueList.map((venue) => <option key={venue.id} value={venue.id}>{language === 'zh' ? venue.nameZh : venue.name}</option>)}</select></div>
           <div className="field"><Label htmlFor="admin-date">{t.date}</Label><Input id="admin-date" type="date" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} disabled={hasActiveBookings} /></div>
           <div className="field"><Label htmlFor="admin-start">{t.time}</Label><div className="time-pair"><Input id="admin-start" type="time" value={draft.startTime} onChange={(event) => setDraft((current) => ({ ...current, startTime: event.target.value }))} disabled={hasActiveBookings} /><span>–</span><Input id="admin-end" type="time" value={draft.endTime} onChange={(event) => setDraft((current) => ({ ...current, endTime: event.target.value }))} disabled={hasActiveBookings} /></div></div>
-          <div className="field"><Label htmlFor="admin-price">{t.pricePerPerson}</Label><div className="input-prefix"><span>£</span><Input id="admin-price" inputMode="decimal" value={draft.price} onChange={(event) => setDraft((current) => ({ ...current, price: event.target.value }))} disabled={hasActiveBookings} /></div></div>
+          <div className="field"><Label htmlFor="admin-price">{t.pricePerPerson}</Label><div className="input-prefix"><span>£</span><Input id="admin-price" inputMode="decimal" value={draft.price} onChange={(event) => setDraft((current) => ({ ...current, price: event.target.value }))} disabled={hasActiveBookings} /></div><div className="default-price-actions"><button type="button" className="text-button" onClick={() => applyVenueDefaultPrice('peak')} disabled={hasActiveBookings}>{t.usePeakPrice}</button><button type="button" className="text-button" onClick={() => applyVenueDefaultPrice('offPeak')} disabled={hasActiveBookings}>{t.useOffPeakPrice}</button></div></div>
           <div className="field"><Label htmlFor="admin-capacity">{t.capacity}</Label><Input id="admin-capacity" type="number" min="1" value={draft.capacity} onChange={(event) => setDraft((current) => ({ ...current, capacity: event.target.value }))} /></div>
           <div className="field"><Label htmlFor="admin-status">{t.status}</Label><select id="admin-status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value as SessionStatus }))} className="native-select"><option value="published">{t.published}</option><option value="draft">{t.draft}</option></select></div>
           <div className="field admin-format-field"><span className="field-label">{t.formats}</span><fieldset className="format-checkboxes"><legend className="sr-only">{t.formats}</legend>{GAME_FORMATS.map((format) => <label className="format-checkbox" key={format}><input type="checkbox" checked={draft.formats.includes(format)} onChange={(event) => setDraft((current) => ({ ...current, formats: event.target.checked ? [...new Set([...current.formats, format])] : current.formats.filter((item) => item !== format) }))} /><span>{formatNames([format], t)}</span></label>)}</fieldset></div>
@@ -1513,7 +2341,57 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     );
   }
 
+  function renderVenueEditor() {
+    return (
+      <form className="admin-editor venue-editor" onSubmit={saveVenue}>
+        <div className="admin-editor-heading">
+          <div><p className="eyebrow muted">{venueDraft.id ? t.editVenue : t.addVenue}</p><h2>{venueDraft.id ? t.editVenue : t.addVenue}</h2></div>
+          {venueDraft.id ? <button type="button" className="text-button" onClick={() => setVenueDraft(emptyVenueDraft(venueList))}>{t.cancelEdit}</button> : null}
+        </div>
+        <div className="form-grid two-col">
+          <div className="field"><Label htmlFor="venue-name">{t.venueName} <em>*</em></Label><Input id="venue-name" value={venueDraft.name} onChange={(event) => setVenueDraft((current) => ({ ...current, name: event.target.value }))} /></div>
+          <div className="field"><Label htmlFor="venue-name-zh">{t.venueNameZh} <em>*</em></Label><Input id="venue-name-zh" value={venueDraft.nameZh} onChange={(event) => setVenueDraft((current) => ({ ...current, nameZh: event.target.value }))} /></div>
+          <div className="field"><Label htmlFor="venue-area">{t.area} <em>*</em></Label><Input id="venue-area" value={venueDraft.area} onChange={(event) => setVenueDraft((current) => ({ ...current, area: event.target.value }))} /></div>
+          <div className="field"><Label htmlFor="venue-area-zh">{t.areaZh} <em>*</em></Label><Input id="venue-area-zh" value={venueDraft.areaZh} onChange={(event) => setVenueDraft((current) => ({ ...current, areaZh: event.target.value }))} /></div>
+          <div className="field"><Label htmlFor="venue-peak-price">{t.peakPrice} <em>*</em></Label><div className="input-prefix"><span>£</span><Input id="venue-peak-price" inputMode="decimal" value={venueDraft.peakPrice} onChange={(event) => setVenueDraft((current) => ({ ...current, peakPrice: event.target.value }))} /></div></div>
+          <div className="field"><Label htmlFor="venue-off-peak-price">{t.offPeakPrice} <em>*</em></Label><div className="input-prefix"><span>£</span><Input id="venue-off-peak-price" inputMode="decimal" value={venueDraft.offPeakPrice} onChange={(event) => setVenueDraft((current) => ({ ...current, offPeakPrice: event.target.value }))} /></div></div>
+        </div>
+        <div className="field venue-image-field">
+          <Label htmlFor="venue-photo">{t.venueImage} <em>*</em></Label>
+          <Input id="venue-photo" type="text" value={venueDraft.photo.startsWith('data:') ? '' : venueDraft.photo} placeholder={t.imageUrl} onChange={(event) => setVenueDraft((current) => ({ ...current, photo: event.target.value }))} />
+          <div className="venue-upload-row"><Input id="venue-photo-file" type="file" accept="image/*" onChange={chooseVenueImage} /><span>{t.uploadImage}</span></div>
+          <p className="admin-field-note">{t.imageHelp}</p>
+          {venueDraft.photo ? <img className="venue-image-preview" src={venueDraft.photo} alt={venueDraft.name || t.venueImage} /> : null}
+        </div>
+        {adminMessage ? <div className="admin-message"><Check size={15} /> {adminMessage}</div> : null}
+        <Button type="submit" disabled={adminBusy}><Check size={16} /> {adminBusy ? t.saving : t.saveVenue}</Button>
+      </form>
+    );
+  }
+
+  function renderAdminLogin() {
+    if (!adminAuthChecked) {
+      return <section className="admin-page page-width"><div className="admin-login-card"><p className="eyebrow"><Settings2 size={14} /> {t.admin}</p><h1>{t.checkingAccess}</h1></div></section>;
+    }
+    return (
+      <section className="admin-page page-width">
+        <form className="admin-login-card" onSubmit={submitAdminLogin}>
+          <p className="eyebrow"><Settings2 size={14} /> {t.admin}</p>
+          <h1>{t.adminLoginTitle}</h1>
+          <p>{t.adminLoginIntro}</p>
+          <div className="login-fields">
+            <div className="field"><Label htmlFor="admin-username">{t.username}</Label><Input id="admin-username" value={adminLogin.username} onChange={(event) => setAdminLogin((current) => ({ ...current, username: event.target.value }))} autoComplete="username" /></div>
+            <div className="field"><Label htmlFor="admin-password">{t.password}</Label><Input id="admin-password" type="password" value={adminLogin.password} onChange={(event) => setAdminLogin((current) => ({ ...current, password: event.target.value }))} autoComplete="current-password" /></div>
+          </div>
+          {adminAuthError ? <div className="inline-error"><TriangleAlert size={16} /> {adminAuthError}</div> : null}
+          <Button type="submit" size="lg" disabled={adminAuthBusy}>{adminAuthBusy ? t.signingIn : t.signIn}<ArrowRight size={17} /></Button>
+        </form>
+      </section>
+    );
+  }
+
   function renderAdmin() {
+    if (!adminAuthChecked || !adminAuthenticated) return renderAdminLogin();
     const publishedCount = sessions.filter((session) => session.status === 'published').length;
     const openSpots = sessions.reduce(
       (sum, session) => sum + Math.max(0, session.capacity - session.bookedSpots),
@@ -1527,9 +2405,12 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             <h1>{t.adminTitle}</h1>
             <p>{t.adminIntro}</p>
           </div>
-          <Button variant="outline" onClick={() => void resetDemo()} disabled={adminBusy}>
-            <RefreshCw size={15} /> {t.resetDemo}
-          </Button>
+          <div className="admin-heading-actions">
+            <Button variant="outline" onClick={() => void resetDemo()} disabled={adminBusy}>
+              <RefreshCw size={15} /> {t.resetDemo}
+            </Button>
+            <Button variant="ghost" onClick={() => void logoutAdmin()} disabled={adminBusy}>{t.logout}</Button>
+          </div>
         </div>
         <div className="admin-stats">
           <div><span>{publishedCount}</span><small>{t.published}</small></div>
@@ -1543,6 +2424,12 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <button type="button" role="tab" aria-selected={adminTab === 'bookings'} className={adminTab === 'bookings' ? 'active' : ''} onClick={() => setAdminTab('bookings')}>
             {t.viewBookings}
           </button>
+          <button type="button" role="tab" aria-selected={adminTab === 'requests'} className={adminTab === 'requests' ? 'active' : ''} onClick={() => setAdminTab('requests')}>
+            {t.manageRequests}{reservationRequests.filter((request) => request.status === 'pending').length ? ` (${reservationRequests.filter((request) => request.status === 'pending').length})` : ''}
+          </button>
+          <button type="button" role="tab" aria-selected={adminTab === 'venues'} className={adminTab === 'venues' ? 'active' : ''} onClick={() => setAdminTab('venues')}>
+            {t.manageVenues}
+          </button>
         </div>
         {adminTab === 'sessions' ? (
           <div className="admin-session-layout">
@@ -1552,7 +2439,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                 <Badge variant="secondary">{allSessions.length}</Badge>
               </div>
               {allSessions.map((session) => {
-                const venue = getVenue(session.venueId);
+                const venue = getVenue(session.venueId, venueList);
                 const spots = Math.max(0, session.capacity - session.bookedSpots);
                 return (
                   <div className="admin-session-row" key={session.id}>
@@ -1574,7 +2461,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             </div>
             {renderSessionEditor()}
           </div>
-        ) : (
+        ) : adminTab === 'bookings' ? (
           <div className="admin-bookings">
             <div className="admin-list-heading">
               <div><p className="eyebrow muted">{t.admin}</p><h2>{t.bookingList}</h2><p>{t.bookingListIntro}</p></div>
@@ -1587,7 +2474,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                   <tbody>
                     {bookings.map((booking) => {
                       const session = sessions.find((item) => item.id === booking.sessionId);
-                      const venue = session ? getVenue(session.venueId) : venues[0];
+                      const venue = session ? getVenue(session.venueId, venueList) : getVenue(venues[0].id, venueList);
                       return (
                         <tr key={booking.id}>
                           <td><strong>{booking.contactName}</strong><span>{booking.email}</span>{booking.phone ? <span>{booking.phone}</span> : null}</td>
@@ -1605,6 +2492,58 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
               </div>
             ) : <div className="empty-state">{t.emptyBookings}</div>}
           </div>
+        ) : adminTab === 'requests' ? (
+          <div className="admin-bookings admin-requests">
+            <div className="admin-list-heading">
+              <div><p className="eyebrow muted">{t.manageRequests}</p><h2>{t.requestList}</h2><p>{t.requestListIntro}</p></div>
+              <Badge variant="secondary">{reservationRequests.length}</Badge>
+            </div>
+            {adminMessage ? <div className="admin-message">{adminMessage}</div> : null}
+            {reservationRequests.length ? (
+              <div className="request-admin-list">
+                {reservationRequests.map((request) => {
+                  const venue = getVenue(request.venueId, venueList);
+                  return (
+                    <article className="request-admin-row" key={request.id}>
+                      <div className="request-admin-date"><strong>{new Date(`${request.preferredDate}T12:00:00`).getDate()}</strong><span>{new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-GB', { month: 'short' }).format(new Date(`${request.preferredDate}T12:00:00`))}</span></div>
+                      <div className="request-admin-main">
+                        <div className="request-admin-title"><strong>{language === 'zh' ? venue.nameZh : venue.name}</strong><Badge variant={request.status === 'pending' ? 'default' : 'outline'}>{requestStatusLabel(request.status, t)}</Badge></div>
+                        <span><CalendarDays size={14} /> {formatLongDate(request.preferredDate, language)} · {request.startTime}–{request.endTime}</span>
+                        <span><UserRound size={14} /> {request.contactName} · <a href={`mailto:${request.email}`}>{request.email}</a>{request.phone ? ` · ${request.phone}` : ''}</span>
+                        {request.message ? <p>{request.message}</p> : null}
+                        <small>{t.requestedOn}: {new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(request.createdAt))}</small>
+                      </div>
+                      <div className="request-admin-actions">
+                        {request.status === 'pending' ? <Button variant="outline" size="sm" disabled={adminBusy} onClick={() => void updateReservationRequestStatus(request.id, 'reviewing')}>{t.markReviewing}</Button> : null}
+                        {request.status !== 'completed' ? <Button size="sm" disabled={adminBusy} onClick={() => void updateReservationRequestStatus(request.id, 'completed')}><Check size={14} /> {t.markCompleted}</Button> : null}
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : <div className="empty-state">{t.noRequests}</div>}
+          </div>
+        ) : (
+          <div className="admin-venue-layout">
+            <div className="admin-venue-list">
+              <div className="admin-list-heading">
+                <div><p className="eyebrow muted">{t.manageVenues}</p><h2>{t.venueList}</h2><p>{t.venueListIntro}</p></div>
+                <div className="admin-list-heading-actions"><Badge variant="secondary">{venueList.length}</Badge><Button variant="outline" size="sm" onClick={() => { setVenueDraft(emptyVenueDraft(venueList)); setAdminMessage(''); }} disabled={adminBusy}><Plus size={14} /> {t.addVenue}</Button></div>
+              </div>
+              {venueList.map((venue) => (
+                <div className="admin-venue-row" key={venue.id}>
+                  <img src={venue.photo} alt="" />
+                  <div className="admin-venue-row-main">
+                    <strong>{language === 'zh' ? venue.nameZh : venue.name}</strong>
+                    <span>{language === 'zh' ? venue.areaZh : venue.area}</span>
+                    <small>{t.peakPrice}: {formatMoney(venue.peakPricePence, language)} · {t.offPeakPrice}: {formatMoney(venue.offPeakPricePence, language)}</small>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => startEditVenue(venue)} disabled={adminBusy}><Pencil size={14} /> {t.edit}</Button>
+                </div>
+              ))}
+            </div>
+            {renderVenueEditor()}
+          </div>
         )}
       </section>
     );
@@ -1618,6 +2557,8 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         {view === 'detail' ? renderDetail() : null}
         {view === 'booking' ? renderBooking() : null}
         {view === 'confirmation' ? renderConfirmation() : null}
+        {view === 'account' ? renderAccount() : null}
+        {view === 'request' ? renderReservationRequest() : null}
         {view === 'admin' ? renderAdmin() : null}
       </main>
       <footer className="site-footer page-width"><span><AppMark /> Tennis Social</span><small>{t.demoNotice}</small></footer>

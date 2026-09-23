@@ -6,6 +6,7 @@ import {
   type SessionRow,
 } from '@/lib/server/database';
 import { validateSessionInput, type SessionInput } from '@/lib/server/admin-validation';
+import { requireAdmin } from '@/lib/server/admin-auth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -19,13 +20,16 @@ async function parseBody(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = requireAdmin(request);
+  if (unauthorized) return unauthorized;
   const input = await parseBody(request);
-  const session = input ? validateSessionInput(input) : null;
-  if (!session) return Response.json({ error: 'invalid_session' }, { status: 400 });
 
   try {
     const db = database();
     await ensureSeeded(db);
+    const venueRows = await db`SELECT id FROM venues` as Array<{ id: string }>;
+    const session = input ? validateSessionInput(input, venueRows.map((venue) => venue.id)) : null;
+    if (!session) return Response.json({ error: 'invalid_session' }, { status: 400 });
     const now = new Date().toISOString();
     const id = `session-${crypto.randomUUID()}`;
     const rows = await db`

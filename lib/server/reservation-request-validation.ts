@@ -1,5 +1,6 @@
 export type ReservationRequestInput = {
   venueId?: unknown;
+  venueName?: unknown;
   preferredDate?: unknown;
   startTime?: unknown;
   endTime?: unknown;
@@ -24,11 +25,30 @@ function minutes(value: string) {
   return hours * 60 + mins;
 }
 
+type VenueValidationRow = {
+  id: string;
+  name: string;
+  nameZh: string;
+  area: string;
+  areaZh: string;
+};
+
 export function validateReservationRequest(
   input: ReservationRequestInput,
-  validVenueIds: Iterable<string>,
+  venueRows: VenueValidationRow[] | Iterable<string>,
 ) {
-  const venueId = cleanString(input.venueId, 80);
+  const requestedVenueId = cleanString(input.venueId, 80);
+  const requestedVenueName = cleanString(input.venueName, 160);
+  const rows = [...venueRows];
+  const detailedVenueRows: VenueValidationRow[] = rows.length && rows[0] !== null && typeof rows[0] === 'object'
+    ? rows as VenueValidationRow[]
+    : (rows as string[]).map((id) => ({ id, name: '', nameZh: '', area: '', areaZh: '' }));
+  const validVenueIds = new Set(detailedVenueRows.map((venue) => venue.id));
+  const matchedVenue = validVenueIds.has(requestedVenueId)
+    ? detailedVenueRows.find((venue) => venue.id === requestedVenueId)
+    : detailedVenueRows.find((venue) => [venue.name, venue.nameZh].some((name) => name.trim().toLocaleLowerCase() === requestedVenueName.toLocaleLowerCase()));
+  const venueId = matchedVenue?.id ?? null;
+  const venueName = requestedVenueName || matchedVenue?.name || matchedVenue?.id || '';
   const preferredDate = cleanString(input.preferredDate, 10);
   const startTime = cleanString(input.startTime, 5);
   const endTime = cleanString(input.endTime, 5);
@@ -39,7 +59,7 @@ export function validateReservationRequest(
   const today = new Date().toISOString().slice(0, 10);
 
   if (
-    !new Set(validVenueIds).has(venueId) ||
+    !venueName ||
     !isValidDate(preferredDate) || preferredDate < today ||
     !/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime) ||
     minutes(startTime) < 0 || minutes(startTime) > 1439 ||
@@ -48,5 +68,5 @@ export function validateReservationRequest(
     !contactName || !/^\S+@\S+\.\S+$/.test(email)
   ) return null;
 
-  return { venueId, preferredDate, startTime, endTime, contactName, email, phone, message };
+  return { venueId, venueName, preferredDate, startTime, endTime, contactName, email, phone, message };
 }

@@ -23,7 +23,7 @@ import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs';
 import Upload from 'lucide-react/dist/esm/icons/upload.mjs';
 import UserRound from 'lucide-react/dist/esm/icons/user-round.mjs';
 import Users from 'lucide-react/dist/esm/icons/users.mjs';
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -122,7 +122,8 @@ type VenueDraft = {
 type ReservationRequestStatus = 'pending' | 'reviewing' | 'completed';
 type ReservationRequest = {
   id: string;
-  venueId: string;
+  venueId: string | null;
+  venueName: string;
   preferredDate: string;
   startTime: string;
   endTime: string;
@@ -132,6 +133,17 @@ type ReservationRequest = {
   message: string;
   status: ReservationRequestStatus;
   createdAt: string;
+};
+type ReservationRequestForm = {
+  venueId: string | null;
+  venueName: string;
+  preferredDate: string;
+  startTime: string;
+  endTime: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  message: string;
 };
 
 type PreferredTime = 'weekends' | 'weekday_evenings' | 'anytime' | 'mornings' | 'afternoons';
@@ -360,6 +372,9 @@ const translations = {
     requestPromise: 'Requests made at least 7 days ahead are guaranteed. Sessions within 7 days cannot be guaranteed.',
     preferredDate: 'Preferred date',
     preferredTimeRange: 'Preferred time',
+    locationPlaceholder: 'Type a venue or area',
+    locationHint: 'Type to search venues or enter another location.',
+    noLocationMatches: 'No matching venue. Your location will be saved as entered.',
     requestMessage: 'Message',
     requestMessageHint: 'Player count, alternative times, or anything else we should know.',
     submitRequest: 'Submit request',
@@ -579,6 +594,9 @@ const translations = {
     requestPromise: '提前七天一定能约上，七天内场次不能保证。',
     preferredDate: '预约日期',
     preferredTimeRange: '预约时间',
+    locationPlaceholder: '输入场地或区域',
+    locationHint: '输入场地名称或区域即可匹配，也可以填写其他地点。',
+    noLocationMatches: '没有匹配的现有场地，将按你输入的地点保存。',
     requestMessage: '留言',
     requestMessageHint: '可填写人数、备选时间或其他需要说明的信息。',
     submitRequest: '提交预约',
@@ -602,6 +620,18 @@ const translations = {
 
 function getVenue(venueId: string, venueList: Venue[] = venues): Venue {
   return venueList.find((venue) => venue.id === venueId) ?? venueList[0] ?? venues[0];
+}
+
+function normalizeLocation(value: string) {
+  return value.trim().toLocaleLowerCase();
+}
+
+function venueLabel(venue: Venue, language: Language) {
+  return language === 'zh' ? venue.nameZh : venue.name;
+}
+
+function venueSearchText(venue: Venue) {
+  return [venue.name, venue.nameZh, venue.area, venue.areaZh].join(' ').toLocaleLowerCase();
 }
 
 function validFormats(value: unknown): GameFormat[] {
@@ -924,8 +954,9 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     preferredTime: 'weekends' as PreferredTime,
     preferredFormat: 'singles' as GameFormat,
   });
-  const [requestForm, setRequestForm] = useState({
+  const [requestForm, setRequestForm] = useState<ReservationRequestForm>({
     venueId: venues[0].id,
+    venueName: venues[0].name,
     preferredDate: dateFromToday(7),
     startTime: '18:00',
     endTime: '20:00',
@@ -936,6 +967,8 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   });
   const [requestBusy, setRequestBusy] = useState(false);
   const [requestError, setRequestError] = useState('');
+  const [requestVenueOpen, setRequestVenueOpen] = useState(false);
+  const [requestVenueActiveIndex, setRequestVenueActiveIndex] = useState(-1);
   const [submittedRequest, setSubmittedRequest] = useState<ReservationRequest | null>(null);
   const sessionsRef = useRef(sessions);
   const openSessionRef = useRef<(sessionId: string) => void>(() => undefined);
@@ -943,6 +976,13 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   const cancellingBookingRef = useRef(new Set<string>());
 
   const t = translations[language];
+  const requestVenueSuggestions = useMemo(() => {
+    const query = normalizeLocation(requestForm.venueName);
+    const matches = query
+      ? venueList.filter((venue) => venueSearchText(venue).includes(query))
+      : venueList;
+    return matches.slice(0, 8);
+  }, [requestForm.venueName, venueList]);
   const selectedSession = sessions.find((session) => session.id === selectedSessionId);
   const selectedVenue = selectedSession ? getVenue(selectedSession.venueId, venueList) : null;
   const activeBookings = bookings.filter((booking) => booking.status === 'confirmed');
@@ -1219,14 +1259,18 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   }
 
   function openReservationRequest() {
+    const currentVenue = venueList.find((venue) => venue.id === requestForm.venueId);
     setRequestForm((current) => ({
       ...current,
-      venueId: venueList.some((venue) => venue.id === current.venueId) ? current.venueId : venueList[0]?.id ?? '',
+      venueId: currentVenue?.id ?? (current.venueName.trim() ? null : venueList[0]?.id ?? null),
+      venueName: currentVenue ? venueLabel(currentVenue, language) : current.venueName.trim() || (venueList[0] ? venueLabel(venueList[0], language) : ''),
       contactName: current.contactName || user?.name || '',
       email: current.email || user?.email || '',
       phone: current.phone || user?.phone || '',
     }));
     setRequestError('');
+    setRequestVenueOpen(false);
+    setRequestVenueActiveIndex(-1);
     setSubmittedRequest(null);
     navigate('request');
   }
@@ -1333,7 +1377,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   async function submitReservationRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (requestBusy) return;
-    const valid = requestForm.venueId && requestForm.preferredDate >= dateFromToday(0) &&
+    const valid = requestForm.venueName.trim() && requestForm.preferredDate >= dateFromToday(0) &&
       requestForm.startTime && requestForm.endTime &&
       parseMinutes(requestForm.endTime) > parseMinutes(requestForm.startTime) &&
       requestForm.contactName.trim() && /^\S+@\S+\.\S+$/.test(requestForm.email);
@@ -1361,6 +1405,41 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       setRequestError(t.dataUnavailable);
     } finally {
       setRequestBusy(false);
+    }
+  }
+
+  function updateRequestVenueName(value: string) {
+    const normalizedValue = normalizeLocation(value);
+    const matchedVenue = venueList.find((venue) => [venue.name, venue.nameZh].some((name) => normalizeLocation(name) === normalizedValue));
+    setRequestForm((current) => ({ ...current, venueName: value, venueId: matchedVenue?.id ?? null }));
+    setRequestVenueOpen(true);
+    setRequestVenueActiveIndex(-1);
+  }
+
+  function selectRequestVenue(venue: Venue) {
+    setRequestForm((current) => ({ ...current, venueId: venue.id, venueName: venueLabel(venue, language) }));
+    setRequestVenueOpen(false);
+    setRequestVenueActiveIndex(-1);
+  }
+
+  function handleRequestVenueKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === 'ArrowDown') {
+      if (!requestVenueSuggestions.length) return;
+      event.preventDefault();
+      setRequestVenueOpen(true);
+      setRequestVenueActiveIndex((current) => (current + 1) % requestVenueSuggestions.length);
+    } else if (event.key === 'ArrowUp') {
+      if (!requestVenueSuggestions.length) return;
+      event.preventDefault();
+      setRequestVenueOpen(true);
+      setRequestVenueActiveIndex((current) => current <= 0 ? requestVenueSuggestions.length - 1 : current - 1);
+    } else if (event.key === 'Enter' && requestVenueOpen && requestVenueActiveIndex >= 0) {
+      event.preventDefault();
+      const venue = requestVenueSuggestions[requestVenueActiveIndex];
+      if (venue) selectRequestVenue(venue);
+    } else if (event.key === 'Escape') {
+      setRequestVenueOpen(false);
+      setRequestVenueActiveIndex(-1);
     }
   }
 
@@ -2183,7 +2262,8 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
 
   function renderReservationRequest() {
     if (submittedRequest) {
-      const venue = getVenue(submittedRequest.venueId, venueList);
+      const venue = submittedRequest.venueId ? getVenue(submittedRequest.venueId, venueList) : null;
+      const requestLocation = submittedRequest.venueName || (venue ? venueLabel(venue, language) : '');
       return (
         <section className="request-page page-width">
           <div className="request-card request-success-card">
@@ -2193,7 +2273,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             <p className="form-intro">{t.requestSubmittedIntro}</p>
             <div className="reference-box"><span>{t.requestReference}</span><strong>{submittedRequest.id}</strong></div>
             <div className="request-summary">
-              <div><small>{t.location}</small><strong>{venue.name}</strong></div>
+              <div><small>{t.location}</small><strong>{requestLocation}</strong></div>
               <div><small>{t.preferredDate}</small><strong>{formatLongDate(submittedRequest.preferredDate, language)}</strong></div>
               <div><small>{t.preferredTimeRange}</small><strong>{submittedRequest.startTime}–{submittedRequest.endTime}</strong></div>
               <div><small>{t.contact}</small><strong>{submittedRequest.contactName}</strong><span>{submittedRequest.email}</span></div>
@@ -2216,7 +2296,48 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           </div>
           <form onSubmit={submitReservationRequest}>
             <div className="form-grid two-col">
-              <div className="field"><Label htmlFor="request-venue">{t.location} <em>*</em></Label><select id="request-venue" className="native-select" value={requestForm.venueId} onChange={(event) => setRequestForm((current) => ({ ...current, venueId: event.target.value }))}>{venueList.map((venue) => <option key={venue.id} value={venue.id}>{venue.name} · {venue.area}</option>)}</select></div>
+              <div className="field request-location-field">
+                <Label htmlFor="request-venue">{t.location} <em>*</em></Label>
+                <div className="venue-autocomplete">
+                  <Input
+                    id="request-venue"
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-controls="request-venue-options"
+                    aria-expanded={requestVenueOpen}
+                    aria-activedescendant={requestVenueActiveIndex >= 0 ? `request-venue-option-${requestVenueActiveIndex}` : undefined}
+                    autoComplete="off"
+                    maxLength={160}
+                    placeholder={t.locationPlaceholder}
+                    value={requestForm.venueName}
+                    onChange={(event) => updateRequestVenueName(event.target.value)}
+                    onFocus={() => { setRequestVenueOpen(true); setRequestVenueActiveIndex(-1); }}
+                    onBlur={() => window.setTimeout(() => setRequestVenueOpen(false), 120)}
+                    onKeyDown={handleRequestVenueKeyDown}
+                  />
+                  {requestVenueOpen ? (
+                    <div id="request-venue-options" className="venue-autocomplete-menu" role="listbox">
+                      {requestVenueSuggestions.length ? requestVenueSuggestions.map((venue, index) => (
+                        <button
+                          type="button"
+                          id={`request-venue-option-${index}`}
+                          role="option"
+                          aria-selected={requestVenueActiveIndex === index}
+                          className={requestVenueActiveIndex === index ? 'venue-autocomplete-option active' : 'venue-autocomplete-option'}
+                          key={venue.id}
+                          onPointerDown={(event) => event.preventDefault()}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => selectRequestVenue(venue)}
+                        >
+                          <strong>{venueLabel(venue, language)}</strong>
+                          <span>{language === 'zh' ? venue.areaZh : venue.area}</span>
+                        </button>
+                      )) : <div className="venue-autocomplete-empty">{t.noLocationMatches}</div>}
+                    </div>
+                  ) : null}
+                </div>
+                <small className="field-hint">{t.locationHint}</small>
+              </div>
               <div className="field"><Label htmlFor="request-date">{t.preferredDate} <em>*</em></Label><Input id="request-date" type="date" min={dateFromToday(0)} value={requestForm.preferredDate} onChange={(event) => setRequestForm((current) => ({ ...current, preferredDate: event.target.value }))} /></div>
               <div className="field request-time-field"><Label htmlFor="request-start">{t.preferredTimeRange} <em>*</em></Label><div className="time-pair"><Input id="request-start" type="time" value={requestForm.startTime} onChange={(event) => setRequestForm((current) => ({ ...current, startTime: event.target.value }))} /><span>–</span><Input aria-label={language === 'zh' ? '结束时间' : 'End time'} type="time" value={requestForm.endTime} onChange={(event) => setRequestForm((current) => ({ ...current, endTime: event.target.value }))} /></div></div>
               <div className="field"><Label htmlFor="request-name">{t.name} <em>*</em></Label><Input id="request-name" autoComplete="name" value={requestForm.contactName} onChange={(event) => setRequestForm((current) => ({ ...current, contactName: event.target.value }))} /></div>
@@ -2731,12 +2852,13 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             {reservationRequests.length ? (
               <div className="request-admin-list">
                 {reservationRequests.map((request) => {
-                  const venue = getVenue(request.venueId, venueList);
+                  const venue = request.venueId ? getVenue(request.venueId, venueList) : null;
+                  const requestLocation = request.venueName || (venue ? venueLabel(venue, language) : '');
                   return (
                     <article className="request-admin-row" key={request.id}>
                       <div className="request-admin-date"><strong>{new Date(`${request.preferredDate}T12:00:00`).getDate()}</strong><span>{new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-GB', { month: 'short' }).format(new Date(`${request.preferredDate}T12:00:00`))}</span></div>
                       <div className="request-admin-main">
-                        <div className="request-admin-title"><strong>{venue.name}</strong><Badge variant={request.status === 'pending' ? 'default' : 'outline'}>{requestStatusLabel(request.status, t)}</Badge></div>
+                        <div className="request-admin-title"><strong>{requestLocation}</strong><Badge variant={request.status === 'pending' ? 'default' : 'outline'}>{requestStatusLabel(request.status, t)}</Badge></div>
                         <span><CalendarDays size={14} /> {formatLongDate(request.preferredDate, language)} · {request.startTime}–{request.endTime}</span>
                         <span><UserRound size={14} /> {request.contactName} · <a href={`mailto:${request.email}`}>{request.email}</a>{request.phone ? ` · ${request.phone}` : ''}</span>
                         {request.message ? <p>{request.message}</p> : null}

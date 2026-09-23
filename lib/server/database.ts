@@ -61,7 +61,8 @@ export type BookingRow = {
 
 export type ReservationRequestRow = {
   id: string;
-  venue_id: string;
+  venue_id: string | null;
+  venue_name: string;
   preferred_date: string;
   start_time: string;
   end_time: string;
@@ -174,6 +175,7 @@ export function serializeReservationRequest(row: ReservationRequestRow) {
   return {
     id: row.id,
     venueId: row.venue_id,
+    venueName: row.venue_name,
     preferredDate: row.preferred_date,
     startTime: row.start_time,
     endTime: row.end_time,

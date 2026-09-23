@@ -96,7 +96,8 @@ export const webhookEvents = pgTable('webhook_events', {
 
 export const reservationRequests = pgTable('reservation_requests', {
   id: text('id').primaryKey(),
-  venueId: text('venue_id').notNull().references(() => venues.id),
+  venueId: text('venue_id').references(() => venues.id),
+  venueName: text('venue_name').notNull(),
   preferredDate: text('preferred_date').notNull(),
   startTime: text('start_time').notNull(),
   endTime: text('end_time').notNull(),

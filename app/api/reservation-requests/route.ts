@@ -24,18 +24,27 @@ export async function POST(request: Request) {
   try {
     const db = database();
     await ensureSeeded(db);
-    const venueRows = await db`SELECT id FROM venues` as { id: string }[];
-    const value = validateReservationRequest(input, venueRows.map((venue) => venue.id));
+    const venueRows = await db`
+      SELECT id, name, name_zh, area, area_zh
+      FROM venues
+    ` as Array<{ id: string; name: string; name_zh: string; area: string; area_zh: string }>;
+    const value = validateReservationRequest(input, venueRows.map((venue) => ({
+      id: venue.id,
+      name: venue.name,
+      nameZh: venue.name_zh,
+      area: venue.area,
+      areaZh: venue.area_zh,
+    })));
     if (!value) return Response.json({ error: 'invalid_request' }, { status: 400 });
 
     const id = `request-${crypto.randomUUID()}`;
     const now = new Date().toISOString();
     const rows = await db`
       INSERT INTO reservation_requests (
-        id, venue_id, preferred_date, start_time, end_time, contact_name,
+        id, venue_id, venue_name, preferred_date, start_time, end_time, contact_name,
         email, phone, message, status, created_at, updated_at
       ) VALUES (
-        ${id}, ${value.venueId}, ${value.preferredDate}, ${value.startTime}, ${value.endTime},
+        ${id}, ${value.venueId}, ${value.venueName}, ${value.preferredDate}, ${value.startTime}, ${value.endTime},
         ${value.contactName}, ${value.email}, ${value.phone}, ${value.message}, 'pending', ${now}, ${now}
       )
       RETURNING *

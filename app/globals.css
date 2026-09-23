@@ -1061,6 +1061,74 @@
   grid-column: 1 / -1;
 }
 
+.request-location-field {
+  position: relative;
+  z-index: 2;
+}
+
+.venue-autocomplete {
+  position: relative;
+}
+
+.venue-autocomplete-menu {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 5px);
+  right: 0;
+  left: 0;
+  display: grid;
+  overflow: hidden;
+  overflow-y: auto;
+  max-height: 260px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 14px 30px rgb(25 57 44 / 14%);
+}
+
+.venue-autocomplete-option {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid #edf1ee;
+  background: #fff;
+  color: var(--foreground);
+  cursor: pointer;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.venue-autocomplete-option:last-child {
+  border-bottom: 0;
+}
+
+.venue-autocomplete-option:hover,
+.venue-autocomplete-option.active {
+  background: var(--secondary);
+}
+
+.venue-autocomplete-option strong {
+  font-size: 13px;
+}
+
+.venue-autocomplete-option span,
+.venue-autocomplete-empty,
+.field-hint {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.venue-autocomplete-empty {
+  padding: 11px 12px;
+}
+
+.field-hint {
+  display: block;
+  margin-top: 6px;
+}
+
 .request-time-field .time-pair {
   width: min(100%, 380px);
 }

@@ -111,8 +111,8 @@ export function validateSessionInput(
   if (
     !new Set(validVenueIds).has(venueId) ||
     !isDate(date) ||
-    !/^\d{2}:\d{2}$/.test(startTime) ||
-    !/^\d{2}:\d{2}$/.test(endTime) ||
+    !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(startTime) ||
+    !/^(?:(?:[01]\d|2[0-3]):[0-5]\d|24:00)$/.test(endTime) ||
     minutes(startTime) < 0 || minutes(startTime) > 1439 ||
     minutes(endTime) < 1 || minutes(endTime) > 1440 ||
     minutes(endTime) <= minutes(startTime) ||

@@ -2014,6 +2014,35 @@
   gap: 8px;
 }
 
+.admin-session-import-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.admin-session-import-actions .button {
+  min-height: 32px;
+  text-decoration: none;
+}
+
+.admin-session-import-help {
+  margin: -7px 0 15px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.admin-session-list > .admin-message {
+  margin-bottom: 15px;
+}
+
+.admin-session-list > .admin-message.import-error {
+  background: #fff0ec;
+  color: #9a3c32;
+}
+
 .admin-session-row {
   display: grid;
   grid-template-columns: 70px minmax(0, 1fr) auto;
@@ -2527,6 +2556,10 @@
 
   .admin-venue-row {
     grid-template-columns: 70px minmax(0, 1fr) auto;
+  }
+
+  .admin-session-import-actions {
+    justify-content: flex-start;
   }
 
   .admin-venue-row img {

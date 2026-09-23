@@ -9,6 +9,7 @@ import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right.mjs';
 import Clock3 from 'lucide-react/dist/esm/icons/clock-3.mjs';
 import CircleDot from 'lucide-react/dist/esm/icons/circle-dot.mjs';
 import CreditCard from 'lucide-react/dist/esm/icons/credit-card.mjs';
+import Download from 'lucide-react/dist/esm/icons/download.mjs';
 import Globe2 from 'lucide-react/dist/esm/icons/globe-2.mjs';
 import MapPin from 'lucide-react/dist/esm/icons/map-pin.mjs';
 import Minus from 'lucide-react/dist/esm/icons/minus.mjs';
@@ -19,14 +20,16 @@ import Settings2 from 'lucide-react/dist/esm/icons/settings-2.mjs';
 import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check.mjs';
 import Timer from 'lucide-react/dist/esm/icons/timer.mjs';
 import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs';
+import Upload from 'lucide-react/dist/esm/icons/upload.mjs';
 import UserRound from 'lucide-react/dist/esm/icons/user-round.mjs';
 import Users from 'lucide-react/dist/esm/icons/users.mjs';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { parseSessionWorkbook, SessionImportError } from '@/lib/session-import';
 import {
   createDemoBookings,
   createDemoSessions,
@@ -242,6 +245,19 @@ const translations = {
     manageSessions: 'Manage sessions',
     viewBookings: 'View bookings',
     addSession: 'Add session',
+    downloadSessionTemplate: 'Download Excel template',
+    importSessions: 'Import Excel sessions',
+    importingSessions: 'Importing…',
+    sessionImportHelp: 'Fill in the template and import up to 200 sessions at a time.',
+    sessionImportSuccess: '{count} sessions imported.',
+    sessionImportFailed: 'Import failed. Check the workbook and try again.',
+    sessionImportInvalidFile: 'Choose a valid .xlsx file up to 5 MB.',
+    sessionImportMissingColumns: 'The first worksheet is missing required template columns.',
+    sessionImportNoRows: 'The workbook does not contain any session rows.',
+    sessionImportTooManyRows: 'Import up to 200 sessions at a time.',
+    sessionImportTooLarge: 'This batch is too large. Split it into smaller imports.',
+    sessionImportInvalidRows: 'Check these worksheet rows: {rows}.',
+    sessionImportDuplicateRows: 'These rows duplicate an existing session or another imported row: {rows}.',
     editSession: 'Edit session',
     saveSession: 'Save session',
     cancelEdit: 'Cancel edit',
@@ -443,6 +459,19 @@ const translations = {
     manageSessions: '管理场次',
     viewBookings: '查看报名',
     addSession: '新增场次',
+    downloadSessionTemplate: '下载 Excel 模板',
+    importSessions: '导入 Excel 场次',
+    importingSessions: '正在导入…',
+    sessionImportHelp: '填写模板后导入，每次最多 200 场。',
+    sessionImportSuccess: '已导入 {count} 场。',
+    sessionImportFailed: '导入失败，请检查工作簿后重试。',
+    sessionImportInvalidFile: '请选择有效的 .xlsx 文件，大小不得超过 5 MB。',
+    sessionImportMissingColumns: '第一个工作表缺少模板要求的列。',
+    sessionImportNoRows: '工作簿中没有场次数据。',
+    sessionImportTooManyRows: '每次最多导入 200 场。',
+    sessionImportTooLarge: '本批数据过大，请拆分成多个批次导入。',
+    sessionImportInvalidRows: '请检查工作表中的这些行：{rows}。',
+    sessionImportDuplicateRows: '这些行与已有场次或本次导入中的其他行重复：{rows}。',
     editSession: '编辑场次',
     saveSession: '保存场次',
     cancelEdit: '取消编辑',
@@ -835,7 +864,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   const [draft, setDraft] = useState<SessionDraft>(() => emptyDraft(venues));
   const [venueDraft, setVenueDraft] = useState<VenueDraft>(() => emptyVenueDraft(venues));
   const [adminMessage, setAdminMessage] = useState('');
+  const [sessionImportMessage, setSessionImportMessage] = useState('');
+  const [sessionImportFailed, setSessionImportFailed] = useState(false);
   const [adminBusy, setAdminBusy] = useState(false);
+  const sessionImportInput = useRef<HTMLInputElement>(null);
   const [adminAuthChecked, setAdminAuthChecked] = useState(false);
   const [adminAuthenticated, setAdminAuthenticated] = useState(false);
   const [adminAuthBusy, setAdminAuthBusy] = useState(false);
@@ -1833,6 +1865,78 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     setAdminBusy(false);
   }
 
+  async function importSessions(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0];
+    event.currentTarget.value = '';
+    if (!file) return;
+
+    setSessionImportMessage('');
+    setSessionImportFailed(false);
+    setAdminBusy(true);
+    try {
+      const sessionsToImport = await parseSessionWorkbook(file);
+      const response = await fetch('/api/admin/sessions/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessions: sessionsToImport }),
+      });
+      const data = await response.json() as {
+        error?: string;
+        rows?: number[];
+        sessions?: Session[];
+        importedCount?: number;
+      };
+
+      if (response.status === 401) {
+        setAdminAuthenticated(false);
+        setSessionImportMessage(t.sessionImportFailed);
+        setSessionImportFailed(true);
+        return;
+      }
+      if (!response.ok) {
+        const rowList = Array.isArray(data.rows) ? data.rows.join(', ') : '';
+        if (data.error === 'invalid_import_rows') {
+          setSessionImportMessage(t.sessionImportInvalidRows.replace('{rows}', rowList));
+        } else if (data.error === 'duplicate_import_rows') {
+          setSessionImportMessage(t.sessionImportDuplicateRows.replace('{rows}', rowList));
+        } else if (data.error === 'import_too_many_rows') {
+          setSessionImportMessage(t.sessionImportTooManyRows);
+        } else if (data.error === 'import_too_large') {
+          setSessionImportMessage(t.sessionImportTooLarge);
+        } else {
+          setSessionImportMessage(t.sessionImportFailed);
+        }
+        setSessionImportFailed(true);
+        return;
+      }
+
+      if (!data.sessions?.length) {
+        setSessionImportMessage(t.sessionImportFailed);
+        setSessionImportFailed(true);
+        return;
+      }
+      setSessions((current) => [...current, ...data.sessions as Session[]]);
+      setSessionImportMessage(t.sessionImportSuccess.replace('{count}', String(data.importedCount ?? data.sessions.length)));
+    } catch (error) {
+      if (error instanceof SessionImportError) {
+        const messages = {
+          invalid_file: t.sessionImportInvalidFile,
+          missing_columns: t.sessionImportMissingColumns,
+          empty_workbook: t.sessionImportFailed,
+          empty_sessions: t.sessionImportNoRows,
+          too_many_rows: t.sessionImportTooManyRows,
+        };
+        setSessionImportMessage(messages[error.code]);
+        setSessionImportFailed(true);
+      } else {
+        setSessionImportMessage(t.sessionImportFailed);
+        setSessionImportFailed(true);
+      }
+    } finally {
+      setAdminBusy(false);
+    }
+  }
+
   async function cancelBooking(bookingId: string) {
     const booking = bookings.find((item) => item.id === bookingId);
     if (
@@ -2436,8 +2540,26 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             <div className="admin-session-list">
               <div className="admin-list-heading">
                 <div><p className="eyebrow muted">{t.sessions}</p><h2>{t.upcoming}</h2></div>
-                <Badge variant="secondary">{allSessions.length}</Badge>
+                <div className="admin-session-import-actions">
+                  <Badge variant="secondary">{allSessions.length}</Badge>
+                  <a className={buttonVariants({ variant: 'outline', className: 'admin-template-download' })} href="/session-import-template.xlsx" download>
+                    <Download size={14} /> {t.downloadSessionTemplate}
+                  </a>
+                  <input
+                    ref={sessionImportInput}
+                    className="sr-only"
+                    type="file"
+                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    aria-label={t.importSessions}
+                    onChange={(event) => void importSessions(event)}
+                  />
+                  <Button variant="outline" size="sm" onClick={() => sessionImportInput.current?.click()} disabled={adminBusy}>
+                    <Upload size={14} /> {adminBusy ? t.importingSessions : t.importSessions}
+                  </Button>
+                </div>
               </div>
+              <p className="admin-session-import-help">{t.sessionImportHelp}</p>
+              {sessionImportMessage ? <div className={`admin-message${sessionImportFailed ? ' import-error' : ''}`} role="status">{sessionImportMessage}</div> : null}
               {allSessions.map((session) => {
                 const venue = getVenue(session.venueId, venueList);
                 const spots = Math.max(0, session.capacity - session.bookedSpots);

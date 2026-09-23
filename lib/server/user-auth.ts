@@ -11,6 +11,16 @@ export const TENNIS_LEVELS = ['1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '
 export const PREFERRED_TIMES = ['weekends', 'weekday_evenings', 'anytime', 'mornings', 'afternoons'] as const;
 export const PREFERRED_FORMATS = ['singles', 'doubles'] as const;
 
+export type UserProfileInput = {
+  name: string;
+  email: string;
+  phone: string;
+  postcode: string;
+  tennisLevel: typeof TENNIS_LEVELS[number];
+  preferredTime: typeof PREFERRED_TIMES[number];
+  preferredFormat: typeof PREFERRED_FORMATS[number];
+};
+
 export type UserProfile = {
   id: string;
   name: string;
@@ -21,6 +31,35 @@ export type UserProfile = {
   preferredTime: typeof PREFERRED_TIMES[number];
   preferredFormat: typeof PREFERRED_FORMATS[number];
 };
+
+function clean(value: unknown, length: number) {
+  return typeof value === 'string' ? value.trim().slice(0, length) : '';
+}
+
+export function normalizeUserProfileInput(input: Record<string, unknown>): UserProfileInput | null {
+  if (!input || typeof input !== 'object') return null;
+  const name = clean(input.name, 120);
+  const email = clean(input.email, 254).toLowerCase();
+  const phone = clean(input.phone, 40);
+  const postcode = clean(input.postcode, 12).toUpperCase().replace(/\s+/g, ' ');
+  const tennisLevel = clean(input.tennisLevel, 8);
+  const preferredTime = clean(input.preferredTime, 30);
+  const preferredFormat = clean(input.preferredFormat, 20);
+  if (
+    !name || !/^\S+@\S+\.\S+$/.test(email) ||
+    !/^[A-Z0-9 ]{2,12}$/.test(postcode) || !TENNIS_LEVELS.includes(tennisLevel as never) ||
+    !PREFERRED_TIMES.includes(preferredTime as never) || !PREFERRED_FORMATS.includes(preferredFormat as never)
+  ) return null;
+  return {
+    name,
+    email,
+    phone,
+    postcode,
+    tennisLevel: tennisLevel as UserProfileInput['tennisLevel'],
+    preferredTime: preferredTime as UserProfileInput['preferredTime'],
+    preferredFormat: preferredFormat as UserProfileInput['preferredFormat'],
+  };
+}
 
 type UserRow = {
   id: string;

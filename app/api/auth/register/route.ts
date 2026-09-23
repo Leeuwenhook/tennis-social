@@ -2,19 +2,13 @@ import { database, DatabaseNotConfiguredError } from '@/lib/server/database';
 import {
   createUserSession,
   hashPassword,
-  PREFERRED_FORMATS,
-  PREFERRED_TIMES,
+  normalizeUserProfileInput,
   serializeUser,
-  TENNIS_LEVELS,
   userSessionCookie,
 } from '@/lib/server/user-auth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
-
-function clean(value: unknown, length: number) {
-  return typeof value === 'string' ? value.trim().slice(0, length) : '';
-}
 
 export async function POST(request: Request) {
   let input: Record<string, unknown>;
@@ -23,18 +17,10 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ error: 'invalid_request' }, { status: 400 });
   }
-  const name = clean(input.name, 120);
-  const email = clean(input.email, 254).toLowerCase();
-  const phone = clean(input.phone, 40);
-  const postcode = clean(input.postcode, 12).toUpperCase().replace(/\s+/g, ' ');
   const password = typeof input.password === 'string' ? input.password : '';
-  const tennisLevel = clean(input.tennisLevel, 8);
-  const preferredTime = clean(input.preferredTime, 30);
-  const preferredFormat = clean(input.preferredFormat, 20);
+  const profile = normalizeUserProfileInput(input);
   if (
-    !name || !/^\S+@\S+\.\S+$/.test(email) || password.length < 8 || password.length > 128 ||
-    !/^[A-Z0-9 ]{2,12}$/.test(postcode) || !TENNIS_LEVELS.includes(tennisLevel as never) ||
-    !PREFERRED_TIMES.includes(preferredTime as never) || !PREFERRED_FORMATS.includes(preferredFormat as never)
+    !profile || password.length < 8 || password.length > 128
   ) {
     return Response.json({ error: 'invalid_registration' }, { status: 400 });
   }
@@ -48,8 +34,8 @@ export async function POST(request: Request) {
         id, name, email, phone, password_hash, postcode, tennis_level,
         preferred_time, preferred_format, created_at, updated_at
       ) VALUES (
-        ${id}, ${name}, ${email}, ${phone}, ${passwordHash}, ${postcode}, ${tennisLevel},
-        ${preferredTime}, ${preferredFormat}, ${now}, ${now}
+        ${id}, ${profile.name}, ${profile.email}, ${profile.phone}, ${passwordHash}, ${profile.postcode}, ${profile.tennisLevel},
+        ${profile.preferredTime}, ${profile.preferredFormat}, ${now}, ${now}
       )
       ON CONFLICT (email) DO NOTHING
       RETURNING id, name, email, phone, password_hash, postcode, tennis_level, preferred_time, preferred_format

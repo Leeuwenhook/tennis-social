@@ -145,6 +145,7 @@ type UserProfile = {
   preferredTime: PreferredTime;
   preferredFormat: GameFormat;
 };
+type ProfileForm = Omit<UserProfile, 'id'>;
 
 const LEVELS = ['1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0'];
 const PREFERRED_TIMES: PreferredTime[] = ['weekends', 'weekday_evenings', 'anytime', 'mornings', 'afternoons'];
@@ -303,6 +304,11 @@ const translations = {
     registrationInvalid: 'Please complete all fields and use a password of at least 8 characters.',
     signedInPrefill: 'Your saved profile has been pre-filled. You can still change it for this booking.',
     memberSince: 'Saved playing preferences',
+    editProfile: 'Edit profile',
+    editProfileIntro: 'Update your saved details and playing preferences.',
+    saveProfile: 'Save profile',
+    savingProfile: 'Saving profile…',
+    profileUpdateFailed: 'We couldn’t update your profile. Please try again.',
     invalidCredentials: 'Incorrect username or password.',
     checkingAccess: 'Checking admin access…',
     logout: 'Sign out',
@@ -517,6 +523,11 @@ const translations = {
     registrationInvalid: '请填写所有必填项，密码至少需要 8 个字符。',
     signedInPrefill: '已自动填写你保存的资料；本次报名仍可修改。',
     memberSince: '已保存的打球偏好',
+    editProfile: '编辑个人资料',
+    editProfileIntro: '更新你保存的联系方式与打球偏好。',
+    saveProfile: '保存个人资料',
+    savingProfile: '正在保存…',
+    profileUpdateFailed: '个人资料更新失败，请重试。',
     invalidCredentials: '用户名或密码不正确。',
     checkingAccess: '正在检查后台权限…',
     logout: '退出登录',
@@ -625,6 +636,18 @@ function preferredTimeLabel(value: PreferredTime, t: {
     afternoons: t.afternoons,
   };
   return labels[value];
+}
+
+function profileFormFromUser(user: UserProfile): ProfileForm {
+  return {
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    postcode: user.postcode,
+    tennisLevel: user.tennisLevel,
+    preferredTime: user.preferredTime,
+    preferredFormat: user.preferredFormat,
+  };
 }
 
 function normalizeSession(session: Session): Session {
@@ -878,6 +901,18 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [authBusy, setAuthBusy] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [profileEditing, setProfileEditing] = useState(false);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [profileForm, setProfileForm] = useState<ProfileForm>({
+    name: '',
+    email: '',
+    phone: '',
+    postcode: '',
+    tennisLevel: '',
+    preferredTime: 'weekends',
+    preferredFormat: 'singles',
+  });
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
   const [registrationForm, setRegistrationForm] = useState({
     name: '',
@@ -947,7 +982,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       try {
         const response = await fetch('/api/auth/session', { cache: 'no-store' });
         const data = await response.json() as { user?: UserProfile };
-        if (!cancelled && response.ok && data.user) setUser(data.user);
+        if (!cancelled && response.ok && data.user) {
+          setUser(data.user);
+          setProfileForm(profileFormFromUser(data.user));
+        }
       } catch {
         // Booking remains available to guests when account services are offline.
       } finally {
@@ -1374,12 +1412,57 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       }
       setUser(data.user);
       setUserAuthChecked(true);
+      setProfileForm(profileFormFromUser(data.user));
+      setProfileEditing(false);
+      setProfileError('');
       setLoginForm({ email: data.user.email, password: '' });
       setRegistrationForm((current) => ({ ...current, password: '' }));
     } catch {
       setAuthError(t.dataUnavailable);
     } finally {
       setAuthBusy(false);
+    }
+  }
+
+  function beginProfileEdit() {
+    if (!user) return;
+    setProfileForm(profileFormFromUser(user));
+    setProfileError('');
+    setProfileEditing(true);
+  }
+
+  function cancelProfileEdit() {
+    if (user) setProfileForm(profileFormFromUser(user));
+    setProfileError('');
+    setProfileEditing(false);
+  }
+
+  async function submitProfileUpdate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (profileBusy) return;
+    setProfileBusy(true);
+    setProfileError('');
+    try {
+      const response = await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profileForm),
+      });
+      const data = await response.json() as { user?: UserProfile; error?: string };
+      if (!response.ok || !data.user) {
+        if (data.error === 'email_exists') setProfileError(t.emailExists);
+        else if (data.error === 'invalid_profile') setProfileError(t.registrationInvalid);
+        else setProfileError(t.profileUpdateFailed);
+        return;
+      }
+      setUser(data.user);
+      setProfileForm(profileFormFromUser(data.user));
+      setLoginForm({ email: data.user.email, password: '' });
+      setProfileEditing(false);
+    } catch {
+      setProfileError(t.profileUpdateFailed);
+    } finally {
+      setProfileBusy(false);
     }
   }
 
@@ -2029,8 +2112,8 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         <div className="session-card-body">
           <div className="session-card-heading">
             <div>
-              <p className="eyebrow muted">{language === 'zh' ? venue.areaZh : venue.area}</p>
-              <h3>{language === 'zh' ? venue.nameZh : venue.name}</h3>
+              <p className="eyebrow muted">{venue.area}</p>
+              <h3>{venue.name}</h3>
             </div>
             <span className="session-price">{formatMoney(session.pricePence, language)}<small>/ {language === 'zh' ? '人' : 'person'}</small></span>
           </div>
@@ -2110,7 +2193,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             <p className="form-intro">{t.requestSubmittedIntro}</p>
             <div className="reference-box"><span>{t.requestReference}</span><strong>{submittedRequest.id}</strong></div>
             <div className="request-summary">
-              <div><small>{t.location}</small><strong>{language === 'zh' ? venue.nameZh : venue.name}</strong></div>
+              <div><small>{t.location}</small><strong>{venue.name}</strong></div>
               <div><small>{t.preferredDate}</small><strong>{formatLongDate(submittedRequest.preferredDate, language)}</strong></div>
               <div><small>{t.preferredTimeRange}</small><strong>{submittedRequest.startTime}–{submittedRequest.endTime}</strong></div>
               <div><small>{t.contact}</small><strong>{submittedRequest.contactName}</strong><span>{submittedRequest.email}</span></div>
@@ -2133,7 +2216,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           </div>
           <form onSubmit={submitReservationRequest}>
             <div className="form-grid two-col">
-              <div className="field"><Label htmlFor="request-venue">{t.location} <em>*</em></Label><select id="request-venue" className="native-select" value={requestForm.venueId} onChange={(event) => setRequestForm((current) => ({ ...current, venueId: event.target.value }))}>{venueList.map((venue) => <option key={venue.id} value={venue.id}>{language === 'zh' ? `${venue.nameZh} · ${venue.areaZh}` : `${venue.name} · ${venue.area}`}</option>)}</select></div>
+              <div className="field"><Label htmlFor="request-venue">{t.location} <em>*</em></Label><select id="request-venue" className="native-select" value={requestForm.venueId} onChange={(event) => setRequestForm((current) => ({ ...current, venueId: event.target.value }))}>{venueList.map((venue) => <option key={venue.id} value={venue.id}>{venue.name} · {venue.area}</option>)}</select></div>
               <div className="field"><Label htmlFor="request-date">{t.preferredDate} <em>*</em></Label><Input id="request-date" type="date" min={dateFromToday(0)} value={requestForm.preferredDate} onChange={(event) => setRequestForm((current) => ({ ...current, preferredDate: event.target.value }))} /></div>
               <div className="field request-time-field"><Label htmlFor="request-start">{t.preferredTimeRange} <em>*</em></Label><div className="time-pair"><Input id="request-start" type="time" value={requestForm.startTime} onChange={(event) => setRequestForm((current) => ({ ...current, startTime: event.target.value }))} /><span>–</span><Input aria-label={language === 'zh' ? '结束时间' : 'End time'} type="time" value={requestForm.endTime} onChange={(event) => setRequestForm((current) => ({ ...current, endTime: event.target.value }))} /></div></div>
               <div className="field"><Label htmlFor="request-name">{t.name} <em>*</em></Label><Input id="request-name" autoComplete="name" value={requestForm.contactName} onChange={(event) => setRequestForm((current) => ({ ...current, contactName: event.target.value }))} /></div>
@@ -2159,11 +2242,11 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         <div className="detail-layout">
           <div className="detail-visual">
             <img src={selectedVenue.photo} alt={`${selectedVenue.name} tennis court`} />
-            <div className="detail-image-caption"><MapPin size={16} /> {language === 'zh' ? selectedVenue.nameZh : selectedVenue.name} · {language === 'zh' ? selectedVenue.areaZh : selectedVenue.area}</div>
+            <div className="detail-image-caption"><MapPin size={16} /> {selectedVenue.name} · {selectedVenue.area}</div>
           </div>
           <div className="detail-copy">
             <p className="eyebrow"><span className="eyebrow-dot" /> {t.sessionDetails}</p>
-            <h1>{language === 'zh' ? selectedVenue.nameZh : selectedVenue.name}</h1>
+            <h1>{selectedVenue.name}</h1>
             <p className="detail-description">{language === 'zh' ? selectedSession.descriptionZh : selectedSession.description}</p>
             <div className="detail-facts">
               <div><CalendarDays size={19} /><span><small>{t.date}</small><strong>{formatLongDate(selectedSession.date, language)}</strong></span></div>
@@ -2204,7 +2287,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         <div className="summary-image"><img src={selectedVenue.photo} alt="" /></div>
         <div className="summary-content">
           <p className="eyebrow muted">{t.orderSummary}</p>
-          <h3>{language === 'zh' ? selectedVenue.nameZh : selectedVenue.name}</h3>
+          <h3>{selectedVenue.name}</h3>
           <p className="summary-date"><CalendarDays size={15} /> {formatDate(selectedSession.date, language)} · {selectedSession.startTime}–{selectedSession.endTime}</p>
           <p className="summary-format"><CircleDot size={15} /> {t.format}: {bookingForm.format ? formatNames([bookingForm.format], t) : ''}</p>
           <div className="summary-lines">
@@ -2331,7 +2414,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <p className="confirmation-intro">{t.confirmationIntro}</p>
           <div className="reference-box"><span>{t.bookingReference}</span><strong>{confirmation.id}</strong></div>
           <div className="confirmation-details">
-            <div><img src={venue.photo} alt="" /><span><small>{t.location}</small><strong>{language === 'zh' ? venue.nameZh : venue.name}</strong></span></div>
+            <div><img src={venue.photo} alt="" /><span><small>{t.location}</small><strong>{venue.name}</strong></span></div>
             <div><CalendarDays size={18} /><span><small>{t.date}</small><strong>{formatLongDate(session.date, language)}</strong></span></div>
             <div><CircleDot size={18} /><span><small>{t.format}</small><strong>{formatNames([confirmation.format], t)}</strong></span></div>
             <div><Users size={18} /><span><small>{t.participants}</small><strong>{confirmation.participants.length} {confirmation.participants.length === 1 ? t.person : t.people}</strong></span></div>
@@ -2364,21 +2447,45 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         <section className="account-page page-width">
           <div className="account-card profile-card">
             <div className="profile-avatar"><UserRound size={28} /></div>
-            <p className="eyebrow"><span className="eyebrow-dot" /> {t.memberSince}</p>
-            <h1>{t.welcomeBack}, {user.name}</h1>
-            <p className="form-intro">{t.accountIntro}</p>
-            <div className="profile-details">
-              <div><small>{t.email}</small><strong>{user.email}</strong></div>
-              {user.phone ? <div><small>{t.phone}</small><strong>{user.phone}</strong></div> : null}
-              <div><small>{t.postcode}</small><strong>{user.postcode}</strong></div>
-              <div><small>{t.tennisLevel}</small><strong>{user.tennisLevel}</strong></div>
-              <div><small>{t.preferredTime}</small><strong>{preferredTimeLabel(user.preferredTime, t)}</strong></div>
-              <div><small>{t.preferredFormat}</small><strong>{formatNames([user.preferredFormat], t)}</strong></div>
-            </div>
-            <div className="account-actions">
-              <Button size="lg" onClick={() => navigate('home')}>{t.browseMore}<ArrowRight size={16} /></Button>
-              <Button size="lg" variant="outline" onClick={() => void logoutUser()}>{t.logout}</Button>
-            </div>
+            <p className="eyebrow"><span className="eyebrow-dot" /> {profileEditing ? t.editProfile : t.memberSince}</p>
+            <h1>{profileEditing ? t.editProfile : <>{t.welcomeBack}, {user.name}</>}</h1>
+            <p className="form-intro">{profileEditing ? t.editProfileIntro : t.accountIntro}</p>
+            {profileEditing ? (
+              <form className="login-fields profile-edit-form" onSubmit={submitProfileUpdate} noValidate>
+                <div className="form-grid two-col">
+                  <div className="field"><Label htmlFor="profile-name">{t.name} <em>*</em></Label><Input id="profile-name" autoComplete="name" required value={profileForm.name} onChange={(event) => setProfileForm((current) => ({ ...current, name: event.target.value }))} /></div>
+                  <div className="field"><Label htmlFor="profile-phone">{t.phone} <small>({t.optional})</small></Label><Input id="profile-phone" autoComplete="tel" inputMode="tel" value={profileForm.phone} onChange={(event) => setProfileForm((current) => ({ ...current, phone: event.target.value }))} /></div>
+                </div>
+                <div className="field"><Label htmlFor="profile-email">{t.email} <em>*</em></Label><Input id="profile-email" autoComplete="email" inputMode="email" required value={profileForm.email} onChange={(event) => setProfileForm((current) => ({ ...current, email: event.target.value }))} /></div>
+                <div className="field"><Label htmlFor="profile-postcode">{t.postcode} <em>*</em></Label><Input id="profile-postcode" autoComplete="postal-code" required value={profileForm.postcode} onChange={(event) => setProfileForm((current) => ({ ...current, postcode: event.target.value.toUpperCase() }))} /></div>
+                <div className="form-grid two-col">
+                  <div className="field"><Label htmlFor="profile-level">{t.tennisLevel} <em>*</em></Label><select id="profile-level" required className="native-select" value={profileForm.tennisLevel} onChange={(event) => setProfileForm((current) => ({ ...current, tennisLevel: event.target.value }))}><option value="">{language === 'zh' ? '请选择水平' : 'Select level'}</option>{LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></div>
+                  <div className="field"><Label htmlFor="profile-format">{t.preferredFormat} <em>*</em></Label><select id="profile-format" className="native-select" value={profileForm.preferredFormat} onChange={(event) => setProfileForm((current) => ({ ...current, preferredFormat: event.target.value as GameFormat }))}>{GAME_FORMATS.map((format) => <option key={format} value={format}>{formatNames([format], t)}</option>)}</select></div>
+                </div>
+                <div className="field"><Label htmlFor="profile-time">{t.preferredTime} <em>*</em></Label><select id="profile-time" className="native-select" value={profileForm.preferredTime} onChange={(event) => setProfileForm((current) => ({ ...current, preferredTime: event.target.value as PreferredTime }))}>{PREFERRED_TIMES.map((time) => <option key={time} value={time}>{preferredTimeLabel(time, t)}</option>)}</select></div>
+                {profileError ? <div className="inline-error"><TriangleAlert size={16} /> {profileError}</div> : null}
+                <div className="account-actions">
+                  <Button type="submit" size="lg" disabled={profileBusy}>{profileBusy ? t.savingProfile : t.saveProfile}<Check size={16} /></Button>
+                  <Button type="button" size="lg" variant="outline" disabled={profileBusy} onClick={cancelProfileEdit}>{t.cancelEdit}</Button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <div className="profile-details">
+                  <div><small>{t.email}</small><strong>{user.email}</strong></div>
+                  {user.phone ? <div><small>{t.phone}</small><strong>{user.phone}</strong></div> : null}
+                  <div><small>{t.postcode}</small><strong>{user.postcode}</strong></div>
+                  <div><small>{t.tennisLevel}</small><strong>{user.tennisLevel}</strong></div>
+                  <div><small>{t.preferredTime}</small><strong>{preferredTimeLabel(user.preferredTime, t)}</strong></div>
+                  <div><small>{t.preferredFormat}</small><strong>{formatNames([user.preferredFormat], t)}</strong></div>
+                </div>
+                <div className="account-actions">
+                  <Button size="lg" onClick={beginProfileEdit}><Pencil size={16} />{t.editProfile}</Button>
+                  <Button size="lg" variant="outline" onClick={() => navigate('home')}>{t.browseMore}<ArrowRight size={16} /></Button>
+                  <Button size="lg" variant="outline" onClick={() => void logoutUser()}>{t.logout}</Button>
+                </div>
+              </>
+            )}
           </div>
         </section>
       );
@@ -2429,7 +2536,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       <form className="admin-editor" onSubmit={saveDraft}>
         <div className="admin-editor-heading"><div><p className="eyebrow muted">{draft.id ? t.editSession : t.addSession}</p><h2>{draft.id ? t.editSession : t.addSession}</h2></div>{draft.id ? <button type="button" className="text-button" onClick={() => setDraft(emptyDraft(venueList))}>{t.cancelEdit}</button> : null}</div>
         <div className="form-grid two-col">
-          <div className="field"><Label htmlFor="admin-venue">{t.location}</Label><select id="admin-venue" value={draft.venueId} onChange={(event) => setDraft((current) => { const venue = getVenue(event.target.value, venueList); return { ...current, venueId: event.target.value, price: current.id ? current.price : String(venue.offPeakPricePence / 100) }; })} className="native-select" disabled={hasActiveBookings}>{venueList.map((venue) => <option key={venue.id} value={venue.id}>{language === 'zh' ? venue.nameZh : venue.name}</option>)}</select></div>
+          <div className="field"><Label htmlFor="admin-venue">{t.location}</Label><select id="admin-venue" value={draft.venueId} onChange={(event) => setDraft((current) => { const venue = getVenue(event.target.value, venueList); return { ...current, venueId: event.target.value, price: current.id ? current.price : String(venue.offPeakPricePence / 100) }; })} className="native-select" disabled={hasActiveBookings}>{venueList.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}</select></div>
           <div className="field"><Label htmlFor="admin-date">{t.date}</Label><Input id="admin-date" type="date" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} disabled={hasActiveBookings} /></div>
           <div className="field"><Label htmlFor="admin-start">{t.time}</Label><div className="time-pair"><Input id="admin-start" type="time" value={draft.startTime} onChange={(event) => setDraft((current) => ({ ...current, startTime: event.target.value }))} disabled={hasActiveBookings} /><span>–</span><Input id="admin-end" type="time" value={draft.endTime} onChange={(event) => setDraft((current) => ({ ...current, endTime: event.target.value }))} disabled={hasActiveBookings} /></div></div>
           <div className="field"><Label htmlFor="admin-price">{t.pricePerPerson}</Label><div className="input-prefix"><span>£</span><Input id="admin-price" inputMode="decimal" value={draft.price} onChange={(event) => setDraft((current) => ({ ...current, price: event.target.value }))} disabled={hasActiveBookings} /></div><div className="default-price-actions"><button type="button" className="text-button" onClick={() => applyVenueDefaultPrice('peak')} disabled={hasActiveBookings}>{t.usePeakPrice}</button><button type="button" className="text-button" onClick={() => applyVenueDefaultPrice('offPeak')} disabled={hasActiveBookings}>{t.useOffPeakPrice}</button></div></div>
@@ -2568,7 +2675,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                     <img src={venue.photo} alt="" />
                     <div className="admin-session-row-main">
                       <div>
-                        <strong>{language === 'zh' ? venue.nameZh : venue.name}</strong>
+                        <strong>{venue.name}</strong>
                         <Badge variant={session.status === 'published' ? 'default' : 'outline'}>{session.status === 'published' ? t.published : t.draft}</Badge>
                       </div>
                       <span>{formatDate(session.date, language)} · {session.startTime}–{session.endTime}</span>
@@ -2600,7 +2707,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                       return (
                         <tr key={booking.id}>
                           <td><strong>{booking.contactName}</strong><span>{booking.email}</span>{booking.phone ? <span>{booking.phone}</span> : null}</td>
-                          <td><strong>{language === 'zh' ? venue.nameZh : venue.name}</strong><span>{session ? formatDate(session.date, language) : ''}</span></td>
+                          <td><strong>{venue.name}</strong><span>{session ? formatDate(session.date, language) : ''}</span></td>
                           <td><strong>{formatNames([booking.format], t)}</strong></td>
                           <td><strong>{booking.participants.length} {booking.participants.length === 1 ? t.person : t.people}</strong><span>{booking.participants.join(' · ')}</span></td>
                           <td>{formatMoney(booking.totalPence, language)}</td>
@@ -2629,7 +2736,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                     <article className="request-admin-row" key={request.id}>
                       <div className="request-admin-date"><strong>{new Date(`${request.preferredDate}T12:00:00`).getDate()}</strong><span>{new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-GB', { month: 'short' }).format(new Date(`${request.preferredDate}T12:00:00`))}</span></div>
                       <div className="request-admin-main">
-                        <div className="request-admin-title"><strong>{language === 'zh' ? venue.nameZh : venue.name}</strong><Badge variant={request.status === 'pending' ? 'default' : 'outline'}>{requestStatusLabel(request.status, t)}</Badge></div>
+                        <div className="request-admin-title"><strong>{venue.name}</strong><Badge variant={request.status === 'pending' ? 'default' : 'outline'}>{requestStatusLabel(request.status, t)}</Badge></div>
                         <span><CalendarDays size={14} /> {formatLongDate(request.preferredDate, language)} · {request.startTime}–{request.endTime}</span>
                         <span><UserRound size={14} /> {request.contactName} · <a href={`mailto:${request.email}`}>{request.email}</a>{request.phone ? ` · ${request.phone}` : ''}</span>
                         {request.message ? <p>{request.message}</p> : null}
@@ -2656,8 +2763,8 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                 <div className="admin-venue-row" key={venue.id}>
                   <img src={venue.photo} alt="" />
                   <div className="admin-venue-row-main">
-                    <strong>{language === 'zh' ? venue.nameZh : venue.name}</strong>
-                    <span>{language === 'zh' ? venue.areaZh : venue.area}</span>
+                    <strong>{venue.name}</strong>
+                    <span>{venue.area}</span>
                     <small>{t.peakPrice}: {formatMoney(venue.peakPricePence, language)} · {t.offPeakPrice}: {formatMoney(venue.offPeakPricePence, language)}</small>
                   </div>
                   <Button variant="outline" size="sm" onClick={() => startEditVenue(venue)} disabled={adminBusy}><Pencil size={14} /> {t.edit}</Button>

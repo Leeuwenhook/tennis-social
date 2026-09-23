@@ -1,5 +1,25 @@
 import { GAME_FORMATS, venues, type GameFormat } from '../demo-data';
 
+export type VenueInput = {
+  name?: unknown;
+  nameZh?: unknown;
+  area?: unknown;
+  areaZh?: unknown;
+  photo?: unknown;
+  peakPricePence?: unknown;
+  offPeakPricePence?: unknown;
+};
+
+export type ValidatedVenueInput = {
+  name: string;
+  nameZh: string;
+  area: string;
+  areaZh: string;
+  photo: string;
+  peakPricePence: number;
+  offPeakPricePence: number;
+};
+
 export type SessionInput = {
   venueId?: unknown;
   date?: unknown;
@@ -41,7 +61,35 @@ function minutes(value: string) {
   return hours * 60 + mins;
 }
 
-export function validateSessionInput(input: SessionInput): ValidatedSessionInput | null {
+export function validateVenueInput(input: VenueInput): ValidatedVenueInput | null {
+  const name = cleanString(input.name, 120);
+  const nameZh = cleanString(input.nameZh, 120);
+  const area = cleanString(input.area, 120);
+  const areaZh = cleanString(input.areaZh, 120);
+  const rawPhoto = typeof input.photo === 'string' ? input.photo.trim() : '';
+  const photo = rawPhoto.slice(0, 2_500_000);
+  const peakPriceValue = typeof input.peakPricePence === 'string'
+    ? input.peakPricePence.trim()
+    : typeof input.peakPricePence === 'number' ? String(input.peakPricePence) : '';
+  const offPeakPriceValue = typeof input.offPeakPricePence === 'string'
+    ? input.offPeakPricePence.trim()
+    : typeof input.offPeakPricePence === 'number' ? String(input.offPeakPricePence) : '';
+  const peakPricePence = Number(peakPriceValue);
+  const offPeakPricePence = Number(offPeakPriceValue);
+  const isSafePhoto = photo.startsWith('/') || /^https?:\/\//i.test(photo) || /^data:image\/[a-z0-9.+-]+;base64,/i.test(photo);
+  if (
+    !name || !nameZh || !area || !areaZh || !rawPhoto || rawPhoto.length > 2_500_000 || !isSafePhoto || !peakPriceValue || !offPeakPriceValue ||
+    !Number.isInteger(peakPricePence) || peakPricePence < 0 || peakPricePence > 100_000 ||
+    !Number.isInteger(offPeakPricePence) || offPeakPricePence < 0 || offPeakPricePence > 100_000 ||
+    peakPricePence < offPeakPricePence
+  ) return null;
+  return { name, nameZh, area, areaZh, photo, peakPricePence, offPeakPricePence };
+}
+
+export function validateSessionInput(
+  input: SessionInput,
+  validVenueIds: Iterable<string> = venues.map((venue) => venue.id),
+): ValidatedSessionInput | null {
   const venueId = cleanString(input.venueId, 80);
   const date = cleanString(input.date, 10);
   const startTime = cleanString(input.startTime, 5);
@@ -61,7 +109,7 @@ export function validateSessionInput(input: SessionInput): ValidatedSessionInput
       : [];
   const status = input.status === 'draft' ? 'draft' : input.status === 'published' ? 'published' : '';
   if (
-    !venues.some((venue) => venue.id === venueId) ||
+    !new Set(validVenueIds).has(venueId) ||
     !isDate(date) ||
     !/^\d{2}:\d{2}$/.test(startTime) ||
     !/^\d{2}:\d{2}$/.test(endTime) ||

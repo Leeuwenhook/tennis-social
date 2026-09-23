@@ -6,6 +6,10 @@ import {
   serializeBooking,
   type BookingRow,
 } from '@/lib/server/database';
+import {
+  sendConfirmedBookingEmail,
+  type BookingEmailDelivery,
+} from '@/lib/server/booking-email';
 import { retrieveCheckoutSession } from '@/lib/server/stripe';
 
 export const dynamic = 'force-dynamic';
@@ -50,7 +54,19 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
 
     const currentBooking = rows[0];
     if (!currentBooking) return Response.json({ error: 'booking_not_found' }, { status: 404 });
-    return Response.json({ booking: serializeBooking(currentBooking) });
+    let confirmationEmailStatus: BookingEmailDelivery['status'] = 'not_applicable';
+    if (currentBooking.status === 'confirmed') {
+      try {
+        confirmationEmailStatus = (await sendConfirmedBookingEmail(db, currentBooking.id)).status;
+      } catch (error) {
+        // Payment confirmation should remain visible even if the email
+        // provider is temporarily unavailable. A later checkout return or
+        // webhook retry can try the delivery again.
+        console.error('Unable to send booking confirmation email', error);
+        confirmationEmailStatus = 'failed';
+      }
+    }
+    return Response.json({ booking: serializeBooking(currentBooking), confirmationEmailStatus });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {
       return Response.json({ error: 'database_not_configured' }, { status: 503 });

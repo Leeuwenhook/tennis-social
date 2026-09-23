@@ -19,9 +19,23 @@ export type SessionRow = {
   description_zh: string;
 };
 
+export type VenueRow = {
+  id: string;
+  name: string;
+  name_zh: string;
+  area: string;
+  area_zh: string;
+  photo: string;
+  peak_price_pence: number;
+  off_peak_price_pence: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type BookingRow = {
   id: string;
   session_id: string;
+  user_id: string | null;
   contact_name: string;
   email: string;
   phone: string;
@@ -37,6 +51,25 @@ export type BookingRow = {
   stripe_payment_intent_id: string | null;
   checkout_url: string | null;
   expires_at: string | null;
+  confirmation_email_status: 'pending' | 'sending' | 'sent';
+  confirmation_email_sent_at: string | null;
+  confirmation_email_message_id: string | null;
+  confirmation_email_claimed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ReservationRequestRow = {
+  id: string;
+  venue_id: string;
+  preferred_date: string;
+  start_time: string;
+  end_time: string;
+  contact_name: string;
+  email: string;
+  phone: string;
+  message: string;
+  status: 'pending' | 'reviewing' | 'completed';
   created_at: string;
   updated_at: string;
 };
@@ -55,6 +88,19 @@ export function database(): Database {
   const connectionString = DATABASE_URL || POSTGRES_URL;
   if (!connectionString) throw new DatabaseNotConfiguredError();
   return neon(connectionString);
+}
+
+function venueInsert(db: Database, venue: ReturnType<typeof createDemoSeed>['venues'][number], now: string) {
+  return db`
+    INSERT INTO venues (
+      id, name, name_zh, area, area_zh, photo, peak_price_pence,
+      off_peak_price_pence, created_at, updated_at
+    ) VALUES (
+      ${venue.id}, ${venue.name}, ${venue.nameZh}, ${venue.area}, ${venue.areaZh}, ${venue.photo},
+      ${venue.peakPricePence}, ${venue.offPeakPricePence}, ${now}, ${now}
+    )
+    ON CONFLICT (id) DO NOTHING
+  `;
 }
 
 function sessionInsert(db: Database, session: ReturnType<typeof createDemoSeed>['sessions'][number], now: string) {
@@ -91,6 +137,7 @@ export async function ensureSeeded(db = database()) {
   const now = new Date().toISOString();
   const seed = createDemoSeed(new Date(now));
   await db.transaction([
+    ...seed.venues.map((venue) => venueInsert(db, venue, now)),
     ...seed.sessions.map((session) => sessionInsert(db, session, now)),
     ...seed.bookings.map((booking) => bookingInsert(db, booking, now)),
   ]);
@@ -103,10 +150,40 @@ export async function resetSeed(db = database()) {
     db`DELETE FROM bookings`,
     db`DELETE FROM webhook_events`,
     db`DELETE FROM sessions`,
+    ...seed.venues.map((venue) => venueInsert(db, venue, now)),
     ...seed.sessions.map((session) => sessionInsert(db, session, now)),
     ...seed.bookings.map((booking) => bookingInsert(db, booking, now)),
   ]);
   return seed;
+}
+
+export function serializeVenue(row: VenueRow) {
+  return {
+    id: row.id,
+    name: row.name,
+    nameZh: row.name_zh,
+    area: row.area,
+    areaZh: row.area_zh,
+    photo: row.photo,
+    peakPricePence: row.peak_price_pence,
+    offPeakPricePence: row.off_peak_price_pence,
+  };
+}
+
+export function serializeReservationRequest(row: ReservationRequestRow) {
+  return {
+    id: row.id,
+    venueId: row.venue_id,
+    preferredDate: row.preferred_date,
+    startTime: row.start_time,
+    endTime: row.end_time,
+    contactName: row.contact_name,
+    email: row.email,
+    phone: row.phone,
+    message: row.message,
+    status: row.status,
+    createdAt: row.created_at,
+  };
 }
 
 export async function expireStaleReservations(db = database()) {

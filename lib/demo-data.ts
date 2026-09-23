@@ -5,6 +5,8 @@ export type Venue = {
   area: string;
   areaZh: string;
   photo: string;
+  peakPricePence: number;
+  offPeakPricePence: number;
 };
 
 export const GAME_FORMATS = ['singles', 'doubles'] as const;
@@ -40,6 +42,8 @@ export type DemoBooking = {
 };
 
 export const RACKET_PRICE_PENCE = 200;
+export const DEFAULT_PEAK_PRICE_PENCE = 1200;
+export const DEFAULT_OFF_PEAK_PRICE_PENCE = 900;
 
 export const venues: Venue[] = [
   {
@@ -49,6 +53,8 @@ export const venues: Venue[] = [
     area: 'Tower Hamlets',
     areaZh: 'Tower Hamlets 区',
     photo: '/venues/victoria-park.jpg',
+    peakPricePence: 1500,
+    offPeakPricePence: 1000,
   },
   {
     id: 'vauxhall-park',
@@ -57,6 +63,8 @@ export const venues: Venue[] = [
     area: 'Lambeth',
     areaZh: 'Lambeth 区',
     photo: '/venues/vauxhall-park.jpg',
+    peakPricePence: 1500,
+    offPeakPricePence: 1000,
   },
   {
     id: 'bethnal-green',
@@ -65,6 +73,8 @@ export const venues: Venue[] = [
     area: 'East London',
     areaZh: '东伦敦',
     photo: '/venues/bethnal-green.jpg',
+    peakPricePence: 1300,
+    offPeakPricePence: 900,
   },
   {
     id: 'poplar-rec-ground',
@@ -73,6 +83,8 @@ export const venues: Venue[] = [
     area: 'Poplar',
     areaZh: 'Poplar 区',
     photo: '/venues/poplar-rec-ground.jpg',
+    peakPricePence: 1200,
+    offPeakPricePence: 800,
   },
   {
     id: 'king-edward-memorial-park',
@@ -81,6 +93,8 @@ export const venues: Venue[] = [
     area: 'Shadwell',
     areaZh: 'Shadwell 区',
     photo: '/venues/king-edward-memorial-park.jpg',
+    peakPricePence: 1600,
+    offPeakPricePence: 1100,
   },
 ];
 

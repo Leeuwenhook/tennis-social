@@ -3,11 +3,14 @@ import {
   DatabaseNotConfiguredError,
   resetSeed,
 } from '@/lib/server/database';
+import { requireAdmin } from '@/lib/server/admin-auth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-export async function POST() {
+export async function POST(request: Request) {
+  const unauthorized = requireAdmin(request);
+  if (unauthorized) return unauthorized;
   try {
     const seed = await resetSeed(database());
     return Response.json({ sessions: seed.sessions, bookings: seed.bookings });

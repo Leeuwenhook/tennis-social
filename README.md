@@ -9,6 +9,7 @@ Responsive bilingual tennis session booking community demo for London.
 - Session browsing, detail pages, participant levels, friend bookings and racket rental.
 - Stripe Checkout handoff with server-side pricing, 30-minute reservations and webhook confirmation.
 - Payment confirmation emails sent through Resend with booking details and an attached `.ics` calendar invite.
+- Loyalty rewards: every ten confirmed paid activities for a signed-in user issue one 50% activity-fee voucher, valid for three months and redeemable once at checkout.
 - Shared demo sessions, bookings and venues backed by Neon Postgres, with a protected admin at `/admin` for session editing, venue/image management, default pricing, booking review, cancellation and data reset.
 - Vercel-ready Vinext/Nitro build output; browser storage remains only as a local preview fallback.
 
@@ -48,7 +49,7 @@ RESEND_API_KEY=re_...
 EMAIL_FROM=Tennis Social <bookings@your-verified-domain.example>
 ```
 
-Run `npm run db:migrate` after pulling the new migration. Venue images can be entered as public paths/URLs or selected locally from the admin form (up to 1 MB). A pending booking reserves its places for 30 minutes; `checkout.session.completed` confirms it and triggers the confirmation email; `checkout.session.expired` releases it. The email includes the booking summary, activity description and a `tennis-social-booking.ics` calendar attachment. Point the Stripe webhook to `https://<your-vercel-domain>/api/stripe/webhook`. Use Stripe test cards until the full refund and cancellation policy is in place.
+Run `npm run db:migrate` after pulling the new migration. Venue images can be entered as public paths/URLs or selected locally from the admin form (up to 1 MB). A pending booking reserves its places for 30 minutes; `checkout.session.completed` confirms it and triggers the confirmation email; `checkout.session.expired` releases it. The email includes the booking summary, activity description and a `tennis-social-booking.ics` calendar attachment. Loyalty participation is counted from confirmed paid bookings attached to a signed-in account; guest bookings do not build a reward balance. Point the Stripe webhook to `https://<your-vercel-domain>/api/stripe/webhook`. Use Stripe test cards until the full refund and cancellation policy is in place.
 
 See [PLAN.public.md](PLAN.public.md) for the product scope and acceptance criteria.
 

@@ -89,9 +89,28 @@ type Booking = {
   participants: string[];
   format: GameFormat;
   racketCount: number;
+  couponId?: string | null;
+  couponDiscountPence?: number;
   totalPence: number;
   status: BookingStatus;
   createdAt: string;
+};
+
+type CouponStatus = 'available' | 'reserved' | 'redeemed' | 'expired';
+type Coupon = {
+  id: string;
+  code: string;
+  discountPercent: number;
+  milestoneCount: number;
+  issuedAt: string;
+  expiresAt: string;
+  status: CouponStatus;
+  redeemedAt: string | null;
+};
+type LoyaltyStatus = {
+  participationCount: number;
+  nextRewardAt: number;
+  coupons: Coupon[];
 };
 
 type SessionDraft = {
@@ -228,6 +247,14 @@ const translations = {
     orderSummary: 'Order summary',
     sessionFee: 'Session fee',
     racketFee: 'Racket rental',
+    couponDiscount: 'Half-price voucher',
+    applyCoupon: 'Apply a half-price voucher',
+    noCoupon: 'No voucher applied',
+    couponCode: 'Voucher code',
+    couponExpires: 'Expires {date}',
+    couponUsed: 'Used',
+    couponPending: 'Pending payment',
+    couponExpired: 'Expired',
     total: 'Total',
     continuePayment: 'Continue to payment',
     payment: 'Payment',
@@ -316,6 +343,13 @@ const translations = {
     registrationInvalid: 'Please complete all fields and use a password of at least 8 characters.',
     signedInPrefill: 'Your saved profile has been pre-filled. You can still change it for this booking.',
     memberSince: 'Saved playing preferences',
+    loyaltyTitle: 'Member rewards',
+    participationCount: 'Confirmed activities',
+    nextReward: 'Your next half-price voucher unlocks at {count} activities.',
+    rewardProgress: '{count} of {target} activities',
+    rewardEarned: 'You earned a half-price voucher. It is valid for three months.',
+    noCoupons: 'No vouchers yet. Complete ten confirmed activities to earn one.',
+    loyaltyUnavailable: 'Rewards are temporarily unavailable.',
     editProfile: 'Edit profile',
     editProfileIntro: 'Update your saved details and playing preferences.',
     saveProfile: 'Save profile',
@@ -450,6 +484,14 @@ const translations = {
     orderSummary: '费用明细',
     sessionFee: '场次费用',
     racketFee: '球拍租借',
+    couponDiscount: '半价券优惠',
+    applyCoupon: '使用半价券',
+    noCoupon: '不使用优惠券',
+    couponCode: '优惠券编号',
+    couponExpires: '有效期至 {date}',
+    couponUsed: '已使用',
+    couponPending: '付款中',
+    couponExpired: '已过期',
     total: '总计',
     continuePayment: '继续付款',
     payment: '付款',
@@ -538,6 +580,13 @@ const translations = {
     registrationInvalid: '请填写所有必填项，密码至少需要 8 个字符。',
     signedInPrefill: '已自动填写你保存的资料；本次报名仍可修改。',
     memberSince: '已保存的打球偏好',
+    loyaltyTitle: '会员奖励',
+    participationCount: '已确认参加活动',
+    nextReward: '再参加 {count} 次活动即可获得下一张半价券。',
+    rewardProgress: '已完成 {count} / {target} 次活动',
+    rewardEarned: '你已获得一张半价券，有效期三个月。',
+    noCoupons: '暂时没有优惠券。确认参加满 10 次活动后即可获得。',
+    loyaltyUnavailable: '奖励信息暂时无法加载。',
     editProfile: '编辑个人资料',
     editProfileIntro: '更新你保存的联系方式与打球偏好。',
     saveProfile: '保存个人资料',
@@ -927,6 +976,9 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   const [adminAuthError, setAdminAuthError] = useState('');
   const [adminLogin, setAdminLogin] = useState({ username: '', password: '' });
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [loyalty, setLoyalty] = useState<LoyaltyStatus | null>(null);
+  const [loyaltyLoading, setLoyaltyLoading] = useState(false);
+  const [selectedCouponId, setSelectedCouponId] = useState('');
   const [userAuthChecked, setUserAuthChecked] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [authBusy, setAuthBusy] = useState(false);
@@ -986,6 +1038,27 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   const selectedSession = sessions.find((session) => session.id === selectedSessionId);
   const selectedVenue = selectedSession ? getVenue(selectedSession.venueId, venueList) : null;
   const activeBookings = bookings.filter((booking) => booking.status === 'confirmed');
+  const availableCoupons = loyalty?.coupons.filter((coupon) => coupon.status === 'available') ?? [];
+  const selectedCoupon = availableCoupons.find((coupon) => coupon.id === selectedCouponId) ?? null;
+
+  async function loadLoyaltyStatus() {
+    setLoyaltyLoading(true);
+    try {
+      const response = await fetch('/api/loyalty', { cache: 'no-store' });
+      const data = await response.json() as { loyalty?: LoyaltyStatus };
+      if (response.ok && data.loyalty) {
+        setLoyalty(data.loyalty);
+        const defaultCoupon = data.loyalty.coupons.find((coupon) => coupon.status === 'available' && new Date(coupon.expiresAt).getTime() > Date.now());
+        setSelectedCouponId((current) => current || defaultCoupon?.id || '');
+      } else {
+        setLoyalty(null);
+      }
+    } catch {
+      setLoyalty(null);
+    } finally {
+      setLoyaltyLoading(false);
+    }
+  }
 
   useEffect(() => {
     try {
@@ -1025,6 +1098,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         if (!cancelled && response.ok && data.user) {
           setUser(data.user);
           setProfileForm(profileFormFromUser(data.user));
+          void loadLoyaltyStatus();
         }
       } catch {
         // Booking remains available to guests when account services are offline.
@@ -1104,6 +1178,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           setSelectedSessionId(data.booking.sessionId);
           setConfirmation(normalizeBooking(data.booking));
           setConfirmationEmailStatus(data.confirmationEmailStatus ?? 'in_progress');
+          void loadLoyaltyStatus();
           setView('confirmation');
           window.sessionStorage.removeItem('tennis-social-checkout-draft-v1');
           window.history.replaceState({}, '', '/');
@@ -1211,9 +1286,12 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   );
 
   const allSessions = useMemo(() => [...sessions].sort(sessionSort), [sessions]);
+  const couponDiscountPence = selectedSession && selectedCoupon
+    ? (selectedSession.pricePence - Math.floor(selectedSession.pricePence * (100 - selectedCoupon.discountPercent) / 100)) * bookingForm.participants.length
+    : 0;
   const totalPence = selectedSession
     ? selectedSession.pricePence * bookingForm.participants.length +
-      bookingForm.racketCount * RACKET_PRICE_PENCE
+      bookingForm.racketCount * RACKET_PRICE_PENCE - couponDiscountPence
     : 0;
 
   function scrollTop() {
@@ -1365,6 +1443,8 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       racketCount: 0,
       includeFriends: false,
     });
+    const defaultCoupon = availableCoupons[0];
+    setSelectedCouponId(defaultCoupon?.id ?? '');
     setBookingStage('details');
     setFormErrors({});
     setPaymentFailed(false);
@@ -1490,6 +1570,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         return;
       }
       setUser(data.user);
+      void loadLoyaltyStatus();
       setUserAuthChecked(true);
       setProfileForm(profileFormFromUser(data.user));
       setProfileEditing(false);
@@ -1552,6 +1633,8 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       // Always clear local account state so a stale UI is not shown.
     }
     setUser(null);
+    setLoyalty(null);
+    setSelectedCouponId('');
     setAuthMode('login');
     setAuthError('');
     navigate('home');
@@ -1681,13 +1764,24 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           participants: bookingForm.participants,
           format: bookingForm.format,
           racketCount: bookingForm.racketCount,
+          couponId: selectedCoupon?.id ?? '',
         }),
       });
       const data = await response.json() as { checkoutUrl?: string; error?: string };
       if (!response.ok || !data.checkoutUrl) {
         if (response.status === 409) {
-          setBookingStage('details');
-          setFormErrors(data.error === 'format_unavailable' ? { format: t.chooseFormat } : { participants: t.notEnoughSpots });
+          if (data.error === 'format_unavailable') {
+            setBookingStage('details');
+            setFormErrors({ format: t.chooseFormat });
+          }
+          else if (data.error === 'coupon_unavailable' || data.error === 'coupon_requires_account') {
+            setSelectedCouponId('');
+            void loadLoyaltyStatus();
+            setPaymentFailed(true);
+          } else {
+            setBookingStage('details');
+            setFormErrors({ participants: t.notEnoughSpots });
+          }
         } else {
           setPaymentFailed(true);
         }
@@ -2413,6 +2507,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <p className="summary-format"><CircleDot size={15} /> {t.format}: {bookingForm.format ? formatNames([bookingForm.format], t) : ''}</p>
           <div className="summary-lines">
             <div><span>{t.sessionFee} × {bookingForm.participants.length}</span><strong>{formatMoney(selectedSession.pricePence * bookingForm.participants.length, language)}</strong></div>
+            {selectedCoupon ? <div className="summary-discount"><span>{t.couponDiscount} ({selectedCoupon.discountPercent}%)</span><strong>−{formatMoney(couponDiscountPence, language)}</strong></div> : null}
             <div><span>{t.racketFee} × {bookingForm.racketCount}</span><strong>{formatMoney(bookingForm.racketCount * RACKET_PRICE_PENCE, language)}</strong></div>
           </div>
           <div className="summary-total"><span>{t.total}</span><strong>{formatMoney(totalPence, language)}</strong></div>
@@ -2439,6 +2534,15 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                 <div><strong>{t.demoPayment}</strong><span>{t.demoPaymentIntro}</span></div>
                 <Badge variant="secondary">STRIPE</Badge>
               </div>
+              {user && availableCoupons.length ? (
+                <div className="coupon-picker field">
+                  <Label htmlFor="booking-coupon">{t.applyCoupon}</Label>
+                  <select id="booking-coupon" className="native-select" value={selectedCouponId} onChange={(event) => setSelectedCouponId(event.target.value)}>
+                    <option value="">{t.noCoupon}</option>
+                    {availableCoupons.map((coupon) => <option key={coupon.id} value={coupon.id}>{coupon.code} · {coupon.discountPercent}% · {t.couponExpires.replace('{date}', formatDate(coupon.expiresAt.slice(0, 10), language))}</option>)}
+                  </select>
+                </div>
+              ) : null}
               {paymentFailed || paymentCancelled ? <div className="inline-error"><TriangleAlert size={16} /> {paymentCancelled ? t.paymentCancelled : t.paymentFailed}</div> : null}
               <div className="payment-actions">
                 <Button size="lg" className="primary-wide" disabled={checkoutLoading} onClick={() => void completePayment()}>{checkoutLoading ? (language === 'zh' ? '正在打开安全付款…' : 'Opening secure checkout…') : t.simulateSuccess}<ArrowRight size={17} /></Button>
@@ -2545,6 +2649,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <div className="participant-chips">{confirmation.participants.map((level, index) => <span key={`${level}-${index}`}>{index === 0 ? t.name : `${t.friendLevel} ${index}`} · {level}</span>)}</div>
           <div className="confirmation-fee-breakdown" aria-label={t.orderSummary}>
             <div><span>{t.sessionFee} × {confirmation.participants.length}</span><strong>{formatMoney(session.pricePence * confirmation.participants.length, language)}</strong></div>
+            {confirmation.couponDiscountPence ? <div className="summary-discount"><span>{t.couponDiscount}</span><strong>−{formatMoney(confirmation.couponDiscountPence, language)}</strong></div> : null}
             <div><span>{t.racketFee} × {confirmation.racketCount}</span><strong>{formatMoney(confirmation.racketCount * RACKET_PRICE_PENCE, language)}</strong></div>
             <div><span>{t.total}</span><strong>{formatMoney(confirmation.totalPence, language)}</strong></div>
           </div>
@@ -2599,6 +2704,23 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                   <div><small>{t.tennisLevel}</small><strong>{user.tennisLevel}</strong></div>
                   <div><small>{t.preferredTime}</small><strong>{preferredTimeLabel(user.preferredTime, t)}</strong></div>
                   <div><small>{t.preferredFormat}</small><strong>{formatNames([user.preferredFormat], t)}</strong></div>
+                </div>
+                <div className="loyalty-card">
+                  <div className="loyalty-card-heading">
+                    <div><p className="eyebrow muted">{t.loyaltyTitle}</p><h2>{loyalty ? `${t.participationCount}: ${loyalty.participationCount}` : t.loyaltyTitle}</h2></div>
+                    <span className="loyalty-badge">50%</span>
+                  </div>
+                  {loyaltyLoading && !loyalty ? <p className="form-intro">{t.checkingAccess}</p> : null}
+                  {loyalty ? <>
+                    <div className="loyalty-progress" aria-label={t.rewardProgress.replace('{count}', String(loyalty.participationCount % 10)).replace('{target}', '10')}><span style={{ width: `${Math.min(100, (loyalty.participationCount % 10) * 10)}%` }} /></div>
+                    <p className="form-intro">{(loyalty.participationCount > 0 && loyalty.participationCount % 10 === 0 ? t.rewardEarned : t.nextReward.replace('{count}', String(loyalty.nextRewardAt)))}</p>
+                    {loyalty.coupons.length ? <div className="coupon-list">
+                      {loyalty.coupons.map((coupon) => <div className="coupon-row" key={coupon.id}>
+                        <div><strong>{coupon.code}</strong><small>{coupon.discountPercent}% · {t.couponExpires.replace('{date}', formatDate(coupon.expiresAt.slice(0, 10), language))}</small></div>
+                        <Badge variant={coupon.status === 'available' ? 'default' : 'secondary'}>{coupon.status === 'available' ? t.applyCoupon : coupon.status === 'redeemed' ? t.couponUsed : coupon.status === 'reserved' ? t.couponPending : t.couponExpired}</Badge>
+                      </div>)}
+                    </div> : <p className="form-intro">{t.noCoupons}</p>}
+                  </> : null}
                 </div>
                 <div className="account-actions">
                   <Button size="lg" onClick={beginProfileEdit}><Pencil size={16} />{t.editProfile}</Button>

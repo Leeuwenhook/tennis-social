@@ -56,6 +56,26 @@ export const userSessions = pgTable('user_sessions', {
   index('idx_user_sessions_expires_at').on(table.expiresAt),
 ]);
 
+export const coupons = pgTable('coupons', {
+  id: text('id').primaryKey(),
+  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  code: text('code').notNull(),
+  discountPercent: integer('discount_percent').notNull().default(50),
+  milestoneCount: integer('milestone_count').notNull(),
+  issuedAt: text('issued_at').notNull(),
+  expiresAt: text('expires_at').notNull(),
+  status: text('status', { enum: ['available', 'reserved', 'redeemed', 'expired'] }).notNull().default('available'),
+  reservedBookingId: text('reserved_booking_id'),
+  redeemedBookingId: text('redeemed_booking_id'),
+  redeemedAt: text('redeemed_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  uniqueIndex('coupons_code_unique').on(table.code),
+  uniqueIndex('coupons_user_milestone_unique').on(table.userId, table.milestoneCount),
+  index('idx_coupons_user_status_expiry').on(table.userId, table.status, table.expiresAt),
+]);
+
 export const bookings = pgTable('bookings', {
   id: text('id').primaryKey(),
   sessionId: text('session_id').notNull().references(() => sessions.id),
@@ -69,6 +89,8 @@ export const bookings = pgTable('bookings', {
   racketCount: integer('racket_count').notNull(),
   sessionPricePence: integer('session_price_pence').notNull(),
   racketPricePence: integer('racket_price_pence').notNull(),
+  couponId: text('coupon_id').references(() => coupons.id, { onDelete: 'set null' }),
+  couponDiscountPence: integer('coupon_discount_pence').notNull().default(0),
   totalPence: integer('total_pence').notNull(),
   status: text('status').notNull(),
   stripeCheckoutSessionId: text('stripe_checkout_session_id'),
@@ -84,6 +106,7 @@ export const bookings = pgTable('bookings', {
 }, (table) => [
   index('idx_bookings_session_status').on(table.sessionId, table.status),
   index('idx_bookings_status_expiry').on(table.status, table.expiresAt),
+  index('idx_bookings_user_status').on(table.userId, table.status),
   uniqueIndex('bookings_stripe_checkout_session_id_unique').on(table.stripeCheckoutSessionId),
   uniqueIndex('bookings_stripe_payment_intent_id_unique').on(table.stripePaymentIntentId),
 ]);

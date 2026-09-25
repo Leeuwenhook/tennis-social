@@ -50,6 +50,13 @@
       "when": 1790160000000,
       "tag": "0006_reservation_request_venue_name",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790270000000,
+      "tag": "0007_loyalty_coupons",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,6 @@
 import {
+  awardLoyaltyCoupons,
+  confirmBooking,
   database,
   DatabaseNotConfiguredError,
   releaseBooking,
@@ -55,13 +57,20 @@ export async function POST(request: Request) {
     try {
       if (bookingId && ['checkout.session.completed', 'checkout.session.async_payment_succeeded'].includes(event.type)) {
         if (object.payment_status === 'paid' || event.type === 'checkout.session.async_payment_succeeded') {
-          await db`
-            UPDATE bookings
-            SET status = 'confirmed', stripe_payment_intent_id = ${object.payment_intent ?? null}, updated_at = ${now}
-            WHERE id = ${bookingId}
-              AND stripe_checkout_session_id = ${object.id}
-              AND status = 'pending_payment'
-          `;
+          const confirmed = await confirmBooking(
+            db,
+            bookingId,
+            object.id ?? '',
+            object.payment_intent ?? null,
+          );
+          if (confirmed?.user_id) {
+            try {
+              await awardLoyaltyCoupons(db, confirmed.user_id);
+            } catch (error) {
+              // Loyalty rewards should not make Stripe retry a successful payment.
+              console.error('Unable to award loyalty coupon', error);
+            }
+          }
           // The email is also attempted when the booking was already confirmed,
           // so a delayed webhook or a second successful payment event can
           // recover an earlier delivery failure.

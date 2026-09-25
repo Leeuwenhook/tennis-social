@@ -45,6 +45,8 @@ export type BookingRow = {
   racket_count: number;
   session_price_pence: number;
   racket_price_pence: number;
+  coupon_id: string | null;
+  coupon_discount_pence: number;
   total_pence: number;
   status: 'pending_payment' | 'confirmed' | 'expired' | 'payment_failed' | 'cancelled' | 'refunded';
   stripe_checkout_session_id: string | null;
@@ -57,6 +59,41 @@ export type BookingRow = {
   confirmation_email_claimed_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type CouponRow = {
+  id: string;
+  user_id: string;
+  code: string;
+  discount_percent: number;
+  milestone_count: number;
+  issued_at: string;
+  expires_at: string;
+  status: 'available' | 'reserved' | 'redeemed' | 'expired';
+  reserved_booking_id: string | null;
+  redeemed_booking_id: string | null;
+  redeemed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export function serializeCoupon(row: CouponRow) {
+  return {
+    id: row.id,
+    code: row.code,
+    discountPercent: row.discount_percent,
+    milestoneCount: row.milestone_count,
+    issuedAt: row.issued_at,
+    expiresAt: row.expires_at,
+    status: row.status,
+    redeemedAt: row.redeemed_at,
+  };
+}
+
+export type LoyaltyStatus = {
+  participationCount: number;
+  nextRewardAt: number;
+  coupons: ReturnType<typeof serializeCoupon>[];
 };
 
 export type ReservationRequestRow = {
@@ -123,11 +160,11 @@ function bookingInsert(db: Database, booking: ReturnType<typeof createDemoSeed>[
     INSERT INTO bookings (
       id, session_id, contact_name, email, phone, participants_json,
       format, participant_count, racket_count, session_price_pence, racket_price_pence,
-      total_pence, status, expires_at, created_at, updated_at
+      coupon_discount_pence, total_pence, status, expires_at, created_at, updated_at
     ) VALUES (
       ${booking.id}, ${booking.sessionId}, ${booking.contactName}, ${booking.email}, ${booking.phone},
       ${JSON.stringify(booking.participants)}, ${booking.format}, ${booking.participants.length}, ${booking.racketCount},
-      ${booking.totalPence - booking.racketCount * RACKET_PRICE_PENCE}, ${RACKET_PRICE_PENCE}, ${booking.totalPence}, ${booking.status},
+      ${booking.totalPence - booking.racketCount * RACKET_PRICE_PENCE}, ${RACKET_PRICE_PENCE}, 0, ${booking.totalPence}, ${booking.status},
       NULL, ${booking.createdAt || now}, ${now}
     )
     ON CONFLICT (id) DO NOTHING
@@ -197,7 +234,17 @@ export async function expireStaleReservations(db = database()) {
       WHERE status = 'pending_payment'
         AND expires_at IS NOT NULL
         AND expires_at < ${now}
-      RETURNING session_id, participant_count
+      RETURNING id, session_id, participant_count, coupon_id
+    ), released_coupons AS (
+      UPDATE coupons AS coupons
+      SET status = CASE WHEN coupons.expires_at <= ${now} THEN 'expired' ELSE 'available' END,
+          reserved_booking_id = NULL,
+          updated_at = ${now}
+      FROM expired
+      WHERE coupons.id = expired.coupon_id
+        AND coupons.status = 'reserved'
+        AND coupons.reserved_booking_id = expired.id
+      RETURNING coupons.id
     ), released AS (
       SELECT session_id, SUM(participant_count)::integer AS participant_count
       FROM expired
@@ -222,7 +269,17 @@ export async function releaseBooking(
       UPDATE bookings
       SET status = ${status}, updated_at = ${now}
       WHERE id = ${bookingId} AND status = 'pending_payment'
-      RETURNING session_id, participant_count
+      RETURNING id, session_id, participant_count, coupon_id
+    ), released_coupon AS (
+      UPDATE coupons AS coupons
+      SET status = CASE WHEN coupons.expires_at <= ${now} THEN 'expired' ELSE 'available' END,
+          reserved_booking_id = NULL,
+          updated_at = ${now}
+      FROM released
+      WHERE coupons.id = released.coupon_id
+        AND coupons.status = 'reserved'
+        AND coupons.reserved_booking_id = released.id
+      RETURNING coupons.id
     )
     UPDATE sessions AS sessions
     SET booked_spots = GREATEST(0, sessions.booked_spots - released.participant_count),
@@ -230,6 +287,96 @@ export async function releaseBooking(
     FROM released
     WHERE sessions.id = released.session_id
   `;
+}
+
+export async function confirmBooking(
+  db: Database,
+  bookingId: string,
+  checkoutSessionId: string,
+  paymentIntentId: string | null,
+) {
+  const now = new Date().toISOString();
+  const rows = await db`
+    UPDATE bookings
+    SET status = 'confirmed',
+        stripe_payment_intent_id = ${paymentIntentId},
+        updated_at = ${now}
+    WHERE id = ${bookingId}
+      AND stripe_checkout_session_id = ${checkoutSessionId}
+      AND status = 'pending_payment'
+    RETURNING *
+  ` as BookingRow[];
+  if (rows[0]) {
+    await db`
+      UPDATE coupons
+      SET status = 'redeemed',
+          reserved_booking_id = NULL,
+          redeemed_booking_id = ${bookingId},
+          redeemed_at = ${now},
+          updated_at = ${now}
+      WHERE reserved_booking_id = ${bookingId}
+        AND status = 'reserved'
+    `;
+  }
+  return rows[0] ?? null;
+}
+
+function couponExpiry(issuedAt: string) {
+  const expiresAt = new Date(issuedAt);
+  expiresAt.setUTCMonth(expiresAt.getUTCMonth() + 3);
+  return expiresAt.toISOString();
+}
+
+export async function awardLoyaltyCoupons(db: Database, userId: string) {
+  const countRows = await db`
+    SELECT COUNT(*)::integer AS participation_count
+    FROM bookings
+    WHERE user_id = ${userId} AND status = 'confirmed'
+  ` as Array<{ participation_count: number }>;
+  const participationCount = Number(countRows[0]?.participation_count ?? 0);
+  const earnedMilestones = Math.floor(participationCount / 10);
+  if (earnedMilestones < 1) return participationCount;
+
+  const issuedAt = new Date().toISOString();
+  for (let milestoneCount = 10; milestoneCount <= earnedMilestones * 10; milestoneCount += 10) {
+    const id = `CP-${crypto.randomUUID()}`;
+    const code = `HALF-${crypto.randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase()}`;
+    await db`
+      INSERT INTO coupons (
+        id, user_id, code, discount_percent, milestone_count, issued_at, expires_at,
+        status, created_at, updated_at
+      ) VALUES (
+        ${id}, ${userId}, ${code}, 50, ${milestoneCount}, ${issuedAt}, ${couponExpiry(issuedAt)},
+        'available', ${issuedAt}, ${issuedAt}
+      )
+      ON CONFLICT (user_id, milestone_count) DO NOTHING
+    `;
+  }
+  return participationCount;
+}
+
+export async function getLoyaltyStatus(db: Database, userId: string): Promise<LoyaltyStatus> {
+  const participationCount = await awardLoyaltyCoupons(db, userId);
+  const now = new Date().toISOString();
+  await db`
+    UPDATE coupons
+    SET status = 'expired', updated_at = ${now}
+    WHERE user_id = ${userId}
+      AND status = 'available'
+      AND expires_at <= ${now}
+  `;
+  const rows = await db`
+    SELECT id, user_id, code, discount_percent, milestone_count, issued_at, expires_at,
+           status, reserved_booking_id, redeemed_booking_id, redeemed_at, created_at, updated_at
+    FROM coupons
+    WHERE user_id = ${userId}
+    ORDER BY milestone_count DESC, issued_at DESC
+  ` as CouponRow[];
+  return {
+    participationCount,
+    nextRewardAt: (Math.floor(participationCount / 10) + 1) * 10,
+    coupons: rows.map(serializeCoupon),
+  };
 }
 
 export function serializeSession(row: SessionRow) {
@@ -278,6 +425,8 @@ export function serializeBooking(row: BookingRow) {
     participants: parseParticipants(row.participants_json),
     format: GAME_FORMATS.includes(row.format) ? row.format : 'singles',
     racketCount: row.racket_count,
+    couponId: row.coupon_id,
+    couponDiscountPence: row.coupon_discount_pence,
     totalPence: row.total_pence,
     status: row.status,
     createdAt: row.created_at,

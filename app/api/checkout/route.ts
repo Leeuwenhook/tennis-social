@@ -19,6 +19,7 @@ type CheckoutInput = {
   participants?: unknown;
   format?: unknown;
   racketCount?: unknown;
+  couponId?: unknown;
 };
 
 function cleanString(value: unknown, maxLength: number) {
@@ -76,6 +77,7 @@ export async function POST(request: Request) {
     : [];
   const format = GAME_FORMATS.includes(input.format as GameFormat) ? input.format as GameFormat : '';
   const racketCount = Number(input.racketCount);
+  const couponId = cleanString(input.couponId, 120);
   if (
     !sessionId || !name || !/^\S+@\S+\.\S+$/.test(email) ||
     participants.length < 1 || participants.length > 8 || participants.some((level) => !LEVELS.has(level)) ||
@@ -90,23 +92,71 @@ export async function POST(request: Request) {
     await ensureSeeded(db);
     await expireStaleReservations(db);
     const authenticatedUser = await getAuthenticatedUser(request, db);
-
-    const formatRows = await db`
-      SELECT formats_json
-      FROM sessions
-      WHERE id = ${sessionId}
-    ` as Array<{ formats_json: string }>;
-    if (!formatRows[0]) return Response.json({ error: 'session_unavailable' }, { status: 409 });
-    if (!parseFormats(formatRows[0].formats_json).includes(format)) {
-      return Response.json({ error: 'format_unavailable' }, { status: 409 });
-    }
-
     const now = new Date();
     const nowIso = now.toISOString();
     const expiresAtSeconds = Math.floor(now.getTime() / 1000) + 30 * 60;
     const expiresAt = new Date(expiresAtSeconds * 1000).toISOString();
     const clock = londonClock();
     const bookingId = `TS-${crypto.randomUUID()}`;
+
+    if (couponId && !authenticatedUser) {
+      return Response.json({ error: 'coupon_requires_account' }, { status: 409 });
+    }
+
+    let couponDiscountPercent = 0;
+    let couponReserved = false;
+    if (couponId && authenticatedUser) {
+      const couponRows = await db`
+        UPDATE coupons
+        SET status = 'reserved', reserved_booking_id = ${bookingId}, updated_at = ${nowIso}
+        WHERE id = ${couponId}
+          AND user_id = ${authenticatedUser.id}
+          AND status = 'available'
+          AND expires_at > ${new Date().toISOString()}
+        RETURNING id, discount_percent, reserved_booking_id
+      ` as Array<{ id: string; discount_percent: number; reserved_booking_id: string }>;
+      const coupon = couponRows[0];
+      if (!coupon) return Response.json({ error: 'coupon_unavailable' }, { status: 409 });
+      couponDiscountPercent = Number(coupon.discount_percent);
+      if (!Number.isInteger(couponDiscountPercent) || couponDiscountPercent <= 0 || couponDiscountPercent >= 100) {
+        await db`
+          UPDATE coupons
+          SET status = 'available', reserved_booking_id = NULL, updated_at = ${new Date().toISOString()}
+          WHERE id = ${couponId} AND user_id = ${authenticatedUser.id}
+            AND status = 'reserved' AND reserved_booking_id = ${bookingId}
+        `;
+        return Response.json({ error: 'coupon_unavailable' }, { status: 409 });
+      }
+      couponReserved = true;
+    }
+
+    const releaseCouponReservation = async () => {
+      if (!couponReserved || !authenticatedUser) return;
+      await db`
+        UPDATE coupons
+        SET status = CASE WHEN expires_at <= ${nowIso} THEN 'expired' ELSE 'available' END,
+            reserved_booking_id = NULL,
+            updated_at = ${new Date().toISOString()}
+        WHERE id = ${couponId}
+          AND user_id = ${authenticatedUser.id}
+          AND status = 'reserved'
+          AND reserved_booking_id = ${bookingId}
+      `;
+    };
+
+    const formatRows = await db`
+      SELECT formats_json
+      FROM sessions
+      WHERE id = ${sessionId}
+    ` as Array<{ formats_json: string }>;
+    if (!formatRows[0]) {
+      await releaseCouponReservation();
+      return Response.json({ error: 'session_unavailable' }, { status: 409 });
+    }
+    if (!parseFormats(formatRows[0].formats_json).includes(format)) {
+      await releaseCouponReservation();
+      return Response.json({ error: 'format_unavailable' }, { status: 409 });
+    }
 
     // The conditional update and insert are one Postgres statement, so two
     // visitors cannot reserve the same last place at the same time.
@@ -123,21 +173,26 @@ export async function POST(request: Request) {
       INSERT INTO bookings (
         id, session_id, user_id, contact_name, email, phone, participants_json,
         format, participant_count, racket_count, session_price_pence, racket_price_pence,
-        total_pence, status, expires_at, created_at, updated_at
+        coupon_id, coupon_discount_pence, total_pence, status, expires_at, created_at, updated_at
       )
       SELECT
         ${bookingId}, reserved.id, ${authenticatedUser?.id ?? null}, ${name}, ${email}, ${phone}, ${JSON.stringify(participants)},
         ${format}, ${participants.length}, ${racketCount}, reserved.price_pence, ${RACKET_PRICE_PENCE},
-        reserved.price_pence * ${participants.length} + ${RACKET_PRICE_PENCE * racketCount},
+        ${couponId || null},
+        reserved.price_pence * ${participants.length} - (FLOOR(reserved.price_pence * ${100 - couponDiscountPercent} / 100.0)::integer * ${participants.length}),
+        FLOOR(reserved.price_pence * ${100 - couponDiscountPercent} / 100.0)::integer * ${participants.length} + ${RACKET_PRICE_PENCE * racketCount},
         'pending_payment', ${expiresAt}, ${nowIso}, ${nowIso}
       FROM reserved
-      RETURNING id, session_id, contact_name, email, phone, participants_json,
+      RETURNING id, session_id, user_id, contact_name, email, phone, participants_json,
                 format, participant_count, racket_count, session_price_pence, racket_price_pence,
-                total_pence, status, stripe_checkout_session_id,
+                coupon_id, coupon_discount_pence, total_pence, status, stripe_checkout_session_id,
                 stripe_payment_intent_id, checkout_url, expires_at, created_at, updated_at
     ` as BookingRow[];
     const booking = rows[0];
-    if (!booking) return Response.json({ error: 'session_unavailable' }, { status: 409 });
+    if (!booking) {
+      await releaseCouponReservation();
+      return Response.json({ error: 'session_unavailable' }, { status: 409 });
+    }
 
     try {
       const venueRows = await db`
@@ -152,7 +207,7 @@ export async function POST(request: Request) {
         format: booking.format,
         venueName: venueRows[0]?.venue_name ?? 'Tennis Social',
         participantCount: booking.participant_count,
-        sessionPricePence: booking.session_price_pence,
+        sessionPricePence: booking.session_price_pence - Math.floor(booking.coupon_discount_pence / booking.participant_count),
         racketCount: booking.racket_count,
         racketPricePence: booking.racket_price_pence,
         email: booking.email,

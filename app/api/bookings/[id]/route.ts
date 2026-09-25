@@ -3,6 +3,8 @@ import {
   DatabaseNotConfiguredError,
   ensureSeeded,
   expireStaleReservations,
+  awardLoyaltyCoupons,
+  confirmBooking,
   serializeBooking,
   type BookingRow,
 } from '@/lib/server/database';
@@ -40,11 +42,14 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
       try {
         const checkout = await retrieveCheckoutSession(checkoutSessionId);
         if (checkout.payment_status === 'paid' || checkout.payment_status === 'no_payment_required') {
-          await db`
-            UPDATE bookings
-            SET status = 'confirmed', stripe_payment_intent_id = ${checkout.payment_intent}, updated_at = ${new Date().toISOString()}
-            WHERE id = ${booking.id} AND stripe_checkout_session_id = ${checkoutSessionId} AND status = 'pending_payment'
-          `;
+          const confirmed = await confirmBooking(db, booking.id, checkoutSessionId, checkout.payment_intent);
+          if (confirmed?.user_id) {
+            try {
+              await awardLoyaltyCoupons(db, confirmed.user_id);
+            } catch (error) {
+              console.error('Unable to award loyalty coupon', error);
+            }
+          }
           rows = await db`SELECT * FROM bookings WHERE id = ${id}` as BookingRow[];
         }
       } catch (error) {

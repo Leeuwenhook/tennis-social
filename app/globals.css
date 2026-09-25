@@ -1269,6 +1269,88 @@
   font-size: 15px;
 }
 
+.loyalty-card {
+  margin: 28px 0;
+  border: 1px solid #dce8dc;
+  border-radius: 16px;
+  background: var(--background);
+  padding: 20px;
+}
+
+.loyalty-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.loyalty-card-heading h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: 22px;
+  letter-spacing: -0.04em;
+}
+
+.loyalty-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 48px;
+  height: 34px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.loyalty-progress {
+  height: 8px;
+  margin: 16px 0 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dce8dc;
+}
+
+.loyalty-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transition: width .2s ease;
+}
+
+.coupon-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 17px;
+}
+
+.coupon-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 11px;
+}
+
+.coupon-row > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.coupon-row strong {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  letter-spacing: .04em;
+}
+
+.coupon-row small {
+  color: var(--muted-foreground);
+  font-size: 11px;
+}
+
 .account-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1618,6 +1700,11 @@
 .summary-lines strong {
   color: var(--foreground);
   font-size: 14px;
+}
+
+.summary-lines .summary-discount span,
+.summary-lines .summary-discount strong {
+  color: #2f7b52;
 }
 
 .summary-total {

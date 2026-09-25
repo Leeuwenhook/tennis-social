@@ -145,6 +145,9 @@ function buildEmail(input: BookingEmailInput) {
   const time = `${session.start_time}–${session.end_time} (${LONDON_TIME_ZONE})`;
   const format = formatFormat(booking.format);
   const activityDescription = session.description || session.description_zh;
+  const discountRow = booking.coupon_discount_pence > 0
+    ? `<tr><td style="padding:8px 0;color:#557064">Half-price voucher / 半价券</td><td style="padding:8px 0;font-weight:700;color:#2f7b52">−${formatMoney(booking.coupon_discount_pence)}</td></tr>`
+    : '';
   const participantRows = participants.length
     ? participants
         .map(
@@ -175,6 +178,7 @@ function buildEmail(input: BookingEmailInput) {
             <tr><td style="padding:8px 0;color:#557064">Format / 比赛形式</td><td style="padding:8px 0;font-weight:700">${escapeHtml(format)}</td></tr>
             <tr><td style="padding:8px 0;color:#557064">Participants / 参与人数</td><td style="padding:8px 0;font-weight:700">${participants.length}</td></tr>
             <tr><td style="padding:8px 0;color:#557064">Rackets / 球拍</td><td style="padding:8px 0;font-weight:700">${booking.racket_count}</td></tr>
+            ${discountRow}
             <tr><td style="padding:8px 0;color:#557064">Total paid / 已付总额</td><td style="padding:8px 0;font-weight:700">${formatMoney(booking.total_pence)}</td></tr>
           </table>
           <p style="margin:20px 0 8px;font-weight:700">Activity / 活动介绍</p>
@@ -204,6 +208,7 @@ function buildEmail(input: BookingEmailInput) {
     `Format / 比赛形式: ${format}`,
     `Participants / 参与人数: ${participants.length}`,
     `Rackets / 球拍: ${booking.racket_count}`,
+    ...(booking.coupon_discount_pence > 0 ? [`Half-price voucher / 半价券: -${formatMoney(booking.coupon_discount_pence)}`] : []),
     `Total paid / 已付总额: ${formatMoney(booking.total_pence)}`,
     `Activity / 活动介绍: ${activityDescription}`,
     `Levels / 参与者水平: ${participants.join(', ') || '—'}`,

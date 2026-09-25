@@ -1133,6 +1133,14 @@
   width: min(100%, 380px);
 }
 
+.request-page .form-grid.two-col {
+  align-items: start;
+}
+
+.request-page .field {
+  align-content: start;
+}
+
 .request-submit {
   margin-top: 24px;
   border-radius: 999px;

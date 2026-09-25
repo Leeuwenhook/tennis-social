@@ -1007,8 +1007,8 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     preferredFormat: 'singles' as GameFormat,
   });
   const [requestForm, setRequestForm] = useState<ReservationRequestForm>({
-    venueId: venues[0].id,
-    venueName: venues[0].name,
+    venueId: null,
+    venueName: '',
     preferredDate: dateFromToday(7),
     startTime: '18:00',
     endTime: '20:00',
@@ -1337,11 +1337,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   }
 
   function openReservationRequest() {
-    const currentVenue = venueList.find((venue) => venue.id === requestForm.venueId);
     setRequestForm((current) => ({
       ...current,
-      venueId: currentVenue?.id ?? (current.venueName.trim() ? null : venueList[0]?.id ?? null),
-      venueName: currentVenue ? venueLabel(currentVenue) : current.venueName.trim() || (venueList[0] ? venueLabel(venueList[0]) : ''),
+      venueId: null,
+      venueName: '',
       contactName: current.contactName || user?.name || '',
       email: current.email || user?.email || '',
       phone: current.phone || user?.phone || '',

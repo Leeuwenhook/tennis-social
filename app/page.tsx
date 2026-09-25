@@ -675,8 +675,8 @@ function normalizeLocation(value: string) {
   return value.trim().toLocaleLowerCase();
 }
 
-function venueLabel(venue: Venue, language: Language) {
-  return language === 'zh' ? venue.nameZh : venue.name;
+function venueLabel(venue: Venue) {
+  return venue.name;
 }
 
 function venueSearchText(venue: Venue) {
@@ -1341,7 +1341,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     setRequestForm((current) => ({
       ...current,
       venueId: currentVenue?.id ?? (current.venueName.trim() ? null : venueList[0]?.id ?? null),
-      venueName: currentVenue ? venueLabel(currentVenue, language) : current.venueName.trim() || (venueList[0] ? venueLabel(venueList[0], language) : ''),
+      venueName: currentVenue ? venueLabel(currentVenue) : current.venueName.trim() || (venueList[0] ? venueLabel(venueList[0]) : ''),
       contactName: current.contactName || user?.name || '',
       email: current.email || user?.email || '',
       phone: current.phone || user?.phone || '',
@@ -1497,7 +1497,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   }
 
   function selectRequestVenue(venue: Venue) {
-    setRequestForm((current) => ({ ...current, venueId: venue.id, venueName: venueLabel(venue, language) }));
+    setRequestForm((current) => ({ ...current, venueId: venue.id, venueName: venueLabel(venue) }));
     setRequestVenueOpen(false);
     setRequestVenueActiveIndex(-1);
   }
@@ -2357,7 +2357,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   function renderReservationRequest() {
     if (submittedRequest) {
       const venue = submittedRequest.venueId ? getVenue(submittedRequest.venueId, venueList) : null;
-      const requestLocation = submittedRequest.venueName || (venue ? venueLabel(venue, language) : '');
+      const requestLocation = venue ? venueLabel(venue) : submittedRequest.venueName;
       return (
         <section className="request-page page-width">
           <div className="request-card request-success-card">
@@ -2423,8 +2423,8 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                           onMouseDown={(event) => event.preventDefault()}
                           onClick={() => selectRequestVenue(venue)}
                         >
-                          <strong>{venueLabel(venue, language)}</strong>
-                          <span>{language === 'zh' ? venue.areaZh : venue.area}</span>
+                          <strong>{venueLabel(venue)}</strong>
+                          <span>{venue.area}</span>
                         </button>
                       )) : <div className="venue-autocomplete-empty">{t.noLocationMatches}</div>}
                     </div>
@@ -2975,7 +2975,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
               <div className="request-admin-list">
                 {reservationRequests.map((request) => {
                   const venue = request.venueId ? getVenue(request.venueId, venueList) : null;
-                  const requestLocation = request.venueName || (venue ? venueLabel(venue, language) : '');
+                  const requestLocation = venue ? venueLabel(venue) : request.venueName;
                   return (
                     <article className="request-admin-row" key={request.id}>
                       <div className="request-admin-date"><strong>{new Date(`${request.preferredDate}T12:00:00`).getDate()}</strong><span>{new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-GB', { month: 'short' }).format(new Date(`${request.preferredDate}T12:00:00`))}</span></div>

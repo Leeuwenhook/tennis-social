@@ -48,7 +48,7 @@ export function validateReservationRequest(
     ? detailedVenueRows.find((venue) => venue.id === requestedVenueId)
     : detailedVenueRows.find((venue) => [venue.name, venue.nameZh].some((name) => name.trim().toLocaleLowerCase() === requestedVenueName.toLocaleLowerCase()));
   const venueId = matchedVenue?.id ?? null;
-  const venueName = requestedVenueName || matchedVenue?.name || matchedVenue?.id || '';
+  const venueName = matchedVenue?.name || requestedVenueName || matchedVenue?.id || '';
   const preferredDate = cleanString(input.preferredDate, 10);
   const startTime = cleanString(input.startTime, 5);
   const endTime = cleanString(input.endTime, 5);

@@ -7,6 +7,8 @@ import {
 } from '@/lib/server/database';
 import { validateSessionInput, type SessionInput } from '@/lib/server/admin-validation';
 import { requireAdmin } from '@/lib/server/admin-auth';
+import { generateSessionDescriptions } from '@/lib/server/session-description';
+import { GAME_FORMATS, type GameFormat } from '@/lib/demo-data';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -48,10 +50,10 @@ export async function POST(request: Request) {
     await ensureSeeded(db);
     const venueRows = await db`SELECT id, name, name_zh FROM venues` as Array<{ id: string; name: string; name_zh: string }>;
     const validVenueIds = venueRows.map((venue) => venue.id);
-    const venuesByName = new Map<string, string>();
+    const venuesByName = new Map<string, { id: string; name: string; nameZh: string }>();
     for (const venue of venueRows) {
       for (const name of [venue.id, venue.name, venue.name_zh]) {
-        venuesByName.set(normalizedName(name), venue.id);
+        venuesByName.set(normalizedName(name), { id: venue.id, name: venue.name, nameZh: venue.name_zh });
       }
     }
 
@@ -67,8 +69,28 @@ export async function POST(request: Request) {
         invalidRows.push(rowNumber);
         continue;
       }
-      const venueId = venuesByName.get(normalizedName(source.venue)) ?? '';
-      const session = validateSessionInput({ ...source, venueId }, validVenueIds);
+      const venue = venuesByName.get(normalizedName(source.venue));
+      const venueId = venue?.id ?? '';
+      const formats = Array.isArray(source.formats)
+        ? source.formats.filter((format): format is GameFormat => GAME_FORMATS.includes(format as GameFormat))
+        : [];
+      const generatedDescriptions = generateSessionDescriptions({
+        venueName: venue?.name ?? (typeof source.venue === 'string' ? source.venue : ''),
+        venueNameZh: venue?.nameZh ?? (typeof source.venue === 'string' ? source.venue : ''),
+        date: typeof source.date === 'string' ? source.date : '',
+        startTime: typeof source.startTime === 'string' ? source.startTime : '',
+        endTime: typeof source.endTime === 'string' ? source.endTime : '',
+        formats: formats.length ? formats : [...GAME_FORMATS],
+        capacity: Number(source.capacity),
+      });
+      const description = typeof source.description === 'string' ? source.description.trim() : '';
+      const descriptionZh = typeof source.descriptionZh === 'string' ? source.descriptionZh.trim() : '';
+      const session = validateSessionInput({
+        ...source,
+        venueId,
+        description: description || generatedDescriptions.description,
+        descriptionZh: descriptionZh || generatedDescriptions.descriptionZh,
+      }, validVenueIds);
       if (!session) invalidRows.push(rowNumber);
       else sessions.push({ rowNumber, session });
     }

@@ -12,6 +12,9 @@ export type Venue = {
 export const GAME_FORMATS = ['singles', 'doubles'] as const;
 export type GameFormat = typeof GAME_FORMATS[number];
 
+export const PREFERRED_FORMATS = ['singles', 'doubles', 'both'] as const;
+export type PreferredFormat = typeof PREFERRED_FORMATS[number];
+
 export type DemoSession = {
   id: string;
   venueId: string;

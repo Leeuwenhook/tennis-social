@@ -2,6 +2,7 @@ import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } fr
 import { promisify } from 'node:util';
 
 import { database, type Database } from './database';
+import { PREFERRED_FORMATS, type PreferredFormat } from '../demo-data';
 
 const scrypt = promisify(scryptCallback);
 
@@ -9,7 +10,6 @@ export const USER_COOKIE_NAME = 'tennis-social-user-session';
 export const USER_SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
 export const TENNIS_LEVELS = ['1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0'] as const;
 export const PREFERRED_TIMES = ['weekends', 'weekday_evenings', 'anytime', 'mornings', 'afternoons'] as const;
-export const PREFERRED_FORMATS = ['singles', 'doubles'] as const;
 
 export type UserProfileInput = {
   name: string;
@@ -18,7 +18,7 @@ export type UserProfileInput = {
   postcode: string;
   tennisLevel: typeof TENNIS_LEVELS[number];
   preferredTime: typeof PREFERRED_TIMES[number];
-  preferredFormat: typeof PREFERRED_FORMATS[number];
+  preferredFormat: PreferredFormat;
 };
 
 export type UserProfile = {
@@ -29,7 +29,7 @@ export type UserProfile = {
   postcode: string;
   tennisLevel: string;
   preferredTime: typeof PREFERRED_TIMES[number];
-  preferredFormat: typeof PREFERRED_FORMATS[number];
+  preferredFormat: PreferredFormat;
 };
 
 function clean(value: unknown, length: number) {
@@ -47,7 +47,7 @@ export function normalizeUserProfileInput(input: Record<string, unknown>): UserP
   const preferredFormat = clean(input.preferredFormat, 20);
   if (
     !name || !/^\S+@\S+\.\S+$/.test(email) ||
-    !/^[A-Z0-9 ]{2,12}$/.test(postcode) || !TENNIS_LEVELS.includes(tennisLevel as never) ||
+    (postcode && !/^[A-Z0-9 ]{2,12}$/.test(postcode)) || !TENNIS_LEVELS.includes(tennisLevel as never) ||
     !PREFERRED_TIMES.includes(preferredTime as never) || !PREFERRED_FORMATS.includes(preferredFormat as never)
   ) return null;
   return {
@@ -70,7 +70,7 @@ type UserRow = {
   postcode: string;
   tennis_level: string;
   preferred_time: typeof PREFERRED_TIMES[number];
-  preferred_format: typeof PREFERRED_FORMATS[number];
+  preferred_format: PreferredFormat;
 };
 
 function readCookie(request: Request) {

@@ -36,9 +36,11 @@ import {
   DEFAULT_OFF_PEAK_PRICE_PENCE,
   DEFAULT_PEAK_PRICE_PENCE,
   GAME_FORMATS,
+  PREFERRED_FORMATS,
   RACKET_PRICE_PENCE,
   venues,
   type GameFormat,
+  type PreferredFormat,
   type Venue,
 } from '@/lib/demo-data';
 
@@ -174,7 +176,7 @@ type UserProfile = {
   postcode: string;
   tennisLevel: string;
   preferredTime: PreferredTime;
-  preferredFormat: GameFormat;
+  preferredFormat: PreferredFormat;
 };
 type ProfileForm = Omit<UserProfile, 'id'>;
 
@@ -220,6 +222,7 @@ const translations = {
     formats: 'Formats',
     singles: 'Singles',
     doubles: 'Doubles',
+    both: 'Both',
     availableFormats: 'Available formats',
     chooseFormat: 'Choose a format.',
     chooseAtLeastOneFormat: 'Choose at least one format.',
@@ -340,7 +343,7 @@ const translations = {
     passwordHint: 'At least 8 characters',
     creatingAccount: 'Creating account…',
     emailExists: 'An account already exists for this email.',
-    registrationInvalid: 'Please complete all fields and use a password of at least 8 characters.',
+    registrationInvalid: 'Please complete the required fields and use a password of at least 8 characters.',
     signedInPrefill: 'Your saved profile has been pre-filled. You can still change it for this booking.',
     memberSince: 'Saved playing preferences',
     loyaltyTitle: 'Member rewards',
@@ -569,6 +572,7 @@ const translations = {
     postcode: '居住地区 Postcode',
     preferredTime: '偏好的打球时间',
     preferredFormat: '偏好的比赛形式',
+    both: '都可以',
     weekends: '周末',
     weekdayEvenings: '工作日晚上',
     anytime: '任意时间都可以',
@@ -577,7 +581,7 @@ const translations = {
     passwordHint: '至少 8 个字符',
     creatingAccount: '正在注册…',
     emailExists: '该邮箱已经注册，请直接登录。',
-    registrationInvalid: '请填写所有必填项，密码至少需要 8 个字符。',
+    registrationInvalid: '请填写必填项，密码至少需要 8 个字符。',
     signedInPrefill: '已自动填写你保存的资料；本次报名仍可修改。',
     memberSince: '已保存的打球偏好',
     loyaltyTitle: '会员奖励',
@@ -698,6 +702,13 @@ function formatNames(
   labels: { singles: string; doubles: string },
 ) {
   return formats.map((format) => labels[format]).join(' · ');
+}
+
+function preferredFormatName(
+  format: PreferredFormat,
+  labels: { singles: string; doubles: string; both: string },
+) {
+  return labels[format];
 }
 
 function preferredTimeLabel(value: PreferredTime, t: {
@@ -1004,7 +1015,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     postcode: '',
     tennisLevel: '',
     preferredTime: 'weekends' as PreferredTime,
-    preferredFormat: 'singles' as GameFormat,
+    preferredFormat: 'singles' as PreferredFormat,
   });
   const [requestForm, setRequestForm] = useState<ReservationRequestForm>({
     venueId: null,
@@ -1431,14 +1442,15 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   function beginBooking() {
     if (!selectedSession || selectedSession.status !== 'published') return;
     if (selectedSession.capacity - selectedSession.bookedSpots < 1) return;
+    const preferredBookingFormat = user?.preferredFormat && user.preferredFormat !== 'both' && selectedSession.formats.includes(user.preferredFormat)
+      ? user.preferredFormat
+      : selectedSession.formats[0] ?? GAME_FORMATS[0];
     setBookingForm({
       name: user?.name ?? '',
       email: user?.email ?? '',
       phone: user?.phone ?? '',
       participants: [user?.tennisLevel ?? ''],
-      format: user && selectedSession.formats.includes(user.preferredFormat)
-        ? user.preferredFormat
-        : selectedSession.formats[0] ?? GAME_FORMATS[0],
+      format: preferredBookingFormat,
       racketCount: 0,
       includeFriends: false,
     });
@@ -2682,10 +2694,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                   <div className="field"><Label htmlFor="profile-phone">{t.phone} <small>({t.optional})</small></Label><Input id="profile-phone" autoComplete="tel" inputMode="tel" value={profileForm.phone} onChange={(event) => setProfileForm((current) => ({ ...current, phone: event.target.value }))} /></div>
                 </div>
                 <div className="field"><Label htmlFor="profile-email">{t.email} <em>*</em></Label><Input id="profile-email" autoComplete="email" inputMode="email" required value={profileForm.email} onChange={(event) => setProfileForm((current) => ({ ...current, email: event.target.value }))} /></div>
-                <div className="field"><Label htmlFor="profile-postcode">{t.postcode} <em>*</em></Label><Input id="profile-postcode" autoComplete="postal-code" required value={profileForm.postcode} onChange={(event) => setProfileForm((current) => ({ ...current, postcode: event.target.value.toUpperCase() }))} /></div>
+                <div className="field"><Label htmlFor="profile-postcode">{t.postcode} <small>({t.optional})</small></Label><Input id="profile-postcode" autoComplete="postal-code" value={profileForm.postcode} onChange={(event) => setProfileForm((current) => ({ ...current, postcode: event.target.value.toUpperCase() }))} /></div>
                 <div className="form-grid two-col">
                   <div className="field"><Label htmlFor="profile-level">{t.tennisLevel} <em>*</em></Label><select id="profile-level" required className="native-select" value={profileForm.tennisLevel} onChange={(event) => setProfileForm((current) => ({ ...current, tennisLevel: event.target.value }))}><option value="">{language === 'zh' ? '请选择水平' : 'Select level'}</option>{LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></div>
-                  <div className="field"><Label htmlFor="profile-format">{t.preferredFormat} <em>*</em></Label><select id="profile-format" className="native-select" value={profileForm.preferredFormat} onChange={(event) => setProfileForm((current) => ({ ...current, preferredFormat: event.target.value as GameFormat }))}>{GAME_FORMATS.map((format) => <option key={format} value={format}>{formatNames([format], t)}</option>)}</select></div>
+                  <div className="field"><Label htmlFor="profile-format">{t.preferredFormat} <em>*</em></Label><select id="profile-format" className="native-select" value={profileForm.preferredFormat} onChange={(event) => setProfileForm((current) => ({ ...current, preferredFormat: event.target.value as PreferredFormat }))}>{PREFERRED_FORMATS.map((format) => <option key={format} value={format}>{preferredFormatName(format, t)}</option>)}</select></div>
                 </div>
                 <div className="field"><Label htmlFor="profile-time">{t.preferredTime} <em>*</em></Label><select id="profile-time" className="native-select" value={profileForm.preferredTime} onChange={(event) => setProfileForm((current) => ({ ...current, preferredTime: event.target.value as PreferredTime }))}>{PREFERRED_TIMES.map((time) => <option key={time} value={time}>{preferredTimeLabel(time, t)}</option>)}</select></div>
                 {profileError ? <div className="inline-error"><TriangleAlert size={16} /> {profileError}</div> : null}
@@ -2702,7 +2714,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                   <div><small>{t.postcode}</small><strong>{user.postcode}</strong></div>
                   <div><small>{t.tennisLevel}</small><strong>{user.tennisLevel}</strong></div>
                   <div><small>{t.preferredTime}</small><strong>{preferredTimeLabel(user.preferredTime, t)}</strong></div>
-                  <div><small>{t.preferredFormat}</small><strong>{formatNames([user.preferredFormat], t)}</strong></div>
+                  <div><small>{t.preferredFormat}</small><strong>{preferredFormatName(user.preferredFormat, t)}</strong></div>
                 </div>
                 <div className="loyalty-card">
                   <div className="loyalty-card-heading">
@@ -2751,10 +2763,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                 </div>
                 <div className="field"><Label htmlFor="register-email">{t.email} <em>*</em></Label><Input id="register-email" autoComplete="email" inputMode="email" required value={registrationForm.email} onChange={(event) => setRegistrationForm((current) => ({ ...current, email: event.target.value }))} /></div>
                 <div className="field"><Label htmlFor="register-password">{t.password} <em>*</em> <small>({t.passwordHint})</small></Label><Input id="register-password" type="password" autoComplete="new-password" minLength={8} required value={registrationForm.password} onChange={(event) => setRegistrationForm((current) => ({ ...current, password: event.target.value }))} /></div>
-                <div className="field"><Label htmlFor="register-postcode">{t.postcode} <em>*</em></Label><Input id="register-postcode" autoComplete="postal-code" required value={registrationForm.postcode} onChange={(event) => setRegistrationForm((current) => ({ ...current, postcode: event.target.value.toUpperCase() }))} /></div>
+                <div className="field"><Label htmlFor="register-postcode">{t.postcode} <small>({t.optional})</small></Label><Input id="register-postcode" autoComplete="postal-code" value={registrationForm.postcode} onChange={(event) => setRegistrationForm((current) => ({ ...current, postcode: event.target.value.toUpperCase() }))} /></div>
                 <div className="form-grid two-col">
                   <div className="field"><Label htmlFor="register-level">{t.tennisLevel} <em>*</em></Label><select id="register-level" required className="native-select" value={registrationForm.tennisLevel} onChange={(event) => setRegistrationForm((current) => ({ ...current, tennisLevel: event.target.value }))}><option value="">{language === 'zh' ? '请选择水平' : 'Select level'}</option>{LEVELS.map((level) => <option key={level} value={level}>{level}</option>)}</select></div>
-                  <div className="field"><Label htmlFor="register-format">{t.preferredFormat} <em>*</em></Label><select id="register-format" className="native-select" value={registrationForm.preferredFormat} onChange={(event) => setRegistrationForm((current) => ({ ...current, preferredFormat: event.target.value as GameFormat }))}>{GAME_FORMATS.map((format) => <option key={format} value={format}>{formatNames([format], t)}</option>)}</select></div>
+                  <div className="field"><Label htmlFor="register-format">{t.preferredFormat} <em>*</em></Label><select id="register-format" className="native-select" value={registrationForm.preferredFormat} onChange={(event) => setRegistrationForm((current) => ({ ...current, preferredFormat: event.target.value as PreferredFormat }))}>{PREFERRED_FORMATS.map((format) => <option key={format} value={format}>{preferredFormatName(format, t)}</option>)}</select></div>
                 </div>
                 <div className="field"><Label htmlFor="register-time">{t.preferredTime} <em>*</em></Label><select id="register-time" className="native-select" value={registrationForm.preferredTime} onChange={(event) => setRegistrationForm((current) => ({ ...current, preferredTime: event.target.value as PreferredTime }))}>{PREFERRED_TIMES.map((time) => <option key={time} value={time}>{preferredTimeLabel(time, t)}</option>)}</select></div>
               </> : <>

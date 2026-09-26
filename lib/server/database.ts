@@ -47,6 +47,8 @@ export type BookingRow = {
   racket_price_pence: number;
   coupon_id: string | null;
   coupon_discount_pence: number;
+  loyalty_discount_percent: number;
+  loyalty_discount_pence: number;
   total_pence: number;
   status: 'pending_payment' | 'confirmed' | 'expired' | 'payment_failed' | 'cancelled' | 'refunded';
   stripe_checkout_session_id: string | null;
@@ -57,6 +59,10 @@ export type BookingRow = {
   confirmation_email_sent_at: string | null;
   confirmation_email_message_id: string | null;
   confirmation_email_claimed_at: string | null;
+  reminder_email_status: 'pending' | 'sending' | 'sent';
+  reminder_email_sent_at: string | null;
+  reminder_email_message_id: string | null;
+  reminder_email_claimed_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -93,8 +99,22 @@ export function serializeCoupon(row: CouponRow) {
 export type LoyaltyStatus = {
   participationCount: number;
   nextRewardAt: number;
+  permanentDiscountEligible: boolean;
+  permanentDiscountPercent: number;
+  legacyCouponsEnabled: boolean;
   coupons: ReturnType<typeof serializeCoupon>[];
 };
+
+export const PERMANENT_LOYALTY_DISCOUNT_AFTER = 10;
+export const PERMANENT_LOYALTY_DISCOUNT_PERCENT = 10;
+
+/**
+ * The half-price coupon policy is retained in the schema and award function
+ * for a possible future rollout, but is disabled until this flag is enabled.
+ */
+export function legacyLoyaltyCouponsEnabled() {
+  return getRuntimeEnv().ENABLE_LEGACY_LOYALTY_COUPONS === 'true';
+}
 
 export type ReservationRequestRow = {
   id: string;
@@ -160,11 +180,12 @@ function bookingInsert(db: Database, booking: ReturnType<typeof createDemoSeed>[
     INSERT INTO bookings (
       id, session_id, contact_name, email, phone, participants_json,
       format, participant_count, racket_count, session_price_pence, racket_price_pence,
-      coupon_discount_pence, total_pence, status, expires_at, created_at, updated_at
+      coupon_discount_pence, loyalty_discount_percent, loyalty_discount_pence,
+      total_pence, status, expires_at, created_at, updated_at
     ) VALUES (
       ${booking.id}, ${booking.sessionId}, ${booking.contactName}, ${booking.email}, ${booking.phone},
       ${JSON.stringify(booking.participants)}, ${booking.format}, ${booking.participants.length}, ${booking.racketCount},
-      ${booking.totalPence - booking.racketCount * RACKET_PRICE_PENCE}, ${RACKET_PRICE_PENCE}, 0, ${booking.totalPence}, ${booking.status},
+      ${booking.totalPence - booking.racketCount * RACKET_PRICE_PENCE}, ${RACKET_PRICE_PENCE}, 0, 0, 0, ${booking.totalPence}, ${booking.status},
       NULL, ${booking.createdAt || now}, ${now}
     )
     ON CONFLICT (id) DO NOTHING
@@ -172,6 +193,14 @@ function bookingInsert(db: Database, booking: ReturnType<typeof createDemoSeed>[
 }
 
 export async function ensureSeeded(db = database()) {
+  // Seed a fresh database once. Do not recreate records that an admin has
+  // intentionally removed on a later request.
+  const [venueCountRows, sessionCountRows] = await Promise.all([
+    db`SELECT COUNT(*)::integer AS count FROM venues` as unknown as Array<{ count: number }>,
+    db`SELECT COUNT(*)::integer AS count FROM sessions` as unknown as Array<{ count: number }>,
+  ]);
+  if ((venueCountRows[0]?.count ?? 0) > 0 || (sessionCountRows[0]?.count ?? 0) > 0) return;
+
   const now = new Date().toISOString();
   const seed = createDemoSeed(new Date(now));
   await db.transaction([
@@ -227,6 +256,7 @@ export function serializeReservationRequest(row: ReservationRequestRow) {
 
 export async function expireStaleReservations(db = database()) {
   const now = new Date().toISOString();
+  const legacyCouponsEnabled = legacyLoyaltyCouponsEnabled();
   await db`
     WITH expired AS (
       UPDATE bookings
@@ -237,7 +267,7 @@ export async function expireStaleReservations(db = database()) {
       RETURNING id, session_id, participant_count, coupon_id
     ), released_coupons AS (
       UPDATE coupons AS coupons
-      SET status = CASE WHEN coupons.expires_at <= ${now} THEN 'expired' ELSE 'available' END,
+      SET status = CASE WHEN ${legacyCouponsEnabled} AND coupons.expires_at <= ${now} THEN 'expired' ELSE 'available' END,
           reserved_booking_id = NULL,
           updated_at = ${now}
       FROM expired
@@ -264,6 +294,7 @@ export async function releaseBooking(
   status: 'payment_failed' | 'expired' | 'cancelled',
 ) {
   const now = new Date().toISOString();
+  const legacyCouponsEnabled = legacyLoyaltyCouponsEnabled();
   await db`
     WITH released AS (
       UPDATE bookings
@@ -272,7 +303,7 @@ export async function releaseBooking(
       RETURNING id, session_id, participant_count, coupon_id
     ), released_coupon AS (
       UPDATE coupons AS coupons
-      SET status = CASE WHEN coupons.expires_at <= ${now} THEN 'expired' ELSE 'available' END,
+      SET status = CASE WHEN ${legacyCouponsEnabled} AND coupons.expires_at <= ${now} THEN 'expired' ELSE 'available' END,
           reserved_booking_id = NULL,
           updated_at = ${now}
       FROM released
@@ -327,18 +358,66 @@ function couponExpiry(issuedAt: string) {
   return expiresAt.toISOString();
 }
 
-export async function awardLoyaltyCoupons(db: Database, userId: string) {
+export async function getLoyaltyParticipationCount(db: Database, userId: string) {
   const countRows = await db`
     SELECT COUNT(*)::integer AS participation_count
     FROM bookings
     WHERE user_id = ${userId} AND status = 'confirmed'
   ` as Array<{ participation_count: number }>;
-  const participationCount = Number(countRows[0]?.participation_count ?? 0);
-  const earnedMilestones = Math.floor(participationCount / 10);
+  return Number(countRows[0]?.participation_count ?? 0);
+}
+
+export function permanentLoyaltyDiscountPercent(participationCount: number) {
+  return participationCount >= PERMANENT_LOYALTY_DISCOUNT_AFTER
+    ? PERMANENT_LOYALTY_DISCOUNT_PERCENT
+    : 0;
+}
+
+/**
+ * Unlock the permanent member discount once and keep that entitlement even
+ * if a later booking is cancelled or refunded.
+ */
+export async function ensurePermanentLoyaltyDiscount(db: Database, userId: string) {
+  const userRows = await db`
+    SELECT loyalty_discount_unlocked_at
+    FROM users
+    WHERE id = ${userId}
+  ` as Array<{ loyalty_discount_unlocked_at: string | null }>;
+  const currentUnlockedAt = userRows[0]?.loyalty_discount_unlocked_at ?? null;
+  const participationCount = await getLoyaltyParticipationCount(db, userId);
+  if (currentUnlockedAt || participationCount < PERMANENT_LOYALTY_DISCOUNT_AFTER) {
+    return {
+      participationCount,
+      permanentDiscountEligible: Boolean(currentUnlockedAt),
+    };
+  }
+
+  const unlockedAt = new Date().toISOString();
+  const updatedRows = await db`
+    UPDATE users
+    SET loyalty_discount_unlocked_at = COALESCE(loyalty_discount_unlocked_at, ${unlockedAt}),
+        updated_at = ${unlockedAt}
+    WHERE id = ${userId}
+    RETURNING loyalty_discount_unlocked_at
+  ` as Array<{ loyalty_discount_unlocked_at: string | null }>;
+  return {
+    participationCount,
+    permanentDiscountEligible: Boolean(updatedRows[0]?.loyalty_discount_unlocked_at),
+  };
+}
+
+/**
+ * Legacy policy kept for a future rollout. Do not call this while the
+ * ENABLE_LEGACY_LOYALTY_COUPONS feature flag is disabled.
+ */
+export async function awardLoyaltyCoupons(db: Database, userId: string) {
+  if (!legacyLoyaltyCouponsEnabled()) return getLoyaltyParticipationCount(db, userId);
+  const participationCount = await getLoyaltyParticipationCount(db, userId);
+  const earnedMilestones = Math.floor(participationCount / PERMANENT_LOYALTY_DISCOUNT_AFTER);
   if (earnedMilestones < 1) return participationCount;
 
   const issuedAt = new Date().toISOString();
-  for (let milestoneCount = 10; milestoneCount <= earnedMilestones * 10; milestoneCount += 10) {
+  for (let milestoneCount = PERMANENT_LOYALTY_DISCOUNT_AFTER; milestoneCount <= earnedMilestones * PERMANENT_LOYALTY_DISCOUNT_AFTER; milestoneCount += PERMANENT_LOYALTY_DISCOUNT_AFTER) {
     const id = `CP-${crypto.randomUUID()}`;
     const code = `HALF-${crypto.randomUUID().replaceAll('-', '').slice(0, 10).toUpperCase()}`;
     await db`
@@ -356,15 +435,20 @@ export async function awardLoyaltyCoupons(db: Database, userId: string) {
 }
 
 export async function getLoyaltyStatus(db: Database, userId: string): Promise<LoyaltyStatus> {
-  const participationCount = await awardLoyaltyCoupons(db, userId);
+  const permanentStatus = await ensurePermanentLoyaltyDiscount(db, userId);
+  const legacyCouponsEnabled = legacyLoyaltyCouponsEnabled();
+  if (legacyCouponsEnabled) await awardLoyaltyCoupons(db, userId);
+  const participationCount = permanentStatus.participationCount;
   const now = new Date().toISOString();
-  await db`
-    UPDATE coupons
-    SET status = 'expired', updated_at = ${now}
-    WHERE user_id = ${userId}
-      AND status = 'available'
-      AND expires_at <= ${now}
-  `;
+  if (legacyCouponsEnabled) {
+    await db`
+      UPDATE coupons
+      SET status = 'expired', updated_at = ${now}
+      WHERE user_id = ${userId}
+        AND status = 'available'
+        AND expires_at <= ${now}
+    `;
+  }
   const rows = await db`
     SELECT id, user_id, code, discount_percent, milestone_count, issued_at, expires_at,
            status, reserved_booking_id, redeemed_booking_id, redeemed_at, created_at, updated_at
@@ -374,7 +458,10 @@ export async function getLoyaltyStatus(db: Database, userId: string): Promise<Lo
   ` as CouponRow[];
   return {
     participationCount,
-    nextRewardAt: (Math.floor(participationCount / 10) + 1) * 10,
+    nextRewardAt: (Math.floor(participationCount / PERMANENT_LOYALTY_DISCOUNT_AFTER) + 1) * PERMANENT_LOYALTY_DISCOUNT_AFTER,
+    permanentDiscountEligible: permanentStatus.permanentDiscountEligible,
+    permanentDiscountPercent: PERMANENT_LOYALTY_DISCOUNT_PERCENT,
+    legacyCouponsEnabled,
     coupons: rows.map(serializeCoupon),
   };
 }
@@ -427,6 +514,8 @@ export function serializeBooking(row: BookingRow) {
     racketCount: row.racket_count,
     couponId: row.coupon_id,
     couponDiscountPence: row.coupon_discount_pence,
+    loyaltyDiscountPercent: row.loyalty_discount_percent,
+    loyaltyDiscountPence: row.loyalty_discount_pence,
     totalPence: row.total_pence,
     status: row.status,
     createdAt: row.created_at,

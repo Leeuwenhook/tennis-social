@@ -79,3 +79,43 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     return Response.json({ error: 'session_unavailable' }, { status: 503 });
   }
 }
+
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+  const unauthorized = requireAdmin(request);
+  if (unauthorized) return unauthorized;
+  const { id } = await context.params;
+
+  try {
+    const db = database();
+    await ensureSeeded(db);
+    const existingRows = await db`
+      SELECT id
+      FROM sessions
+      WHERE id = ${id}
+    ` as Array<{ id: string }>;
+    if (!existingRows[0]) return Response.json({ error: 'session_not_found' }, { status: 404 });
+
+    const bookingRows = await db`
+      SELECT COUNT(*)::integer AS booking_count
+      FROM bookings
+      WHERE session_id = ${id}
+    ` as Array<{ booking_count: number }>;
+    if ((bookingRows[0]?.booking_count ?? 0) > 0) {
+      return Response.json({ error: 'session_has_bookings' }, { status: 409 });
+    }
+
+    const deletedRows = await db`
+      DELETE FROM sessions
+      WHERE id = ${id}
+      RETURNING id
+    ` as Array<{ id: string }>;
+    if (!deletedRows[0]) return Response.json({ error: 'session_not_found' }, { status: 404 });
+    return Response.json({ id: deletedRows[0].id });
+  } catch (error) {
+    if (error instanceof DatabaseNotConfiguredError) {
+      return Response.json({ error: 'database_not_configured' }, { status: 503 });
+    }
+    console.error('Unable to delete session', error);
+    return Response.json({ error: 'session_unavailable' }, { status: 503 });
+  }
+}

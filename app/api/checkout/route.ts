@@ -3,6 +3,9 @@ import {
   DatabaseNotConfiguredError,
   ensureSeeded,
   expireStaleReservations,
+  ensurePermanentLoyaltyDiscount,
+  legacyLoyaltyCouponsEnabled,
+  PERMANENT_LOYALTY_DISCOUNT_PERCENT,
   releaseBooking,
   type BookingRow,
 } from '@/lib/server/database';
@@ -98,10 +101,21 @@ export async function POST(request: Request) {
     const expiresAt = new Date(expiresAtSeconds * 1000).toISOString();
     const clock = londonClock();
     const bookingId = `TS-${crypto.randomUUID()}`;
+    const legacyCouponsEnabled = legacyLoyaltyCouponsEnabled();
 
+    if (couponId && !legacyCouponsEnabled) {
+      return Response.json({ error: 'legacy_coupon_policy_paused' }, { status: 409 });
+    }
     if (couponId && !authenticatedUser) {
       return Response.json({ error: 'coupon_requires_account' }, { status: 409 });
     }
+
+    const permanentStatus = authenticatedUser
+      ? await ensurePermanentLoyaltyDiscount(db, authenticatedUser.id)
+      : { participationCount: 0, permanentDiscountEligible: false };
+    const permanentDiscountPercent = permanentStatus.permanentDiscountEligible
+      ? PERMANENT_LOYALTY_DISCOUNT_PERCENT
+      : 0;
 
     let couponDiscountPercent = 0;
     let couponReserved = false;
@@ -130,11 +144,19 @@ export async function POST(request: Request) {
       couponReserved = true;
     }
 
+    // The paused half-price coupon policy is retained for a future rollout.
+    // When it is enabled, use the larger applicable discount without stacking
+    // the two policies on the same booking.
+    const appliedDiscountPercent = Math.max(couponDiscountPercent, permanentDiscountPercent);
+    const loyaltyDiscountPercent = permanentDiscountPercent > couponDiscountPercent
+      ? permanentDiscountPercent
+      : 0;
+
     const releaseCouponReservation = async () => {
       if (!couponReserved || !authenticatedUser) return;
       await db`
         UPDATE coupons
-        SET status = CASE WHEN expires_at <= ${nowIso} THEN 'expired' ELSE 'available' END,
+        SET status = CASE WHEN ${legacyCouponsEnabled} AND expires_at <= ${nowIso} THEN 'expired' ELSE 'available' END,
             reserved_booking_id = NULL,
             updated_at = ${new Date().toISOString()}
         WHERE id = ${couponId}
@@ -173,19 +195,27 @@ export async function POST(request: Request) {
       INSERT INTO bookings (
         id, session_id, user_id, contact_name, email, phone, participants_json,
         format, participant_count, racket_count, session_price_pence, racket_price_pence,
-        coupon_id, coupon_discount_pence, total_pence, status, expires_at, created_at, updated_at
+        coupon_id, coupon_discount_pence, loyalty_discount_percent, loyalty_discount_pence,
+        total_pence, status, expires_at, created_at, updated_at
       )
       SELECT
         ${bookingId}, reserved.id, ${authenticatedUser?.id ?? null}, ${name}, ${email}, ${phone}, ${JSON.stringify(participants)},
         ${format}, ${participants.length}, ${racketCount}, reserved.price_pence, ${RACKET_PRICE_PENCE},
         ${couponId || null},
-        reserved.price_pence * ${participants.length} - (FLOOR(reserved.price_pence * ${100 - couponDiscountPercent} / 100.0)::integer * ${participants.length}),
-        FLOOR(reserved.price_pence * ${100 - couponDiscountPercent} / 100.0)::integer * ${participants.length} + ${RACKET_PRICE_PENCE * racketCount},
+        CASE WHEN ${couponDiscountPercent} >= ${permanentDiscountPercent} AND ${couponDiscountPercent} > 0
+          THEN reserved.price_pence * ${participants.length} - (FLOOR(reserved.price_pence * ${100 - couponDiscountPercent} / 100.0)::integer * ${participants.length})
+          ELSE 0 END,
+        ${loyaltyDiscountPercent},
+        CASE WHEN ${permanentDiscountPercent} > ${couponDiscountPercent}
+          THEN reserved.price_pence * ${participants.length} - (FLOOR(reserved.price_pence * ${100 - permanentDiscountPercent} / 100.0)::integer * ${participants.length})
+          ELSE 0 END,
+        FLOOR(reserved.price_pence * ${100 - appliedDiscountPercent} / 100.0)::integer * ${participants.length} + ${RACKET_PRICE_PENCE * racketCount},
         'pending_payment', ${expiresAt}, ${nowIso}, ${nowIso}
       FROM reserved
       RETURNING id, session_id, user_id, contact_name, email, phone, participants_json,
                 format, participant_count, racket_count, session_price_pence, racket_price_pence,
-                coupon_id, coupon_discount_pence, total_pence, status, stripe_checkout_session_id,
+                coupon_id, coupon_discount_pence, loyalty_discount_percent, loyalty_discount_pence,
+                total_pence, status, stripe_checkout_session_id,
                 stripe_payment_intent_id, checkout_url, expires_at, created_at, updated_at
     ` as BookingRow[];
     const booking = rows[0];
@@ -207,7 +237,11 @@ export async function POST(request: Request) {
         format: booking.format,
         venueName: venueRows[0]?.venue_name ?? 'Tennis Social',
         participantCount: booking.participant_count,
-        sessionPricePence: booking.session_price_pence - Math.floor(booking.coupon_discount_pence / booking.participant_count),
+        sessionPricePence: Math.floor(
+          (booking.session_price_pence * booking.participant_count -
+            booking.coupon_discount_pence - booking.loyalty_discount_pence) /
+          booking.participant_count,
+        ),
         racketCount: booking.racket_count,
         racketPricePence: booking.racket_price_pence,
         email: booking.email,

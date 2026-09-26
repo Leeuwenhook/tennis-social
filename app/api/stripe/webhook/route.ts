@@ -3,6 +3,8 @@ import {
   confirmBooking,
   database,
   DatabaseNotConfiguredError,
+  ensurePermanentLoyaltyDiscount,
+  legacyLoyaltyCouponsEnabled,
   releaseBooking,
 } from '@/lib/server/database';
 import { sendConfirmedBookingEmail } from '@/lib/server/booking-email';
@@ -64,6 +66,13 @@ export async function POST(request: Request) {
             object.payment_intent ?? null,
           );
           if (confirmed?.user_id) {
+            try {
+              await ensurePermanentLoyaltyDiscount(db, confirmed.user_id);
+            } catch (error) {
+              console.error('Unable to persist loyalty discount entitlement', error);
+            }
+          }
+          if (confirmed?.user_id && legacyLoyaltyCouponsEnabled()) {
             try {
               await awardLoyaltyCoupons(db, confirmed.user_id);
             } catch (error) {

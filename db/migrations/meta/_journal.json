@@ -57,6 +57,27 @@
       "when": 1790270000000,
       "tag": "0007_loyalty_coupons",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790370000000,
+      "tag": "0008_booking_reminder_emails",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790456400000,
+      "tag": "0009_permanent_loyalty_discount",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790457000000,
+      "tag": "0010_permanent_loyalty_entitlements",
+      "breakpoints": true
     }
   ]
 }

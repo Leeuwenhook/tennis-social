@@ -18,6 +18,12 @@ export type EmailSendResult = {
   messageId?: string;
 };
 
+export type RenderedBookingEmail = {
+  subject: string;
+  html: string;
+  text: string;
+};
+
 function escapeHtml(value: string) {
   return value.replace(
     /[&<>"']/g,
@@ -138,16 +144,21 @@ export function createBookingCalendar(
   return foldIcsLines(lines.join('\r\n'));
 }
 
-function buildEmail(input: BookingEmailInput) {
+export function renderBookingConfirmationEmail(input: BookingEmailInput): RenderedBookingEmail {
   const { booking, session, venue } = input;
   const participants = parseParticipants(booking.participants_json);
   const date = formatLongDate(session.date);
   const time = `${session.start_time}–${session.end_time} (${LONDON_TIME_ZONE})`;
   const format = formatFormat(booking.format);
   const activityDescription = session.description || session.description_zh;
-  const discountRow = booking.coupon_discount_pence > 0
-    ? `<tr><td style="padding:8px 0;color:#557064">Half-price voucher / 半价券</td><td style="padding:8px 0;font-weight:700;color:#2f7b52">−${formatMoney(booking.coupon_discount_pence)}</td></tr>`
-    : '';
+  const discountRows = [
+    booking.loyalty_discount_pence > 0
+      ? `<tr><td style="padding:8px 0;color:#557064">Permanent 10% member discount / 会员永久九折优惠</td><td style="padding:8px 0;font-weight:700;color:#2f7b52">−${formatMoney(booking.loyalty_discount_pence)}</td></tr>`
+      : '',
+    booking.coupon_discount_pence > 0
+      ? `<tr><td style="padding:8px 0;color:#557064">Half-price voucher / 半价券</td><td style="padding:8px 0;font-weight:700;color:#2f7b52">−${formatMoney(booking.coupon_discount_pence)}</td></tr>`
+      : '',
+  ].join('');
   const participantRows = participants.length
     ? participants
         .map(
@@ -178,7 +189,7 @@ function buildEmail(input: BookingEmailInput) {
             <tr><td style="padding:8px 0;color:#557064">Format / 比赛形式</td><td style="padding:8px 0;font-weight:700">${escapeHtml(format)}</td></tr>
             <tr><td style="padding:8px 0;color:#557064">Participants / 参与人数</td><td style="padding:8px 0;font-weight:700">${participants.length}</td></tr>
             <tr><td style="padding:8px 0;color:#557064">Rackets / 球拍</td><td style="padding:8px 0;font-weight:700">${booking.racket_count}</td></tr>
-            ${discountRow}
+            ${discountRows}
             <tr><td style="padding:8px 0;color:#557064">Total paid / 已付总额</td><td style="padding:8px 0;font-weight:700">${formatMoney(booking.total_pence)}</td></tr>
           </table>
           <p style="margin:20px 0 8px;font-weight:700">Activity / 活动介绍</p>
@@ -208,6 +219,7 @@ function buildEmail(input: BookingEmailInput) {
     `Format / 比赛形式: ${format}`,
     `Participants / 参与人数: ${participants.length}`,
     `Rackets / 球拍: ${booking.racket_count}`,
+    ...(booking.loyalty_discount_pence > 0 ? [`Permanent 10% member discount / 会员永久九折优惠: -${formatMoney(booking.loyalty_discount_pence)}`] : []),
     ...(booking.coupon_discount_pence > 0 ? [`Half-price voucher / 半价券: -${formatMoney(booking.coupon_discount_pence)}`] : []),
     `Total paid / 已付总额: ${formatMoney(booking.total_pence)}`,
     `Activity / 活动介绍: ${activityDescription}`,
@@ -222,6 +234,61 @@ function buildEmail(input: BookingEmailInput) {
   };
 }
 
+export function renderBookingReminderEmail(input: BookingEmailInput): RenderedBookingEmail {
+  const { booking, session, venue } = input;
+  const date = formatLongDate(session.date);
+  const time = `${session.start_time}–${session.end_time} (${LONDON_TIME_ZONE})`;
+  const format = formatFormat(booking.format);
+  const html = `
+    <div style="background:#f4f7f2;padding:32px 16px;font-family:Arial,Helvetica,sans-serif;color:#173b2f;line-height:1.6">
+      <span style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden">Your Tennis Social session is tomorrow. / 提醒：你预订的网球活动将在明天举行。</span>
+      <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #dce8dc;border-radius:16px;overflow:hidden">
+        <div style="padding:28px 32px;background:#173b2f;color:#ffffff">
+          <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#d5eb85">Tennis Social</div>
+          <h1 style="margin:8px 0 0;font-size:28px;line-height:1.2">Your session is tomorrow · 明日有约</h1>
+        </div>
+        <div style="padding:28px 32px">
+          <p>Hi ${escapeHtml(booking.contact_name)}, a quick reminder that your tennis session is tomorrow.</p>
+          <p>你好 ${escapeHtml(booking.contact_name)}，温馨提醒：你预订的网球活动将在明天举行。</p>
+          <div style="margin:24px 0;padding:18px 20px;background:#f4f7f2;border-radius:12px">
+            <div style="font-size:12px;color:#557064;text-transform:uppercase;letter-spacing:1px">Tomorrow / 明天</div>
+            <div style="font-size:22px;font-weight:700;margin-top:4px">${escapeHtml(date)}</div>
+            <div style="font-size:18px;font-weight:700;margin-top:2px">${escapeHtml(time)}</div>
+          </div>
+          <h2 style="font-size:18px;margin:24px 0 10px">Session details / 活动信息</h2>
+          <table role="presentation" style="width:100%;border-collapse:collapse">
+            <tr><td style="padding:8px 0;color:#557064;width:42%">Location / 地点</td><td style="padding:8px 0;font-weight:700">${escapeHtml(`${venue.name} · ${venue.area}`)}</td></tr>
+            <tr><td style="padding:8px 0;color:#557064">Format / 比赛形式</td><td style="padding:8px 0;font-weight:700">${escapeHtml(format)}</td></tr>
+            <tr><td style="padding:8px 0;color:#557064">Participants / 参与人数</td><td style="padding:8px 0;font-weight:700">${booking.participant_count}</td></tr>
+            <tr><td style="padding:8px 0;color:#557064">Booking reference / 预订编号</td><td style="padding:8px 0;font-weight:700">${escapeHtml(booking.id)}</td></tr>
+          </table>
+          <p style="margin:24px 0 0;color:#557064">We look forward to seeing you on court. / 明天球场见！</p>
+        </div>
+      </div>
+    </div>
+  `;
+  const text = [
+    'Tennis Social — Your session is tomorrow / 明日有约',
+    '',
+    `Hi ${booking.contact_name}, a quick reminder that your tennis session is tomorrow.`,
+    `你好 ${booking.contact_name}，温馨提醒：你预订的网球活动将在明天举行。`,
+    '',
+    `Date / 日期: ${date}`,
+    `Time / 时间: ${time}`,
+    `Location / 地点: ${venue.name} · ${venue.area}`,
+    `Format / 比赛形式: ${format}`,
+    `Participants / 参与人数: ${booking.participant_count}`,
+    `Booking reference / 预订编号: ${booking.id}`,
+    '',
+    'We look forward to seeing you on court. / 明天球场见！',
+  ].join('\n');
+  return {
+    subject: `Reminder: your tennis session is tomorrow · ${venue.name}`,
+    html,
+    text,
+  };
+}
+
 export function isEmailConfigured() {
   const { RESEND_API_KEY, EMAIL_FROM } = getRuntimeEnv();
   return Boolean(RESEND_API_KEY && EMAIL_FROM);
@@ -233,7 +300,7 @@ export async function sendBookingConfirmationEmail(
   const { RESEND_API_KEY, EMAIL_FROM } = getRuntimeEnv();
   if (!RESEND_API_KEY || !EMAIL_FROM) return { status: 'skipped' };
 
-  const email = buildEmail(input);
+  const email = renderBookingConfirmationEmail(input);
   const calendar = createBookingCalendar(input);
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -272,5 +339,42 @@ export async function sendBookingConfirmationEmail(
   }
   if (typeof body.id !== 'string' || !body.id)
     throw new Error('email_provider_missing_id');
+  return { status: 'sent', messageId: body.id };
+}
+
+export async function sendBookingReminderEmail(
+  input: BookingEmailInput,
+): Promise<EmailSendResult> {
+  const { RESEND_API_KEY, EMAIL_FROM } = getRuntimeEnv();
+  if (!RESEND_API_KEY || !EMAIL_FROM) return { status: 'skipped' };
+
+  const email = renderBookingReminderEmail(input);
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      'Content-Type': 'application/json',
+      'Idempotency-Key': `booking-reminder-${input.booking.id}`,
+    },
+    body: JSON.stringify({
+      from: EMAIL_FROM,
+      to: [input.booking.email],
+      subject: email.subject,
+      html: email.html,
+      text: email.text,
+    }),
+  });
+  const rawBody = await response.text();
+  let body: { id?: unknown; message?: unknown } = {};
+  try {
+    body = JSON.parse(rawBody) as { id?: unknown; message?: unknown };
+  } catch {
+    // The provider can return a non-JSON error body during an upstream outage.
+  }
+  if (!response.ok) {
+    const detail = typeof body.message === 'string' ? body.message : `HTTP ${response.status}`;
+    throw new Error(`email_provider_error: ${detail}`);
+  }
+  if (typeof body.id !== 'string' || !body.id) throw new Error('email_provider_missing_id');
   return { status: 'sent', messageId: body.id };
 }

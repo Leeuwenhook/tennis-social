@@ -7,6 +7,11 @@ const SESSION_TTL_SECONDS = 60 * 60 * 8;
 const DEFAULT_ADMIN_USERNAME = 'admin';
 const DEFAULT_ADMIN_PASSWORD = 'admin1234';
 
+type AdminAccount = {
+  username: string;
+  password: string;
+};
+
 function adminConfig() {
   const env = getRuntimeEnv();
   if (
@@ -14,11 +19,23 @@ function adminConfig() {
     (!env.ADMIN_USERNAME || !env.ADMIN_PASSWORD || !env.ADMIN_SESSION_SECRET)
   )
     return null;
-  const username = env.ADMIN_USERNAME?.trim() || DEFAULT_ADMIN_USERNAME;
-  const password = env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD;
+  const accounts: AdminAccount[] = [
+    {
+      username: env.ADMIN_USERNAME?.trim() || DEFAULT_ADMIN_USERNAME,
+      password: env.ADMIN_PASSWORD || DEFAULT_ADMIN_PASSWORD,
+    },
+  ];
+  const secondUsername = env.ADMIN_USERNAME_2?.trim() || '';
+  const secondPassword = env.ADMIN_PASSWORD_2 || '';
+  const hasSecondAccountConfig = Boolean(secondUsername || secondPassword);
+  if (hasSecondAccountConfig && (!secondUsername || !secondPassword)) return null;
+  if (secondUsername && secondPassword) {
+    accounts.push({ username: secondUsername, password: secondPassword });
+  }
   const secret =
-    env.ADMIN_SESSION_SECRET || `tennis-social:${username}:${password}`;
-  return { username, password, secret };
+    env.ADMIN_SESSION_SECRET ||
+    `tennis-social:${accounts.map(({ username, password }) => `${username}:${password}`).join('|')}`;
+  return { accounts, secret };
 }
 
 function encode(value: string) {
@@ -54,7 +71,9 @@ function readCookie(request: Request) {
 export function areAdminCredentialsValid(username: string, password: string) {
   const config = adminConfig();
   if (!config) return false;
-  return equal(username, config.username) && equal(password, config.password);
+  return config.accounts.some(
+    (account) => equal(username, account.username) && equal(password, account.password),
+  );
 }
 
 export function createAdminSession(username: string) {
@@ -83,7 +102,8 @@ export function isAdminAuthenticated(request: Request) {
       exp?: unknown;
     };
     return (
-      parsed.sub === config.username &&
+      typeof parsed.sub === 'string' &&
+      config.accounts.some((account) => parsed.sub === account.username) &&
       typeof parsed.exp === 'number' &&
       parsed.exp > Math.floor(Date.now() / 1000)
     );

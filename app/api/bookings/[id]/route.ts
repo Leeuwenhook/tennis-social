@@ -5,7 +5,9 @@ import {
   expireStaleReservations,
   awardLoyaltyCoupons,
   confirmBooking,
+  ensurePermanentLoyaltyDiscount,
   serializeBooking,
+  legacyLoyaltyCouponsEnabled,
   type BookingRow,
 } from '@/lib/server/database';
 import {
@@ -44,6 +46,13 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         if (checkout.payment_status === 'paid' || checkout.payment_status === 'no_payment_required') {
           const confirmed = await confirmBooking(db, booking.id, checkoutSessionId, checkout.payment_intent);
           if (confirmed?.user_id) {
+            try {
+              await ensurePermanentLoyaltyDiscount(db, confirmed.user_id);
+            } catch (error) {
+              console.error('Unable to persist loyalty discount entitlement', error);
+            }
+          }
+          if (confirmed?.user_id && legacyLoyaltyCouponsEnabled()) {
             try {
               await awardLoyaltyCoupons(db, confirmed.user_id);
             } catch (error) {

@@ -261,14 +261,16 @@
   gap: 8px;
 }
 
-.site-nav button {
+.site-nav button,
+.account-link {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
 .site-nav button,
-.language-switch {
+.language-switch,
+.account-link {
   border: 0;
   background: transparent;
   color: var(--muted-foreground);
@@ -281,13 +283,16 @@
 
 .site-nav button:hover,
 .site-nav button.active,
-.language-switch:hover {
+.language-switch:hover,
+.account-link:hover,
+.account-link.active {
   color: var(--primary);
   background: var(--secondary);
 }
 
 .site-nav button:hover,
-.language-switch:hover {
+.language-switch:hover,
+.account-link:hover {
   transform: translateY(-1px);
 }
 
@@ -2735,6 +2740,7 @@
 .brand-lockup:focus-visible,
 .site-nav button:focus-visible,
 .language-switch:focus-visible,
+.account-link:focus-visible,
 .explore-cta:focus-visible,
 .request-cta:focus-visible,
 .session-card-image:focus-visible,
@@ -2757,6 +2763,7 @@
   .brand-lockup,
   .site-nav button,
   .language-switch,
+  .account-link,
   .explore-cta,
   .explore-cta svg,
   .request-cta,
@@ -2812,11 +2819,20 @@
     padding: 7px 5px;
   }
 
+  .account-link {
+    font-size: 11px;
+    padding: 7px 5px;
+  }
+
   .header-actions {
     gap: 2px;
   }
 
   .language-switch {
+    padding-inline: 5px;
+  }
+
+  .account-link {
     padding-inline: 5px;
   }
 
@@ -3113,7 +3129,7 @@
     padding-inline: 4px;
   }
 
-  .site-nav button:last-child .site-nav-label {
+  .account-link .site-nav-label {
     display: none;
   }
 

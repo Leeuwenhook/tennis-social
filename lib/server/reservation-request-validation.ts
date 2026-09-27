@@ -1,6 +1,8 @@
 export type ReservationRequestInput = {
+  requestType?: unknown;
   venueId?: unknown;
   venueName?: unknown;
+  postcode?: unknown;
   preferredDate?: unknown;
   startTime?: unknown;
   endTime?: unknown;
@@ -38,7 +40,9 @@ export function validateReservationRequest(
   venueRows: VenueValidationRow[] | Iterable<string>,
 ) {
   const requestedVenueId = cleanString(input.venueId, 80);
+  const requestType = input.requestType === 'find_nearby' ? 'find_nearby' : input.requestType === 'known_venue' ? 'known_venue' : '';
   const requestedVenueName = cleanString(input.venueName, 160);
+  const postcode = cleanString(input.postcode, 12).toUpperCase();
   const rows = [...venueRows];
   const detailedVenueRows: VenueValidationRow[] = rows.length && rows[0] !== null && typeof rows[0] === 'object'
     ? rows as VenueValidationRow[]
@@ -59,7 +63,8 @@ export function validateReservationRequest(
   const today = new Date().toISOString().slice(0, 10);
 
   if (
-    !venueName ||
+    !requestType ||
+    (requestType === 'known_venue' ? !venueName : !/^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/.test(postcode)) ||
     !isValidDate(preferredDate) || preferredDate < today ||
     !/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime) ||
     minutes(startTime) < 0 || minutes(startTime) > 1439 ||
@@ -68,5 +73,5 @@ export function validateReservationRequest(
     !contactName || !/^\S+@\S+\.\S+$/.test(email)
   ) return null;
 
-  return { venueId, venueName, preferredDate, startTime, endTime, contactName, email, phone, message };
+  return { requestType, venueId: requestType === 'known_venue' ? venueId : null, venueName: requestType === 'known_venue' ? venueName : '', postcode: requestType === 'find_nearby' ? postcode : '', preferredDate, startTime, endTime, contactName, email, phone, message };
 }

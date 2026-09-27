@@ -78,6 +78,13 @@
       "when": 1790457000000,
       "tag": "0010_permanent_loyalty_entitlements",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790543400000,
+      "tag": "0011_reservation_request_location_mode",
+      "breakpoints": true
     }
   ]
 }

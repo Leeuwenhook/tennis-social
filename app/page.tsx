@@ -155,8 +155,10 @@ type VenueDraft = {
 type ReservationRequestStatus = 'pending' | 'reviewing' | 'completed';
 type ReservationRequest = {
   id: string;
+  requestType: 'known_venue' | 'find_nearby';
   venueId: string | null;
   venueName: string;
+  postcode: string;
   preferredDate: string;
   startTime: string;
   endTime: string;
@@ -168,8 +170,10 @@ type ReservationRequest = {
   createdAt: string;
 };
 type ReservationRequestForm = {
+  requestType: 'known_venue' | 'find_nearby';
   venueId: string | null;
   venueName: string;
+  postcode: string;
   preferredDate: string;
   startTime: string;
   endTime: string;
@@ -452,6 +456,12 @@ const translations = {
     preferredTimeRange: 'Preferred time',
     locationPlaceholder: 'Type a venue or area',
     locationHint: 'Type to search venues or enter another location.',
+    specifiedVenue: 'Do you have a specific venue?',
+    specifiedVenueYes: 'Yes, I have a venue in mind',
+    specifiedVenueNo: 'No, please find one near me',
+    postcode: 'Postcode',
+    postcodePlaceholder: 'e.g. E1 6AN',
+    postcodeHint: 'We’ll use this postcode to find a nearby court.',
     noLocationMatches: 'No matching venue. Your location will be saved as entered.',
     requestMessage: 'Message',
     requestMessageHint: 'Player count, alternative times, or anything else we should know.',
@@ -708,6 +718,12 @@ const translations = {
     preferredTimeRange: '预约时间',
     locationPlaceholder: '输入场地或区域',
     locationHint: '输入场地名称或区域即可匹配，也可以填写其他地点。',
+    specifiedVenue: '是否有指定场地？',
+    specifiedVenueYes: '是，我有想去的场地',
+    specifiedVenueNo: '否，请帮我找附近场地',
+    postcode: 'Postcode',
+    postcodePlaceholder: '例如 E1 6AN',
+    postcodeHint: '我们会根据这个 postcode 查找附近场地。',
     noLocationMatches: '没有匹配的现有场地，将按你输入的地点保存。',
     requestMessage: '留言',
     requestMessageHint: '可填写人数、备选时间或其他需要说明的信息。',
@@ -1115,8 +1131,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     preferredFormat: 'singles' as PreferredFormat,
   });
   const [requestForm, setRequestForm] = useState<ReservationRequestForm>({
+    requestType: 'known_venue',
     venueId: null,
     venueName: '',
+    postcode: '',
     preferredDate: dateFromToday(7),
     startTime: '18:00',
     endTime: '20:00',
@@ -1476,8 +1494,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   function openReservationRequest() {
     setRequestForm((current) => ({
       ...current,
+      requestType: 'known_venue',
       venueId: null,
       venueName: '',
+      postcode: '',
       contactName: current.contactName || user?.name || '',
       email: current.email || user?.email || '',
       phone: current.phone || user?.phone || '',
@@ -1594,7 +1614,8 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   async function submitReservationRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (requestBusy) return;
-    const valid = requestForm.venueName.trim() && requestForm.preferredDate >= dateFromToday(0) &&
+    const validLocation = requestForm.requestType === 'known_venue' ? requestForm.venueName.trim() : /^[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}$/.test(requestForm.postcode.trim());
+    const valid = validLocation && requestForm.preferredDate >= dateFromToday(0) &&
       requestForm.startTime && requestForm.endTime &&
       parseMinutes(requestForm.endTime) > parseMinutes(requestForm.startTime) &&
       requestForm.contactName.trim() && /^\S+@\S+\.\S+$/.test(requestForm.email);
@@ -2613,7 +2634,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   function renderReservationRequest() {
     if (submittedRequest) {
       const venue = submittedRequest.venueId ? getVenue(submittedRequest.venueId, venueList) : null;
-      const requestLocation = venue ? venueLabel(venue) : submittedRequest.venueName;
+      const requestLocation = submittedRequest.requestType === 'find_nearby' ? submittedRequest.postcode : (venue ? venueLabel(venue) : submittedRequest.venueName);
       return (
         <section className="request-page page-width">
           <div className="request-card request-success-card">
@@ -2646,7 +2667,14 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           </div>
           <form onSubmit={submitReservationRequest}>
             <div className="form-grid two-col">
-              <div className="field request-location-field">
+              <div className="field">
+                <Label htmlFor="request-type">{t.specifiedVenue} <em>*</em></Label>
+                <select id="request-type" className="native-select" value={requestForm.requestType} onChange={(event) => setRequestForm((current) => ({ ...current, requestType: event.target.value as ReservationRequestForm['requestType'], venueId: null, venueName: '', postcode: '' }))}>
+                  <option value="known_venue">{t.specifiedVenueYes}</option>
+                  <option value="find_nearby">{t.specifiedVenueNo}</option>
+                </select>
+              </div>
+              {requestForm.requestType === 'known_venue' ? <div className="field request-location-field">
                 <Label htmlFor="request-venue">{t.location} <em>*</em></Label>
                 <div className="venue-autocomplete">
                   <Input
@@ -2687,7 +2715,11 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                   ) : null}
                 </div>
                 <small className="field-hint">{t.locationHint}</small>
-              </div>
+              </div> : <div className="field">
+                <Label htmlFor="request-postcode">{t.postcode} <em>*</em></Label>
+                <Input id="request-postcode" autoComplete="postal-code" maxLength={12} placeholder={t.postcodePlaceholder} value={requestForm.postcode} onChange={(event) => setRequestForm((current) => ({ ...current, postcode: event.target.value, venueId: null, venueName: '' }))} />
+                <small className="field-hint">{t.postcodeHint}</small>
+              </div>}
               <div className="field"><Label htmlFor="request-date">{t.preferredDate} <em>*</em></Label><Input id="request-date" type="date" min={dateFromToday(0)} value={requestForm.preferredDate} onChange={(event) => setRequestForm((current) => ({ ...current, preferredDate: event.target.value }))} /></div>
               <div className="field request-time-field"><Label htmlFor="request-start">{t.preferredTimeRange} <em>*</em></Label><div className="time-pair"><Input id="request-start" type="time" value={requestForm.startTime} onChange={(event) => setRequestForm((current) => ({ ...current, startTime: event.target.value }))} /><span>–</span><Input aria-label={language === 'zh' ? '结束时间' : 'End time'} type="time" value={requestForm.endTime} onChange={(event) => setRequestForm((current) => ({ ...current, endTime: event.target.value }))} /></div></div>
               <div className="field"><Label htmlFor="request-name">{t.name} <em>*</em></Label><Input id="request-name" autoComplete="name" value={requestForm.contactName} onChange={(event) => setRequestForm((current) => ({ ...current, contactName: event.target.value }))} /></div>
@@ -3239,7 +3271,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
               <div className="request-admin-list">
                 {reservationRequests.map((request) => {
                   const venue = request.venueId ? getVenue(request.venueId, venueList) : null;
-                  const requestLocation = venue ? venueLabel(venue) : request.venueName;
+                  const requestLocation = request.requestType === 'find_nearby' ? `${request.postcode} · ${t.specifiedVenueNo}` : (venue ? venueLabel(venue) : request.venueName);
                   return (
                     <article className="request-admin-row" key={request.id}>
                       <div className="request-admin-date"><strong>{new Date(`${request.preferredDate}T12:00:00`).getDate()}</strong><span>{new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-GB', { month: 'short' }).format(new Date(`${request.preferredDate}T12:00:00`))}</span></div>

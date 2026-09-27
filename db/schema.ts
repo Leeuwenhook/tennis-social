@@ -127,8 +127,10 @@ export const webhookEvents = pgTable('webhook_events', {
 
 export const reservationRequests = pgTable('reservation_requests', {
   id: text('id').primaryKey(),
+  requestType: text('request_type', { enum: ['known_venue', 'find_nearby'] }).notNull().default('known_venue'),
   venueId: text('venue_id').references(() => venues.id),
   venueName: text('venue_name').notNull(),
+  postcode: text('postcode').notNull().default(''),
   preferredDate: text('preferred_date').notNull(),
   startTime: text('start_time').notNull(),
   endTime: text('end_time').notNull(),

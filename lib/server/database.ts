@@ -118,8 +118,10 @@ export function legacyLoyaltyCouponsEnabled() {
 
 export type ReservationRequestRow = {
   id: string;
+  request_type: 'known_venue' | 'find_nearby';
   venue_id: string | null;
   venue_name: string;
+  postcode: string;
   preferred_date: string;
   start_time: string;
   end_time: string;
@@ -240,8 +242,10 @@ export function serializeVenue(row: VenueRow) {
 export function serializeReservationRequest(row: ReservationRequestRow) {
   return {
     id: row.id,
+    requestType: row.request_type,
     venueId: row.venue_id,
     venueName: row.venue_name,
+    postcode: row.postcode,
     preferredDate: row.preferred_date,
     startTime: row.start_time,
     endTime: row.end_time,

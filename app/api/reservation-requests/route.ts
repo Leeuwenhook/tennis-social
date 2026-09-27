@@ -41,10 +41,10 @@ export async function POST(request: Request) {
     const now = new Date().toISOString();
     const rows = await db`
       INSERT INTO reservation_requests (
-        id, venue_id, venue_name, preferred_date, start_time, end_time, contact_name,
+        id, request_type, venue_id, venue_name, postcode, preferred_date, start_time, end_time, contact_name,
         email, phone, message, status, created_at, updated_at
       ) VALUES (
-        ${id}, ${value.venueId}, ${value.venueName}, ${value.preferredDate}, ${value.startTime}, ${value.endTime},
+        ${id}, ${value.requestType}, ${value.venueId}, ${value.venueName}, ${value.postcode}, ${value.preferredDate}, ${value.startTime}, ${value.endTime},
         ${value.contactName}, ${value.email}, ${value.phone}, ${value.message}, 'pending', ${now}, ${now}
       )
       RETURNING *

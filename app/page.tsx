@@ -364,9 +364,9 @@ const translations = {
     password: 'Password',
     signIn: 'Sign in',
     signingIn: 'Signing in…',
-    account: 'Login / Sign up',
+    account: 'Sign in / Sign up',
     backToHome: 'Back to home',
-    createAccount: 'Create account',
+    createAccount: 'Sign up',
     accountTitle: 'Your tennis profile',
     accountIntro: 'Save your details and playing preferences for faster booking.',
     welcomeBack: 'Welcome back',
@@ -3010,11 +3010,11 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     }
     return (
       <section className="account-page page-width">
+        <button type="button" className="back-link" onClick={() => navigate('home')}><ArrowLeft size={16} /> {t.backToHome}</button>
         <div className="account-card">
           <p className="eyebrow"><span className="eyebrow-dot" /> {t.accountTitle}</p>
           <h1>{authMode === 'login' ? t.signIn : t.createAccount}</h1>
           <p className="form-intro">{authMode === 'login' ? t.loginIntro : t.registerIntro}</p>
-          <Button type="button" size="lg" variant="outline" className="account-home-button" onClick={() => navigate('home')}><ArrowLeft size={16} />{t.backToHome}</Button>
           <div className="auth-tabs" role="tablist">
             <button type="button" className={authMode === 'login' ? 'active' : ''} onClick={() => { setAuthMode('login'); setAuthError(''); }}>{t.signIn}</button>
             <button type="button" className={authMode === 'register' ? 'active' : ''} onClick={() => { setAuthMode('register'); setAuthError(''); }}>{t.createAccount}</button>

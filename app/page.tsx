@@ -2577,6 +2577,11 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
               <span><Check size={15} /> {t.noSignUp}</span>
               <span><Check size={15} /> {t.courtReady}</span>
             </div>
+            <button type="button" className="request-cta" onClick={openReservationRequest}>
+              <span className="request-cta-icon"><CalendarPlus size={19} /></span>
+              <span><strong>{t.requestCta}</strong><small>{t.requestCtaHint}</small></span>
+              <ArrowRight size={17} />
+            </button>
             <button
               type="button"
               className="explore-cta"
@@ -2584,11 +2589,6 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             >
               {t.exploreSessions}
               <ArrowRight size={18} />
-            </button>
-            <button type="button" className="request-cta" onClick={openReservationRequest}>
-              <span className="request-cta-icon"><CalendarPlus size={19} /></span>
-              <span><strong>{t.requestCta}</strong><small>{t.requestCtaHint}</small></span>
-              <ArrowRight size={17} />
             </button>
           </div>
           <div className="intro-photo-grid" aria-label="London tennis courts">

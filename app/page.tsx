@@ -2669,7 +2669,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             <div className="form-grid two-col">
               <div className="field">
                 <Label htmlFor="request-type">{t.specifiedVenue} <em>*</em></Label>
-                <select id="request-type" className="native-select" value={requestForm.requestType} onChange={(event) => setRequestForm((current) => ({ ...current, requestType: event.target.value as ReservationRequestForm['requestType'], venueId: null, venueName: '', postcode: '' }))}>
+                <select id="request-type" className="native-select" value={requestForm.requestType} onChange={(event) => { const requestType = event.target.value as ReservationRequestForm['requestType']; setRequestForm((current) => ({ ...current, requestType, venueId: null, venueName: '', postcode: requestType === 'find_nearby' ? (user?.postcode ?? current.postcode) : '' })); }}>
                   <option value="known_venue">{t.specifiedVenueYes}</option>
                   <option value="find_nearby">{t.specifiedVenueNo}</option>
                 </select>

@@ -2506,10 +2506,6 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             <Globe2 size={16} />
             <span>{language === 'en' ? '中文' : 'EN'}</span>
           </button>
-          <Button className="header-cta" onClick={() => navigate('home')}>
-            {t.bookNow}
-            <ArrowRight size={15} />
-          </Button>
         </div>
       </div>
     </header>

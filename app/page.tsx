@@ -447,7 +447,7 @@ const translations = {
     refunded: 'Refunded',
     dataUnavailable: 'The shared demo data is unavailable right now.',
     london: 'London time',
-    requestCta: "Can't find the session you want? Request a court",
+    requestCta: 'Looking for a court and tennis partners? Request one!',
     requestCtaHint: 'Tell us your preferred court and time.',
     requestTitle: 'Request a tennis session',
     requestIntro: 'Leave your preferred court and time. No account is required.',

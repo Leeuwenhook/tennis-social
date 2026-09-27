@@ -144,9 +144,7 @@ type SessionDraft = {
 type VenueDraft = {
   id: string | null;
   name: string;
-  nameZh: string;
   area: string;
-  areaZh: string;
   photo: string;
   peakPrice: string;
   offPeakPrice: string;
@@ -413,9 +411,7 @@ const translations = {
     editVenue: 'Edit venue',
     saveVenue: 'Save venue',
     venueName: 'Venue name',
-    venueNameZh: 'Chinese name',
     area: 'Area',
-    areaZh: 'Chinese area',
     venueImage: 'Venue image',
     imageUrl: 'Image URL or public path',
     uploadImage: 'Choose image',
@@ -676,9 +672,7 @@ const translations = {
     editVenue: '编辑场地',
     saveVenue: '保存场地',
     venueName: '场地名称',
-    venueNameZh: '中文名称',
     area: '区域',
-    areaZh: '中文区域',
     venueImage: '场地图片',
     imageUrl: '图片 URL 或公开路径',
     uploadImage: '选择图片',
@@ -1003,9 +997,7 @@ function emptyVenueDraft(venueList: Venue[] = venues): VenueDraft {
   return {
     id: null,
     name: '',
-    nameZh: '',
     area: '',
-    areaZh: '',
     photo: '',
     peakPrice: String((venue?.peakPricePence ?? DEFAULT_PEAK_PRICE_PENCE) / 100),
     offPeakPrice: String((venue?.offPeakPricePence ?? DEFAULT_OFF_PEAK_PRICE_PENCE) / 100),
@@ -2002,9 +1994,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     setVenueDraft({
       id: venue.id,
       name: venue.name,
-      nameZh: venue.nameZh,
       area: venue.area,
-      areaZh: venue.areaZh,
       photo: venue.photo,
       peakPrice: String(venue.peakPricePence / 100),
       offPeakPrice: String(venue.offPeakPricePence / 100),
@@ -2042,8 +2032,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     const peakPricePence = Math.round(Number(venueDraft.peakPrice) * 100);
     const offPeakPricePence = Math.round(Number(venueDraft.offPeakPrice) * 100);
     if (
-      !venueDraft.name.trim() || !venueDraft.nameZh.trim() || !venueDraft.area.trim() ||
-      !venueDraft.areaZh.trim() || !venueDraft.photo.trim() ||
+      !venueDraft.name.trim() || !venueDraft.area.trim() || !venueDraft.photo.trim() ||
       !venueDraft.peakPrice.trim() || !venueDraft.offPeakPrice.trim() ||
       !Number.isInteger(peakPricePence) || peakPricePence < 0 ||
       !Number.isInteger(offPeakPricePence) || offPeakPricePence < 0 ||
@@ -2053,12 +2042,14 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       return;
     }
     const existing = venueDraft.id ? venueList.find((venue) => venue.id === venueDraft.id) : undefined;
+    const name = venueDraft.name.trim();
+    const area = venueDraft.area.trim();
     const nextVenue: Venue = {
       id: venueDraft.id ?? `venue-${crypto.randomUUID()}`,
-      name: venueDraft.name.trim(),
-      nameZh: venueDraft.nameZh.trim(),
-      area: venueDraft.area.trim(),
-      areaZh: venueDraft.areaZh.trim(),
+      name,
+      nameZh: existing?.nameZh.trim() || name,
+      area,
+      areaZh: existing?.areaZh.trim() || area,
       photo: venueDraft.photo.trim(),
       peakPricePence,
       offPeakPricePence,
@@ -3089,9 +3080,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         </div>
         <div className="form-grid two-col">
           <div className="field"><Label htmlFor="venue-name">{t.venueName} <em>*</em></Label><Input id="venue-name" value={venueDraft.name} onChange={(event) => setVenueDraft((current) => ({ ...current, name: event.target.value }))} /></div>
-          <div className="field"><Label htmlFor="venue-name-zh">{t.venueNameZh} <em>*</em></Label><Input id="venue-name-zh" value={venueDraft.nameZh} onChange={(event) => setVenueDraft((current) => ({ ...current, nameZh: event.target.value }))} /></div>
           <div className="field"><Label htmlFor="venue-area">{t.area} <em>*</em></Label><Input id="venue-area" value={venueDraft.area} onChange={(event) => setVenueDraft((current) => ({ ...current, area: event.target.value }))} /></div>
-          <div className="field"><Label htmlFor="venue-area-zh">{t.areaZh} <em>*</em></Label><Input id="venue-area-zh" value={venueDraft.areaZh} onChange={(event) => setVenueDraft((current) => ({ ...current, areaZh: event.target.value }))} /></div>
           <div className="field"><Label htmlFor="venue-peak-price">{t.peakPrice} <em>*</em></Label><div className="input-prefix"><span>£</span><Input id="venue-peak-price" inputMode="decimal" value={venueDraft.peakPrice} onChange={(event) => setVenueDraft((current) => ({ ...current, peakPrice: event.target.value }))} /></div></div>
           <div className="field"><Label htmlFor="venue-off-peak-price">{t.offPeakPrice} <em>*</em></Label><div className="input-prefix"><span>£</span><Input id="venue-off-peak-price" inputMode="decimal" value={venueDraft.offPeakPrice} onChange={(event) => setVenueDraft((current) => ({ ...current, offPeakPrice: event.target.value }))} /></div></div>
         </div>

@@ -1234,6 +1234,39 @@
   font-weight: 700;
 }
 
+.signup-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 20px 0 24px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fbfaf6;
+  padding: 12px 14px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.signup-prompt button {
+  flex: 0 0 auto;
+}
+
+.confirmation-signup-prompt,
+.request-signup-prompt {
+  max-width: 580px;
+  margin: 22px auto 26px;
+  text-align: left;
+}
+
+@media (max-width: 520px) {
+  .signup-prompt {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
 .account-page {
   padding-top: clamp(48px, 8vw, 92px);
   padding-bottom: 100px;

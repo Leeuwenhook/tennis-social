@@ -367,6 +367,7 @@ const translations = {
     signIn: 'Sign in',
     signingIn: 'Signing in…',
     account: 'Login / Sign up',
+    backToHome: 'Back to home',
     createAccount: 'Create account',
     accountTitle: 'Your tennis profile',
     accountIntro: 'Save your details and playing preferences for faster booking.',
@@ -628,6 +629,7 @@ const translations = {
     signIn: '登录',
     signingIn: '登录中…',
     account: '登录/注册',
+    backToHome: '返回主页',
     createAccount: '注册账户',
     accountTitle: '你的网球档案',
     accountIntro: '保存联系方式与打球偏好，下次报名更快捷。',
@@ -2488,11 +2490,6 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             <small>{t.brandTag}</small>
           </span>
         </button>
-        <nav className="site-nav" aria-label="Primary navigation">
-          <button type="button" className={view === 'home' ? 'active' : ''} onClick={() => navigate('home')}>
-            <span className="site-nav-label">{t.sessions}</span>
-          </button>
-        </nav>
         <div className="header-actions">
           <button
             type="button"
@@ -3026,6 +3023,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <p className="eyebrow"><span className="eyebrow-dot" /> {t.accountTitle}</p>
           <h1>{authMode === 'login' ? t.signIn : t.createAccount}</h1>
           <p className="form-intro">{authMode === 'login' ? t.loginIntro : t.registerIntro}</p>
+          <Button type="button" size="lg" variant="outline" className="account-home-button" onClick={() => navigate('home')}><ArrowLeft size={16} />{t.backToHome}</Button>
           <div className="auth-tabs" role="tablist">
             <button type="button" className={authMode === 'login' ? 'active' : ''} onClick={() => { setAuthMode('login'); setAuthError(''); }}>{t.signIn}</button>
             <button type="button" className={authMode === 'register' ? 'active' : ''} onClick={() => { setAuthMode('register'); setAuthError(''); }}>{t.createAccount}</button>

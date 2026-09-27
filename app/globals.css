@@ -441,19 +441,30 @@
   min-height: 72px;
   border: 2px solid var(--primary);
   border-radius: 15px;
-  background: linear-gradient(105deg, color-mix(in srgb, var(--accent) 24%, var(--card)), var(--card) 55%);
-  color: var(--foreground);
+  background: var(--primary);
+  color: var(--primary-foreground);
   padding: 12px 16px;
   text-align: left;
-  box-shadow: 0 10px 24px rgb(25 57 44 / 11%), 0 0 0 5px rgb(243 211 79 / 16%);
+  box-shadow: 0 10px 24px rgb(25 57 44 / 20%), 0 0 0 5px rgb(243 211 79 / 18%);
   transition: border-color 220ms ease, background-color 220ms ease, transform 220ms ease, box-shadow 220ms ease;
+}
+
+.request-cta::after {
+  position: absolute;
+  z-index: 0;
+  content: '';
+  inset: -7px;
+  border: 2px solid var(--accent);
+  border-radius: 21px;
+  pointer-events: none;
+  animation: request-cta-pulse 2.4s ease-out infinite;
 }
 
 .request-cta:hover {
   border-color: #0f4436;
-  background: linear-gradient(105deg, color-mix(in srgb, var(--accent) 34%, var(--card)), var(--card) 60%);
+  background: #0f4436;
   transform: translateY(-3px);
-  box-shadow: 0 16px 30px rgb(25 57 44 / 16%), 0 0 0 6px rgb(243 211 79 / 22%);
+  box-shadow: 0 16px 30px rgb(25 57 44 / 24%), 0 0 0 6px rgb(243 211 79 / 24%);
 }
 
 .request-cta-icon {
@@ -468,6 +479,8 @@
 }
 
 .request-cta > span:nth-child(2) {
+  position: relative;
+  z-index: 1;
   display: grid;
   flex: 1;
   gap: 3px;
@@ -478,12 +491,27 @@
 }
 
 .request-cta small {
-  color: var(--muted-foreground);
+  color: rgb(255 255 255 / 78%);
   font-size: 11px;
 }
 
 .request-cta > svg {
-  color: var(--primary);
+  position: relative;
+  z-index: 1;
+  color: var(--accent);
+}
+
+@keyframes request-cta-pulse {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.98);
+  }
+
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1.04);
+  }
 }
 
 .intro-photo-grid {
@@ -2732,6 +2760,7 @@
   .explore-cta,
   .explore-cta svg,
   .request-cta,
+  .request-cta::after,
   .request-cta > svg,
   .intro-photo-grid img,
   .intro-sticker,

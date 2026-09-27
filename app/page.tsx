@@ -709,7 +709,7 @@ const translations = {
     refunded: '已退款',
     dataUnavailable: '共享演示数据暂时不可用。',
     london: '伦敦当地时间',
-    requestCta: '没找到想要的场次？点击预约！',
+    requestCta: '寻找场地和球友？点击预约！',
     requestCtaHint: '告诉我们你想要的场地和时间。',
     requestTitle: '预约指定场地和时间',
     requestIntro: '留下你想要的场地和时间，无需注册账号。',

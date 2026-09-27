@@ -366,7 +366,7 @@ const translations = {
     password: 'Password',
     signIn: 'Sign in',
     signingIn: 'Signing in…',
-    account: 'Account',
+    account: 'Login / Sign up',
     createAccount: 'Create account',
     accountTitle: 'Your tennis profile',
     accountIntro: 'Save your details and playing preferences for faster booking.',
@@ -627,7 +627,7 @@ const translations = {
     password: '密码',
     signIn: '登录',
     signingIn: '登录中…',
-    account: '账户',
+    account: '登录/注册',
     createAccount: '注册账户',
     accountTitle: '你的网球档案',
     accountIntro: '保存联系方式与打球偏好，下次报名更快捷。',
@@ -709,7 +709,7 @@ const translations = {
     refunded: '已退款',
     dataUnavailable: '共享演示数据暂时不可用。',
     london: '伦敦当地时间',
-    requestCta: '没找到想要的场次？点击预约！',
+    requestCta: '寻找场地和球友？点击预约！',
     requestCtaHint: '告诉我们你想要的场地和时间。',
     requestTitle: '预约指定场地和时间',
     requestIntro: '留下你想要的场地和时间，无需注册账号。',
@@ -2492,9 +2492,6 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <button type="button" className={view === 'home' ? 'active' : ''} onClick={() => navigate('home')}>
             <span className="site-nav-label">{t.sessions}</span>
           </button>
-          <button type="button" aria-label={user ? user.name : t.account} className={view === 'account' ? 'active' : ''} onClick={() => navigate('account')}>
-            <UserRound size={15} /> <span className="site-nav-label">{user ? user.name : t.account}</span>
-          </button>
         </nav>
         <div className="header-actions">
           <button
@@ -2505,6 +2502,9 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           >
             <Globe2 size={16} />
             <span>{language === 'en' ? '中文' : 'EN'}</span>
+          </button>
+          <button type="button" aria-label={user ? user.name : t.account} className={`account-link ${view === 'account' ? 'active' : ''}`} onClick={() => navigate('account')}>
+            <UserRound size={15} /> <span className="site-nav-label">{user ? user.name : t.account}</span>
           </button>
         </div>
       </div>

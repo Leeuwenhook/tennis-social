@@ -198,6 +198,17 @@ const SESSION_STORAGE_KEY = 'tennis-social-sessions-v2';
 const BOOKING_STORAGE_KEY = 'tennis-social-bookings-v2';
 const VENUE_STORAGE_KEY = 'tennis-social-venues-v1';
 const LANGUAGE_STORAGE_KEY = 'tennis-social-language-v1';
+const ROUTE_VIEWS: View[] = ['home', 'detail', 'booking', 'confirmation', 'account', 'request', 'admin'];
+
+function routeStateFromLocation(): { view: View; sessionId: string | null; bookingStage: BookingStage } {
+  if (typeof window === 'undefined') return { view: 'home', sessionId: null, bookingStage: 'details' };
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  if (path === '/admin') return { view: 'admin', sessionId: null, bookingStage: 'details' };
+  const query = new URLSearchParams(window.location.search);
+  const candidate = query.get('view');
+  const view = candidate && ROUTE_VIEWS.includes(candidate as View) ? candidate as View : 'home';
+  return { view, sessionId: query.get('session') || null, bookingStage: query.get('stage') === 'payment' ? 'payment' : 'details' };
+}
 
 const seededSessions: Session[] = createDemoSessions();
 
@@ -423,6 +434,7 @@ const translations = {
     cannotReduceCapacity: 'Capacity cannot be below confirmed bookings.',
     lockedFields: 'Venue, date, time and price are locked while this session has active bookings.',
     emptyBookings: 'No bookings yet.',
+    loadingSessions: 'Loading sessions…',
     saveFailed: 'Please check the session details.',
     saving: 'Saving…',
     pendingPayment: 'Payment pending',
@@ -678,6 +690,7 @@ const translations = {
     cannotReduceCapacity: '总名额不能低于已有的有效报名人数。',
     lockedFields: '该场次已有有效报名，场地、日期、时间和价格已锁定。',
     emptyBookings: '还没有报名记录。',
+    loadingSessions: '正在加载场次…',
     saveFailed: '请检查场次信息。',
     saving: '保存中…',
     pendingPayment: '待付款',
@@ -1033,12 +1046,14 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   const [language, setLanguageValue] = useState<Language>('en');
   const [venueList, setVenueList] = useState<Venue[]>(venues);
   const [sessions, setSessions] = useState<Session[]>(seededSessions);
+  const [sessionsReady, setSessionsReady] = useState(false);
   const [bookings, setBookings] = useState<Booking[]>(seededBookings);
   const [reservationRequests, setReservationRequests] = useState<ReservationRequest[]>([]);
   const [hydrated, setHydrated] = useState(false);
-  const [view, setView] = useState<View>(initialView);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [bookingStage, setBookingStage] = useState<BookingStage>('details');
+  const [initialRoute] = useState<{ view: View; sessionId: string | null; bookingStage: BookingStage }>(() => initialView === 'admin' ? { view: 'admin', sessionId: null, bookingStage: 'details' } : routeStateFromLocation());
+  const [view, setView] = useState<View>(initialRoute.view);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(initialRoute.sessionId);
+  const [bookingStage, setBookingStage] = useState<BookingStage>(initialRoute.bookingStage);
   const [bookingForm, setBookingForm] = useState({
     name: '',
     email: '',
@@ -1212,9 +1227,14 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         const response = await fetch('/api/sessions', { cache: 'no-store' });
         if (!response.ok) return;
         const data = await response.json() as { sessions?: Session[] };
-        if (!cancelled && data.sessions?.length) setSessions(data.sessions.map(normalizeSession));
+        if (!cancelled) {
+          setSessions((data.sessions ?? []).map(normalizeSession));
+          setSessionsReady(true);
+        }
       } catch {
         // The seeded read-only demo remains visible if the server is unavailable.
+      } finally {
+        if (!cancelled) setSessionsReady(true);
       }
     };
 
@@ -1254,7 +1274,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
               setPaymentCancelled(true);
               setView('booking');
               window.sessionStorage.removeItem('tennis-social-checkout-draft-v1');
-              window.history.replaceState({}, '', '/');
+              window.history.replaceState({}, '', `/?view=booking&session=${encodeURIComponent(saved.sessionId)}&stage=payment`);
               window.scrollTo({ top: 0 });
             }
           } catch {
@@ -1281,7 +1301,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           void loadLoyaltyStatus();
           setView('confirmation');
           window.sessionStorage.removeItem('tennis-social-checkout-draft-v1');
-          window.history.replaceState({}, '', '/');
+          window.history.replaceState({}, '', `/?view=confirmation&session=${encodeURIComponent(data.booking.sessionId)}&booking=${encodeURIComponent(data.booking.id)}`);
           window.scrollTo({ top: 0 });
         }
       } catch {
@@ -1408,11 +1428,18 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     document.getElementById('sessions')?.scrollIntoView({ behavior: reducedMotion ? 'instant' : 'smooth', block: 'start' });
   }
 
-  function navigate(nextView: View) {
-    if (typeof window !== 'undefined' && (view === 'admin' || nextView === 'admin')) {
+  function navigate(nextView: View, options?: { sessionId?: string | null; bookingStage?: BookingStage; replace?: boolean }) {
+    if (typeof window !== 'undefined') {
       const nextPath = nextView === 'admin' ? '/admin' : '/';
-      const currentPath = window.location.pathname.replace(/\/+$/, '') || '/';
-      if (currentPath !== nextPath) window.history.pushState({}, '', nextPath);
+      const query = new URLSearchParams();
+      if (nextView !== 'home' && nextView !== 'admin') query.set('view', nextView);
+      const sessionId = options?.sessionId ?? (nextView === 'detail' || nextView === 'booking' || nextView === 'confirmation' ? selectedSessionId : null);
+      if (sessionId) query.set('session', sessionId);
+      const stage = options?.bookingStage ?? (nextView === 'booking' ? bookingStage : null);
+      if (nextView === 'booking' && stage === 'payment') query.set('stage', 'payment');
+      const nextUrl = `${nextPath}${query.toString() ? `?${query.toString()}` : ''}`;
+      const currentUrl = `${window.location.pathname}${window.location.search}`;
+      if (currentUrl !== nextUrl) window.history[options?.replace ? 'replaceState' : 'pushState']({}, '', nextUrl);
     }
     if (nextView === 'admin' && view !== 'admin') {
       setAdminAuthenticated(false);
@@ -1424,15 +1451,15 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
 
   useEffect(() => {
     const handlePopState = () => {
-      const path = window.location.pathname.replace(/\/+$/, '') || '/';
-      if (path === '/admin') {
+      const route = routeStateFromLocation();
+      if (route.view === 'admin') {
         setAdminAuthenticated(false);
         setAdminAuthChecked(false);
       }
-      setView(path === '/admin' ? 'admin' : 'home');
-      setSelectedSessionId(null);
+      setView(route.view);
+      setSelectedSessionId(route.sessionId);
       setConfirmation(null);
-      setBookingStage('details');
+      setBookingStage(route.bookingStage);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -1443,7 +1470,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     setFormErrors({});
     setPaymentFailed(false);
     setPaymentCancelled(false);
-    navigate('detail');
+    navigate('detail', { sessionId });
   }
 
   function openReservationRequest() {
@@ -1832,6 +1859,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       setPaymentFailed(false);
       setPaymentCancelled(false);
       setBookingStage('payment');
+      navigate('booking', { bookingStage: 'payment' });
       scrollTop();
     }
   }
@@ -2441,10 +2469,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         </button>
         <nav className="site-nav" aria-label="Primary navigation">
           <button type="button" className={view === 'home' ? 'active' : ''} onClick={() => navigate('home')}>
-            {t.sessions}
+            <span className="site-nav-label">{t.sessions}</span>
           </button>
-          <button type="button" className={view === 'account' ? 'active' : ''} onClick={() => navigate('account')}>
-            <UserRound size={15} /> {user ? user.name : t.account}
+          <button type="button" aria-label={user ? user.name : t.account} className={view === 'account' ? 'active' : ''} onClick={() => navigate('account')}>
+            <UserRound size={15} /> <span className="site-nav-label">{user ? user.name : t.account}</span>
           </button>
         </nav>
         <div className="header-actions">
@@ -2572,10 +2600,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
               <h2>{t.upcoming}</h2>
               <p>{t.upcomingIntro}</p>
             </div>
-            <span className="session-count">{upcomingSessions.length} {language === 'zh' ? '场可报名' : 'sessions available'}</span>
+            <span className="session-count">{sessionsReady ? `${upcomingSessions.length} ${language === 'zh' ? '场可报名' : upcomingSessions.length === 1 ? 'session available' : 'sessions available'}` : t.loadingSessions}</span>
           </div>
           <div className="session-grid">
-            {upcomingSessions.length ? upcomingSessions.map(sessionCard) : <div className="empty-state">{t.emptyBookings}</div>}
+            {!sessionsReady ? <div className="empty-state">{t.loadingSessions}</div> : upcomingSessions.length ? upcomingSessions.map(sessionCard) : <div className="empty-state">{t.emptyBookings}</div>}
           </div>
         </section>
       </>
@@ -2751,7 +2779,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     if (bookingStage === 'payment') {
       return (
         <section className="booking-page page-width">
-          <button type="button" className="back-link" onClick={() => setBookingStage('details')}><ArrowLeft size={16} /> {t.contactDetails}</button>
+          <button type="button" className="back-link" onClick={() => { setBookingStage('details'); navigate('booking', { bookingStage: 'details' }); }}><ArrowLeft size={16} /> {t.contactDetails}</button>
           {renderProgress()}
           <div className="booking-layout payment-layout">
             <div className="payment-panel">

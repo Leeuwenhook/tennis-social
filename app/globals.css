@@ -3073,3 +3073,41 @@
   }
 
 }
+
+@media (max-width: 360px) {
+  .page-width,
+  .site-header-inner {
+    width: calc(100% - 20px);
+  }
+
+  .site-header-inner {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 4px;
+  }
+
+  .brand-lockup {
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .brand-lockup strong {
+    font-size: 14px;
+    white-space: nowrap;
+  }
+
+  .site-nav {
+    gap: 0;
+  }
+
+  .site-nav button {
+    padding-inline: 4px;
+  }
+
+  .site-nav button:last-child .site-nav-label {
+    display: none;
+  }
+
+  .language-switch {
+    padding-inline: 3px;
+  }
+}

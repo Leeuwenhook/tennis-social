@@ -230,7 +230,6 @@ const translations = {
     upcoming: 'Upcoming sessions',
     upcomingIntro: 'Choose a time that works for you. Every session is open to all levels.',
     allLevels: 'All levels welcome',
-    noSignUp: 'No account required',
     courtReady: 'Court booked for you',
     spotsLeft: 'spots left',
     spotLeft: 'spot left',
@@ -492,7 +491,6 @@ const translations = {
     upcoming: '即将开始的场次',
     upcomingIntro: '选择适合你的时间。每场活动都欢迎不同水平的球友。',
     allLevels: '欢迎所有水平',
-    noSignUp: '无需注册账号',
     courtReady: '已为你预订场地',
     spotsLeft: '个名额剩余',
     spotLeft: '个名额剩余',
@@ -2586,7 +2584,6 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             <p className="intro-text">{t.intro}</p>
             <div className="intro-tags">
               <span><Check size={15} /> {t.allLevels}</span>
-              <span><Check size={15} /> {t.noSignUp}</span>
               <span><Check size={15} /> {t.courtReady}</span>
             </div>
             <button

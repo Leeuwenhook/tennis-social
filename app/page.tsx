@@ -228,7 +228,6 @@ const translations = {
     upcoming: 'Upcoming sessions',
     upcomingIntro: 'Choose a time that works for you. Every session is open to all levels.',
     allLevels: 'All levels welcome',
-    noSignUp: 'No account required',
     courtReady: 'Court booked for you',
     spotsLeft: 'spots left',
     spotLeft: 'spot left',
@@ -385,6 +384,9 @@ const translations = {
     emailExists: 'An account already exists for this email.',
     registrationInvalid: 'Please complete the required fields and use a password of at least 8 characters.',
     signedInPrefill: 'Your saved profile has been pre-filled. You can still change it for this booking.',
+    saveInfoPrompt: 'Save your details for faster booking next time.',
+    manageBookingPrompt: 'Create an account to save your details, manage this booking and book again faster.',
+    saveRequestPrompt: 'Create an account to save this request and reuse your preferences next time.',
     memberSince: 'Saved playing preferences',
     loyaltyTitle: 'Member discount',
     participationCount: 'Confirmed activities',
@@ -489,7 +491,6 @@ const translations = {
     upcoming: '即将开始的场次',
     upcomingIntro: '选择适合你的时间。每场活动都欢迎不同水平的球友。',
     allLevels: '欢迎所有水平',
-    noSignUp: '无需注册账号',
     courtReady: '已为你预订场地',
     spotsLeft: '个名额剩余',
     spotLeft: '个名额剩余',
@@ -646,6 +647,9 @@ const translations = {
     emailExists: '该邮箱已经注册，请直接登录。',
     registrationInvalid: '请填写必填项，密码至少需要 8 个字符。',
     signedInPrefill: '已自动填写你保存的资料；本次报名仍可修改。',
+    saveInfoPrompt: '保存你的信息，下次报名会更快。',
+    manageBookingPrompt: '注册账户即可保存资料、管理本次报名，并更快再次预约。',
+    saveRequestPrompt: '注册账户即可保存这次预约请求，下次更快填写偏好。',
     memberSince: '已保存的打球偏好',
     loyaltyTitle: '会员优惠',
     participationCount: '已确认参加活动',
@@ -1459,6 +1463,13 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     }
     setView(nextView);
     scrollTop();
+  }
+
+  function openSignup(prefill: Partial<typeof registrationForm> = {}) {
+    setAuthMode('register');
+    setAuthError('');
+    setRegistrationForm((current) => ({ ...current, ...prefill }));
+    navigate('account');
   }
 
   useEffect(() => {
@@ -2574,7 +2585,6 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             <p className="intro-text">{t.intro}</p>
             <div className="intro-tags">
               <span><Check size={15} /> {t.allLevels}</span>
-              <span><Check size={15} /> {t.noSignUp}</span>
               <span><Check size={15} /> {t.courtReady}</span>
             </div>
             <button type="button" className="request-cta" onClick={openReservationRequest}>
@@ -2634,6 +2644,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
               <div><small>{t.contact}</small><strong>{submittedRequest.contactName}</strong><span>{submittedRequest.email}</span></div>
             </div>
             <div className="request-guarantee"><ShieldCheck size={18} /><span>{t.requestPromise}</span></div>
+            {!user ? <div className="signup-prompt request-signup-prompt">
+              <span>{t.saveRequestPrompt}</span>
+              <Button type="button" size="sm" variant="outline" onClick={() => openSignup({ name: submittedRequest.contactName, email: submittedRequest.email, phone: submittedRequest.phone })}>{t.createAccount}</Button>
+            </div> : null}
             <Button size="lg" className="primary-wide" onClick={() => navigate('home')}>{t.browseMore}<ArrowRight size={17} /></Button>
           </div>
         </section>
@@ -2842,6 +2856,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             </div>
             <div className="field"><Label htmlFor="phone">{t.phone} <small>({t.optional})</small></Label><Input id="phone" inputMode="tel" value={bookingForm.phone} onChange={(event) => setBookingForm((current) => ({ ...current, phone: event.target.value }))} autoComplete="tel" /></div>
             {formErrors.contact || formErrors.email ? <div className="inline-error"><TriangleAlert size={16} /> {formErrors.contact || formErrors.email}</div> : null}
+            {!user ? <div className="signup-prompt">
+              <span>{t.saveInfoPrompt}</span>
+              <Button type="button" size="sm" variant="outline" onClick={() => openSignup({ name: bookingForm.name, email: bookingForm.email, phone: bookingForm.phone })}>{t.createAccount}</Button>
+            </div> : null}
             <div className="form-divider" />
             <div className="format-selection">
               <div className="form-section-heading"><div><h2>{t.format}</h2><p>{t.availableFormats}</p></div></div>
@@ -2932,6 +2950,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           {confirmationEmailStatus === 'skipped' ? <p className="confirmation-notice"><TriangleAlert size={15} /> {t.emailConfirmationSkipped}</p> : null}
           {confirmationEmailStatus === 'failed' ? <p className="confirmation-notice"><TriangleAlert size={15} /> {t.emailConfirmationFailed}</p> : null}
           <p className="confirmation-notice"><ShieldCheck size={15} /> {t.demoNotice}</p>
+          {!user ? <div className="signup-prompt confirmation-signup-prompt">
+            <span>{t.manageBookingPrompt}</span>
+            <Button type="button" size="sm" variant="outline" onClick={() => openSignup({ name: confirmation.contactName, email: confirmation.email, phone: confirmation.phone })}>{t.createAccount}</Button>
+          </div> : null}
           <Button size="lg" className="primary-wide" onClick={() => navigate('home')}>{t.browseMore}<ArrowRight size={17} /></Button>
         </div>
       </section>

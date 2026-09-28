@@ -17,6 +17,7 @@ import Pencil from 'lucide-react/dist/esm/icons/pencil.mjs';
 import Plus from 'lucide-react/dist/esm/icons/plus.mjs';
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw.mjs';
 import Settings2 from 'lucide-react/dist/esm/icons/settings-2.mjs';
+import Share2 from 'lucide-react/dist/esm/icons/share-2.mjs';
 import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check.mjs';
 import Timer from 'lucide-react/dist/esm/icons/timer.mjs';
 import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs';
@@ -242,6 +243,9 @@ const translations = {
     back: 'Back to sessions',
     aboutSession: 'About this session',
     sessionDetails: 'Session details',
+    shareSession: 'Share session',
+    shareCopied: 'Session link copied.',
+    shareFailed: 'We could not share this session. Please copy the page link.',
     date: 'Date',
     time: 'Time',
     location: 'Location',
@@ -530,6 +534,9 @@ const translations = {
     back: '返回场次列表',
     aboutSession: '活动介绍',
     sessionDetails: '场次详情',
+    shareSession: '分享场次',
+    shareCopied: '场次链接已复制。',
+    shareFailed: '暂时无法分享场次，请复制页面链接。',
     date: '日期',
     time: '时间',
     location: '地点',
@@ -1171,6 +1178,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   const [paymentCancelled, setPaymentCancelled] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [adjustmentNotice, setAdjustmentNotice] = useState('');
+  const [shareNotice, setShareNotice] = useState('');
   const [confirmation, setConfirmation] = useState<Booking | null>(null);
   const [confirmationEmailStatus, setConfirmationEmailStatus] = useState<ConfirmationEmailStatus>('not_applicable');
   const [adminTab, setAdminTab] = useState<AdminTab>('sessions');
@@ -1612,6 +1620,29 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     setPaymentFailed(false);
     setPaymentCancelled(false);
     navigate('detail', { sessionId });
+  }
+
+  async function shareSession() {
+    if (!selectedSession || !selectedVenue || typeof window === 'undefined') return;
+    const shareUrl = window.location.href;
+    const shareTitle = `${selectedVenue.name} · ${formatLongDate(selectedSession.date, language)}`;
+    setShareNotice('');
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: shareTitle,
+          text: language === 'zh' ? `来参加 ${shareTitle} 的网球场次。` : `Join this tennis session at ${shareTitle}.`,
+          url: shareUrl,
+        });
+        return;
+      }
+      if (!navigator.clipboard) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(shareUrl);
+      setShareNotice(t.shareCopied);
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      setShareNotice(t.shareFailed);
+    }
   }
 
   function openReservationRequest() {
@@ -2939,9 +2970,15 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
               <div><CreditCard size={19} /><span><small>{t.pricePerPerson}</small><strong>{formatMoney(selectedSession.pricePence, language)}</strong></span></div>
             </div>
             <div className="detail-note"><ShieldCheck size={18} /><span>{t.noLevelLimit}. {t.allLevels}.</span></div>
-            <Button size="lg" className="primary-wide" disabled={full} onClick={beginBooking}>
-              {full ? t.full : t.bookNow}<ArrowRight size={17} />
-            </Button>
+            <div className="detail-actions">
+              <Button type="button" variant="outline" size="lg" className="share-button" onClick={() => void shareSession()}>
+                <Share2 size={17} /> {t.shareSession}
+              </Button>
+              <Button size="lg" className="primary-wide" disabled={full} onClick={beginBooking}>
+                {full ? t.full : t.bookNow}<ArrowRight size={17} />
+              </Button>
+            </div>
+            {shareNotice ? <p className="share-notice" role="status" aria-live="polite">{shareNotice}</p> : null}
           </div>
         </div>
         <div className="detail-about">

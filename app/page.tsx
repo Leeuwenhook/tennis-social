@@ -16,6 +16,7 @@ import Minus from 'lucide-react/dist/esm/icons/minus.mjs';
 import Pencil from 'lucide-react/dist/esm/icons/pencil.mjs';
 import Plus from 'lucide-react/dist/esm/icons/plus.mjs';
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw.mjs';
+import Repeat2 from 'lucide-react/dist/esm/icons/repeat-2.mjs';
 import Settings2 from 'lucide-react/dist/esm/icons/settings-2.mjs';
 import Share2 from 'lucide-react/dist/esm/icons/share-2.mjs';
 import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check.mjs';
@@ -319,6 +320,28 @@ const translations = {
     adminTitle: 'Admin dashboard',
     adminIntro: 'Manage sessions, venues, bookings and advance court requests.',
     manageSessions: 'Manage sessions',
+    sessionTableView: 'List view',
+    sessionCalendarView: 'Week calendar',
+    exportSessions: 'Export CSV',
+    createNextWeeks: 'Create next 4 weeks',
+    repeatCreated: 'Created {count} recurring sessions.',
+    conflictDetected: 'This session overlaps another session at the same venue.',
+    undo: 'Undo',
+    operationUndone: 'Last operation undone.',
+    noOperationToUndo: 'There is no operation to undo.',
+    sessionDateFilter: 'Date',
+    sessionVenueFilter: 'Venue',
+    sessionStatusFilter: 'Status',
+    allDates: 'All dates',
+    allVenues: 'All venues',
+    allStatuses: 'All statuses',
+    selectedSessions: '{count} selected',
+    selectAll: 'Select all',
+    clearSelection: 'Clear selection',
+    publishSelected: 'Publish selected',
+    draftSelected: 'Move to draft',
+    bulkUpdateFailed: 'Some sessions could not be updated. Please try again.',
+    bulkUpdateSuccess: 'Updated {count} sessions.',
     viewExpiredSessions: 'View expired sessions',
     hideExpiredSessions: 'Hide expired sessions',
     expiredSessions: 'Expired sessions',
@@ -609,6 +632,28 @@ const translations = {
     adminTitle: '后台管理',
     adminIntro: '管理场次、场地、报名以及用户的提前预约请求。',
     manageSessions: '管理场次',
+    sessionTableView: '列表视图',
+    sessionCalendarView: '周日历',
+    exportSessions: '导出 CSV',
+    createNextWeeks: '创建未来 4 周',
+    repeatCreated: '已创建 {count} 个重复场次。',
+    conflictDetected: '该场次与同一场地的其他场次时间重叠。',
+    undo: '撤销',
+    operationUndone: '已撤销上一次操作。',
+    noOperationToUndo: '没有可撤销的操作。',
+    sessionDateFilter: '日期',
+    sessionVenueFilter: '场地',
+    sessionStatusFilter: '状态',
+    allDates: '全部日期',
+    allVenues: '全部场地',
+    allStatuses: '全部状态',
+    selectedSessions: '已选择 {count} 场',
+    selectAll: '全选',
+    clearSelection: '清除选择',
+    publishSelected: '批量发布',
+    draftSelected: '批量转为草稿',
+    bulkUpdateFailed: '部分场次更新失败，请重试。',
+    bulkUpdateSuccess: '已更新 {count} 场。',
     viewExpiredSessions: '查看已过期场次',
     hideExpiredSessions: '隐藏已过期场次',
     expiredSessions: '已过期场次',
@@ -1062,6 +1107,18 @@ function dateFromToday(days: number) {
   return date.toISOString().slice(0, 10);
 }
 
+function shiftDate(value: string, days: number) {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function weekStart(value: string) {
+  const date = new Date(`${value}T12:00:00Z`);
+  const day = date.getUTCDay();
+  return shiftDate(value, day === 0 ? -6 : 1 - day);
+}
+
 function requestStatusLabel(status: ReservationRequestStatus, labels: {
   pendingRequest: string;
   reviewingRequest: string;
@@ -1183,6 +1240,15 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   const [confirmationEmailStatus, setConfirmationEmailStatus] = useState<ConfirmationEmailStatus>('not_applicable');
   const [adminTab, setAdminTab] = useState<AdminTab>('sessions');
   const [showExpiredSessions, setShowExpiredSessions] = useState(false);
+  const [sessionEditorOpen, setSessionEditorOpen] = useState(false);
+  const [venueEditorOpen, setVenueEditorOpen] = useState(false);
+  const [sessionDateFilter, setSessionDateFilter] = useState('');
+  const [sessionVenueFilter, setSessionVenueFilter] = useState('');
+  const [sessionStatusFilter, setSessionStatusFilter] = useState<SessionStatus | ''>('');
+  const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([]);
+  const [sessionView, setSessionView] = useState<'list' | 'week'>('list');
+  const [calendarDate, setCalendarDate] = useState(() => dateFromToday(0));
+  const [undoSessions, setUndoSessions] = useState<Session[] | null>(null);
   const [draft, setDraft] = useState<SessionDraft>(() => emptyDraft(venues));
   const [venueDraft, setVenueDraft] = useState<VenueDraft>(() => emptyVenueDraft(venues));
   const [adminMessage, setAdminMessage] = useState('');
@@ -1545,9 +1611,17 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
 
   const allSessions = useMemo(() => [...sessions].sort(sessionSort), [sessions]);
   const adminSessions = useMemo(
-    () => allSessions.filter((session) => showExpiredSessions || !isPast(session)),
-    [allSessions, showExpiredSessions],
+    () => allSessions.filter((session) => {
+      if (!showExpiredSessions && isPast(session)) return false;
+      if (sessionDateFilter && session.date !== sessionDateFilter) return false;
+      if (sessionVenueFilter && session.venueId !== sessionVenueFilter) return false;
+      if (sessionStatusFilter && session.status !== sessionStatusFilter) return false;
+      return true;
+    }),
+    [allSessions, sessionDateFilter, sessionStatusFilter, sessionVenueFilter, showExpiredSessions],
   );
+  const calendarWeekStart = useMemo(() => weekStart(calendarDate), [calendarDate]);
+  const calendarDays = useMemo(() => Array.from({ length: 7 }, (_, index) => shiftDate(calendarWeekStart, index)), [calendarWeekStart]);
   const couponDiscountPercent = selectedCoupon?.discountPercent ?? 0;
   const appliedDiscountPercent = Math.max(permanentDiscountPercent, couponDiscountPercent);
   const loyaltyDiscountPence = selectedSession && permanentDiscountPercent > couponDiscountPercent
@@ -2151,6 +2225,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   }
 
   function startEditVenue(venue: Venue) {
+    setVenueEditorOpen(true);
     setVenueDraft({
       id: venue.id,
       name: venue.name,
@@ -2288,6 +2363,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     }
     if (savedOnServer || useLocalFallback) {
       setVenueDraft(emptyVenueDraft(venueList));
+      setVenueEditorOpen(false);
       setAdminMessage(t.venueSaved);
     }
     setAdminBusy(false);
@@ -2416,6 +2492,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   }
 
   function startEdit(session: Session) {
+    setSessionEditorOpen(true);
     setDraft({
       id: session.id,
       venueId: session.venueId,
@@ -2431,6 +2508,24 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     });
     setAdminMessage('');
   }
+
+  function sessionOverlaps(a: { startTime: string; endTime: string }, b: { startTime: string; endTime: string }) {
+    return parseMinutes(a.startTime) < parseMinutes(b.endTime) && parseMinutes(b.startTime) < parseMinutes(a.endTime);
+  }
+
+  function sessionPayload(session: Session, status = session.status) {
+    return {
+      venueId: session.venueId,
+      date: session.date,
+      startTime: session.startTime,
+      endTime: session.endTime,
+      pricePence: session.pricePence,
+      capacity: session.capacity,
+      formats: session.formats,
+      description: session.description,
+      descriptionZh: session.descriptionZh,
+      status,
+    };
 
   async function saveDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2460,6 +2555,11 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       return;
     }
     const existing = draft.id ? sessions.find((session) => session.id === draft.id) : undefined;
+    const conflictingSession = sessions.find((session) => session.id !== existing?.id && session.venueId === draft.venueId && session.date === draft.date && sessionOverlaps(draft, session));
+    if (conflictingSession) {
+      setAdminMessage(t.conflictDetected);
+      return;
+    }
     if (existing && capacity < existing.bookedSpots) {
       setAdminMessage(t.cannotReduceCapacity);
       return;
@@ -2478,18 +2578,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       description: draft.description.trim(),
       descriptionZh: draft.descriptionZh.trim(),
     };
-    const payload = {
-      venueId: nextSession.venueId,
-      date: nextSession.date,
-      startTime: nextSession.startTime,
-      endTime: nextSession.endTime,
-      pricePence: nextSession.pricePence,
-      capacity: nextSession.capacity,
-      formats: nextSession.formats,
-      description: nextSession.description,
-      descriptionZh: nextSession.descriptionZh,
-      status: nextSession.status,
-    };
+    const payload = sessionPayload(nextSession);
     setAdminBusy(true);
     let savedOnServer = false;
     let useLocalFallback = false;
@@ -2529,7 +2618,134 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     } else if (savedOnServer) {
       setAdminMessage(t.sessionSaved);
     }
-    if (savedOnServer || useLocalFallback) setDraft(emptyDraft(venueList));
+    if (savedOnServer || useLocalFallback) {
+      setDraft(emptyDraft(venueList));
+      setSessionEditorOpen(false);
+    }
+    setAdminBusy(false);
+  }
+
+  async function bulkUpdateSessionStatus(status: SessionStatus) {
+    const targets = sessions.filter((session) => selectedSessionIds.includes(session.id));
+    if (!targets.length) return;
+    setUndoSessions(sessions);
+    setAdminBusy(true);
+    const results = await Promise.all(targets.map(async (session) => {
+      try {
+        const response = await fetch(`/api/admin/sessions/${encodeURIComponent(session.id)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            venueId: session.venueId,
+            date: session.date,
+            startTime: session.startTime,
+            endTime: session.endTime,
+            pricePence: session.pricePence,
+            capacity: session.capacity,
+            formats: session.formats,
+            description: session.description,
+            descriptionZh: session.descriptionZh,
+            status,
+          }),
+        });
+        const data = await response.json() as { session?: Session };
+        return response.ok && data.session ? data.session : null;
+      } catch {
+        return null;
+      }
+    }));
+    const updated = results.filter((session): session is Session => Boolean(session));
+    if (updated.length) {
+      const updatedById = new Map(updated.map((session) => [session.id, session]));
+      setSessions((current) => current.map((session) => updatedById.get(session.id) ?? session));
+    }
+    setSelectedSessionIds([]);
+    setAdminMessage(updated.length === targets.length
+      ? t.bulkUpdateSuccess.replace('{count}', String(updated.length))
+      : t.bulkUpdateFailed);
+    setAdminBusy(false);
+  }
+
+  async function createRecurringSessions(session: Session) {
+    setAdminBusy(true);
+    const created: Session[] = [];
+    for (let week = 1; week <= 4; week += 1) {
+      const candidate = { ...session, id: '', date: shiftDate(session.date, week * 7), bookedSpots: 0 };
+      const conflict = sessions.some((item) => item.venueId === candidate.venueId && item.date === candidate.date && sessionOverlaps(item, candidate))
+        || created.some((item) => item.venueId === candidate.venueId && item.date === candidate.date && sessionOverlaps(item, candidate));
+      if (conflict) continue;
+      try {
+        const response = await fetch('/api/admin/sessions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(sessionPayload(candidate)),
+        });
+        const data = await response.json() as { session?: Session };
+        if (response.ok && data.session) created.push(data.session);
+      } catch {
+        break;
+      }
+    }
+    if (created.length) {
+      setUndoSessions(sessions);
+      setSessions((current) => [...current, ...created]);
+      setAdminMessage(t.repeatCreated.replace('{count}', String(created.length)));
+    } else {
+      setAdminMessage(t.bulkUpdateFailed);
+    }
+    setAdminBusy(false);
+  }
+
+  function exportSessions() {
+    const header = ['id', 'date', 'startTime', 'endTime', 'venue', 'status', 'price', 'capacity', 'bookedSpots'];
+    const rows = adminSessions.map((session) => [
+      session.id,
+      session.date,
+      session.startTime,
+      session.endTime,
+      getVenue(session.venueId, venueList).name,
+      session.status,
+      (session.pricePence / 100).toFixed(2),
+      String(session.capacity),
+      String(session.bookedSpots),
+    ]);
+    const csv = [header, ...rows].map((row) => row.map((value) => `"${value.replaceAll('"', '""')}"`).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `tennis-sessions-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function undoLastOperation() {
+    if (!undoSessions) {
+      setAdminMessage(t.noOperationToUndo);
+      return;
+    }
+    setAdminBusy(true);
+    const previousById = new Map(undoSessions.map((session) => [session.id, session]));
+    const currentChanged = sessions.filter((session) => previousById.has(session.id));
+    const createdSinceSnapshot = sessions.filter((session) => !previousById.has(session.id));
+    await Promise.all(currentChanged.map(async (session) => {
+      const previous = previousById.get(session.id);
+      if (!previous) return;
+      try {
+        await fetch(`/api/admin/sessions/${encodeURIComponent(session.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sessionPayload(previous)) });
+      } catch {
+        // Keep the local state in sync with the saved snapshot when offline.
+      }
+    }));
+    await Promise.all(createdSinceSnapshot.map(async (session) => {
+      try {
+        await fetch(`/api/admin/sessions/${encodeURIComponent(session.id)}`, { method: 'DELETE' });
+      } catch {
+        // The local snapshot is still restored if the server is unavailable.
+      }
+    }));
+    setSessions(undoSessions);
+    setUndoSessions(null);
+    setAdminMessage(t.operationUndone);
     setAdminBusy(false);
   }
 
@@ -3293,7 +3509,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       : false;
     return (
       <form className="admin-editor" onSubmit={saveDraft}>
-        <div className="admin-editor-heading"><div><p className="eyebrow muted">{draft.id ? t.editSession : t.addSession}</p><h2>{draft.id ? t.editSession : t.addSession}</h2></div>{draft.id ? <button type="button" className="text-button" onClick={() => setDraft(emptyDraft(venueList))}>{t.cancelEdit}</button> : null}</div>
+        <div className="admin-editor-heading"><div><p className="eyebrow muted">{draft.id ? t.editSession : t.addSession}</p><h2>{draft.id ? t.editSession : t.addSession}</h2></div><button type="button" className="text-button" onClick={() => { setSessionEditorOpen(false); setDraft(emptyDraft(venueList)); }}>{t.cancelEdit}</button></div>
         <div className="form-grid two-col">
           <div className="field"><Label htmlFor="admin-venue">{t.location}</Label><select id="admin-venue" value={draft.venueId} onChange={(event) => setDraft((current) => { const venue = getVenue(event.target.value, venueList); return { ...current, venueId: event.target.value, price: current.id ? current.price : String(venue.offPeakPricePence / 100) }; })} className="native-select" disabled={hasActiveBookings}>{venueList.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}</select></div>
           <div className="field"><Label htmlFor="admin-date">{t.date}</Label><Input id="admin-date" type="date" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} disabled={hasActiveBookings} /></div>
@@ -3316,7 +3532,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       <form className="admin-editor venue-editor" onSubmit={saveVenue}>
         <div className="admin-editor-heading">
           <div><p className="eyebrow muted">{venueDraft.id ? t.editVenue : t.addVenue}</p><h2>{venueDraft.id ? t.editVenue : t.addVenue}</h2></div>
-          {venueDraft.id ? <button type="button" className="text-button" onClick={() => setVenueDraft(emptyVenueDraft(venueList))}>{t.cancelEdit}</button> : null}
+          <button type="button" className="text-button" onClick={() => { setVenueEditorOpen(false); setVenueDraft(emptyVenueDraft(venueList)); }}>{t.cancelEdit}</button>
         </div>
         <div className="form-grid two-col">
           <div className="field"><Label htmlFor="venue-name">{t.venueName} <em>*</em></Label><Input id="venue-name" value={venueDraft.name} onChange={(event) => setVenueDraft((current) => ({ ...current, name: event.target.value }))} /></div>
@@ -3370,6 +3586,24 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     );
   }
 
+  function renderSessionCalendar() {
+    return (
+      <div className="session-calendar">
+        <div className="session-calendar-toolbar">
+          <Button variant="outline" size="sm" onClick={() => setCalendarDate(shiftDate(calendarDate, -7))}><ArrowLeft size={14} /></Button>
+          <strong>{formatDate(calendarDays[0], language)} – {formatDate(calendarDays[6], language)}</strong>
+          <Button variant="outline" size="sm" onClick={() => setCalendarDate(shiftDate(calendarDate, 7))}><ArrowRight size={14} /></Button>
+        </div>
+        <div className="session-calendar-grid">
+          {calendarDays.map((date) => {
+            const daySessions = adminSessions.filter((session) => session.date === date);
+            return <div className="session-calendar-day" key={date}><h3>{formatDate(date, language)}</h3>{daySessions.length ? daySessions.map((session) => <button type="button" className={`session-calendar-item ${session.status}`} key={session.id} onClick={() => startEdit(session)}><strong>{session.startTime}–{session.endTime}</strong><span>{getVenue(session.venueId, venueList).name}</span><small>{session.status === 'published' ? t.published : t.draft}</small></button>) : <span className="session-calendar-empty">—</span>}</div>;
+          })}
+        </div>
+      </div>
+    );
+  }
+
   function renderAdmin() {
     if (!adminAuthChecked || !adminAuthenticated) return renderAdminLogin();
     const publishedCount = sessions.filter((session) => session.status === 'published').length;
@@ -3378,7 +3612,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       0,
     );
     return (
-      <section className="admin-page page-width">
+      <section className="admin-page">
         <div className="admin-heading">
           <div>
             <p className="eyebrow"><Settings2 size={14} /> {t.admin}</p>
@@ -3397,6 +3631,8 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <div><span>{activeBookings.length}</span><small>{t.activeBookings}</small></div>
           <div><span>{openSpots}</span><small>{t.spotsLeft}</small></div>
         </div>
+        <div className="admin-workspace">
+        <aside className="admin-sidebar">
         <div className="admin-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={adminTab === 'sessions'} className={adminTab === 'sessions' ? 'active' : ''} onClick={() => setAdminTab('sessions')}>
             {t.manageSessions}
@@ -3411,13 +3647,20 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             {t.manageVenues}
           </button>
         </div>
+        </aside>
+        <div className="admin-main-content">
         {adminTab === 'sessions' ? (
-          <div className="admin-session-layout">
+          <div className={`admin-session-layout${sessionEditorOpen ? '' : ' session-layout-full'}`}>
             <div className="admin-session-list">
               <div className="admin-list-heading">
                 <div><p className="eyebrow muted">{t.sessions}</p><h2>{showExpiredSessions ? t.expiredSessions : t.upcoming}</h2></div>
                 <div className="admin-session-import-actions">
                   <Badge variant="secondary">{adminSessions.length}</Badge>
+                  <Button variant={sessionView === 'list' ? 'default' : 'outline'} size="sm" onClick={() => setSessionView('list')} disabled={adminBusy}>{t.sessionTableView}</Button>
+                  <Button variant={sessionView === 'week' ? 'default' : 'outline'} size="sm" onClick={() => setSessionView('week')} disabled={adminBusy}>{t.sessionCalendarView}</Button>
+                  <Button variant="outline" size="sm" onClick={exportSessions} disabled={adminBusy}><Download size={14} /> {t.exportSessions}</Button>
+                  <Button size="sm" onClick={() => { setDraft(emptyDraft(venueList)); setSessionEditorOpen(true); }} disabled={adminBusy}><Plus size={14} /> {t.addSession}</Button>
+                  <Button variant="outline" size="sm" onClick={() => void undoLastOperation()} disabled={adminBusy || !undoSessions}><RefreshCw size={14} /> {t.undo}</Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -3444,34 +3687,16 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
               </div>
               <p className="admin-session-import-help">{t.sessionImportHelp}</p>
               {sessionImportMessage ? <div className={`admin-message${sessionImportFailed ? ' import-error' : ''}`} role="status">{sessionImportMessage}</div> : null}
-              {adminSessions.map((session) => {
-                const venue = getVenue(session.venueId, venueList);
-                const spots = Math.max(0, session.capacity - session.bookedSpots);
-                return (
-                  <div className="admin-session-row" key={session.id}>
-                    <img src={venue.photo} alt="" />
-                    <div className="admin-session-row-main">
-                      <div>
-                        <strong>{venue.name}</strong>
-                        <Badge variant={session.status === 'published' ? 'default' : 'outline'}>{session.status === 'published' ? t.published : t.draft}</Badge>
-                      </div>
-                      <span>{formatDate(session.date, language)} · {session.startTime}–{session.endTime}</span>
-                      <small>{formatNames(session.formats, t)} · {session.bookedSpots}/{session.capacity} {t.booked} · {spots} {t.spotsLeft}</small>
-                    </div>
-                    <div className="admin-row-actions">
-                      <Button variant="outline" size="sm" onClick={() => startEdit(session)} disabled={adminBusy}>
-                        <Pencil size={14} /> {t.edit}
-                      </Button>
-                      <Button variant="destructive" size="sm" onClick={() => void deleteSession(session)} disabled={adminBusy}>
-                        <Trash2 size={14} /> {t.delete}
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
+              <div className="admin-session-filters">
+                <label>{t.sessionDateFilter}<select value={sessionDateFilter} onChange={(event) => setSessionDateFilter(event.target.value)} className="native-select"><option value="">{t.allDates}</option>{[...new Set(allSessions.map((session) => session.date))].sort().map((date) => <option key={date} value={date}>{formatDate(date, language)}</option>)}</select></label>
+                <label>{t.sessionVenueFilter}<select value={sessionVenueFilter} onChange={(event) => setSessionVenueFilter(event.target.value)} className="native-select"><option value="">{t.allVenues}</option>{venueList.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}</select></label>
+                <label>{t.sessionStatusFilter}<select value={sessionStatusFilter} onChange={(event) => setSessionStatusFilter(event.target.value as SessionStatus | '')} className="native-select"><option value="">{t.allStatuses}</option><option value="published">{t.published}</option><option value="draft">{t.draft}</option></select></label>
+              </div>
+              {selectedSessionIds.length ? <div className="admin-bulk-actions"><span>{t.selectedSessions.replace('{count}', String(selectedSessionIds.length))}</span><Button size="sm" onClick={() => void bulkUpdateSessionStatus('published')} disabled={adminBusy}><Check size={14} /> {t.publishSelected}</Button><Button size="sm" variant="outline" onClick={() => void bulkUpdateSessionStatus('draft')} disabled={adminBusy}><Pencil size={14} /> {t.draftSelected}</Button><button type="button" className="text-button" onClick={() => setSelectedSessionIds([])}>{t.clearSelection}</button></div> : null}
+              {sessionView === 'week' ? renderSessionCalendar() : <div className="session-table-wrap"><table className="session-table"><thead><tr><th><input type="checkbox" aria-label={t.selectAll} checked={adminSessions.length > 0 && adminSessions.every((session) => selectedSessionIds.includes(session.id))} onChange={(event) => setSelectedSessionIds(event.target.checked ? adminSessions.map((session) => session.id) : [])} /></th><th>{t.date}</th><th>{t.location}</th><th>{t.time}</th><th>{t.status}</th><th>{t.capacity}</th><th>{t.actions}</th></tr></thead><tbody>{adminSessions.map((session) => { const venue = getVenue(session.venueId, venueList); const spots = Math.max(0, session.capacity - session.bookedSpots); return <tr key={session.id}><td><input type="checkbox" checked={selectedSessionIds.includes(session.id)} onChange={(event) => setSelectedSessionIds((current) => event.target.checked ? [...current, session.id] : current.filter((id) => id !== session.id))} /></td><td><strong>{formatDate(session.date, language)}</strong></td><td>{venue.name}</td><td>{session.startTime}–{session.endTime}</td><td><Badge variant={session.status === 'published' ? 'default' : 'outline'}>{session.status === 'published' ? t.published : t.draft}</Badge></td><td>{session.bookedSpots}/{session.capacity} · {spots} {t.spotsLeft}</td><td><div className="admin-row-actions"><Button variant="outline" size="sm" onClick={() => startEdit(session)} disabled={adminBusy}><Pencil size={14} /> {t.edit}</Button><Button variant="outline" size="sm" onClick={() => void createRecurringSessions(session)} disabled={adminBusy}><Repeat2 size={14} /> {t.createNextWeeks}</Button><Button variant="destructive" size="sm" onClick={() => void deleteSession(session)} disabled={adminBusy}><Trash2 size={14} /> {t.delete}</Button></div></td></tr>; })}</tbody></table></div>}
               {!adminSessions.length ? <div className="empty-state">{t.noSessions}</div> : null}
             </div>
-            {renderSessionEditor()}
+            {sessionEditorOpen ? renderSessionEditor() : null}
           </div>
         ) : adminTab === 'bookings' ? (
           <div className="admin-bookings">
@@ -3537,11 +3762,11 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             ) : <div className="empty-state">{t.noRequests}</div>}
           </div>
         ) : (
-          <div className="admin-venue-layout">
+          <div className={`admin-venue-layout${venueEditorOpen ? '' : ' venue-layout-full'}`}>
             <div className="admin-venue-list">
               <div className="admin-list-heading">
                 <div><p className="eyebrow muted">{t.manageVenues}</p><h2>{t.venueList}</h2><p>{t.venueListIntro}</p></div>
-                <div className="admin-list-heading-actions"><Badge variant="secondary">{venueList.length}</Badge><Button variant="outline" size="sm" onClick={() => { setVenueDraft(emptyVenueDraft(venueList)); setAdminMessage(''); }} disabled={adminBusy}><Plus size={14} /> {t.addVenue}</Button></div>
+                <div className="admin-list-heading-actions"><Badge variant="secondary">{venueList.length}</Badge><Button variant="outline" size="sm" onClick={() => { setVenueDraft(emptyVenueDraft(venueList)); setAdminMessage(''); setVenueEditorOpen(true); }} disabled={adminBusy}><Plus size={14} /> {t.addVenue}</Button></div>
               </div>
               {venueList.map((venue) => (
                 <div className="admin-venue-row" key={venue.id}>
@@ -3559,9 +3784,11 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                 </div>
               ))}
             </div>
-            {renderVenueEditor()}
+            {venueEditorOpen ? renderVenueEditor() : null}
           </div>
         )}
+        </div>
+        </div>
       </section>
     );
   }

@@ -8,6 +8,7 @@ export const venues = pgTable('venues', {
   areaZh: text('area_zh').notNull(),
   notes: text('notes').notNull().default(''),
   photo: text('photo').notNull(),
+  photosJson: text('photos_json').notNull().default('[]'),
   notes: text('notes').notNull().default(''),
   peakPricePence: integer('peak_price_pence').notNull(),
   offPeakPricePence: integer('off_peak_price_pence').notNull(),

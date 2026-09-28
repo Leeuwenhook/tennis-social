@@ -1316,6 +1316,24 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       }
     };
 
+    // Sessions can be created from the admin view in another tab. Refresh when
+    // this tab becomes visible so the home page does not keep a stale list.
+    const refreshOnVisibility = () => {
+      if (document.visibilityState === 'visible') void loadSessions();
+    };
+    const syncStoredSessions = (event: StorageEvent) => {
+      if (event.key !== SESSION_STORAGE_KEY || !event.newValue) return;
+      try {
+        const parsedSessions = JSON.parse(event.newValue) as Session[];
+        if (!cancelled && Array.isArray(parsedSessions)) {
+          setSessions(parsedSessions.map(normalizeSession));
+          setSessionsReady(true);
+        }
+      } catch {
+        // Ignore malformed browser cache entries and keep the current state.
+      }
+    };
+
     const loadVenues = async () => {
       try {
         const response = await fetch('/api/venues', { cache: 'no-store' });
@@ -1391,7 +1409,13 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     void loadVenues();
     void loadUserSession();
     void reconcileCheckout();
-    return () => { cancelled = true; };
+    document.addEventListener('visibilitychange', refreshOnVisibility);
+    window.addEventListener('storage', syncStoredSessions);
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', refreshOnVisibility);
+      window.removeEventListener('storage', syncStoredSessions);
+    };
   }, [hydrated]);
 
   useEffect(() => {

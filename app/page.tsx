@@ -2111,7 +2111,6 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       offPeakPrice: String(venue.offPeakPricePence / 100),
     });
     setAdminMessage('');
-    scrollTop();
   }
 
   function chooseVenueImage(event: ChangeEvent<HTMLInputElement>) {

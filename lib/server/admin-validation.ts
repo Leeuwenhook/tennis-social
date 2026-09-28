@@ -5,8 +5,8 @@ export type VenueInput = {
   nameZh?: unknown;
   area?: unknown;
   areaZh?: unknown;
-  notes?: unknown;
   photo?: unknown;
+  notes?: unknown;
   peakPricePence?: unknown;
   offPeakPricePence?: unknown;
 };
@@ -16,8 +16,8 @@ export type ValidatedVenueInput = {
   nameZh: string;
   area: string;
   areaZh: string;
-  notes: string;
   photo: string;
+  notes: string;
   peakPricePence: number;
   offPeakPricePence: number;
 };
@@ -35,20 +35,6 @@ export type SessionInput = {
   status?: unknown;
 };
 
-export type SessionValidationIssue =
-  | 'row'
-  | 'venue'
-  | 'date'
-  | 'start_time'
-  | 'end_time'
-  | 'time_order'
-  | 'price'
-  | 'capacity'
-  | 'formats'
-  | 'description'
-  | 'description_zh'
-  | 'status';
-
 export type ValidatedSessionInput = {
   venueId: string;
   date: string;
@@ -61,6 +47,18 @@ export type ValidatedSessionInput = {
   descriptionZh: string;
   status: 'published' | 'draft';
 };
+
+export type SessionValidationIssue =
+  | 'venue'
+  | 'date'
+  | 'startTime'
+  | 'endTime'
+  | 'timeRange'
+  | 'description'
+  | 'price'
+  | 'capacity'
+  | 'formats'
+  | 'status';
 
 function cleanString(value: unknown, maxLength: number) {
   return typeof value === 'string' ? value.trim().slice(0, maxLength) : '';
@@ -82,9 +80,9 @@ export function validateVenueInput(input: VenueInput): ValidatedVenueInput | nul
   const nameZh = cleanString(input.nameZh, 120);
   const area = cleanString(input.area, 120);
   const areaZh = cleanString(input.areaZh, 120);
-  const notes = cleanString(input.notes, 500);
   const rawPhoto = typeof input.photo === 'string' ? input.photo.trim() : '';
   const photo = rawPhoto.slice(0, 2_500_000);
+  const notes = cleanString(input.notes, 1000);
   const peakPriceValue = typeof input.peakPricePence === 'string'
     ? input.peakPricePence.trim()
     : typeof input.peakPricePence === 'number' ? String(input.peakPricePence) : '';
@@ -100,10 +98,47 @@ export function validateVenueInput(input: VenueInput): ValidatedVenueInput | nul
     !Number.isInteger(offPeakPricePence) || offPeakPricePence < 0 || offPeakPricePence > 100_000 ||
     peakPricePence < offPeakPricePence
   ) return null;
-  return { name, nameZh, area, areaZh, notes, photo, peakPricePence, offPeakPricePence };
+  return { name, nameZh, area, areaZh, photo, notes, peakPricePence, offPeakPricePence };
 }
 
-export function getSessionInputIssues(
+export function validateSessionInput(
+  input: SessionInput,
+  validVenueIds: Iterable<string> = venues.map((venue) => venue.id),
+): ValidatedSessionInput | null {
+  const venueId = cleanString(input.venueId, 80);
+  const date = cleanString(input.date, 10);
+  const startTime = cleanString(input.startTime, 5);
+  const endTime = cleanString(input.endTime, 5);
+  const description = cleanString(input.description, 2000);
+  const descriptionZh = cleanString(input.descriptionZh, 2000);
+  const pricePence = Number(input.pricePence);
+  const capacity = Number(input.capacity);
+  const formatsInput = input.formats;
+  const formatsValid = formatsInput === undefined || (
+    Array.isArray(formatsInput) && formatsInput.every((format) => GAME_FORMATS.includes(format as GameFormat))
+  );
+  const formats = formatsInput === undefined
+    ? [...GAME_FORMATS]
+    : Array.isArray(formatsInput)
+      ? [...new Set(formatsInput as GameFormat[])]
+      : [];
+  const status = input.status === 'draft' ? 'draft' : input.status === 'published' ? 'published' : '';
+  if (sessionInputIssues(input, validVenueIds).length) return null;
+  return {
+    venueId,
+    date,
+    startTime,
+    endTime,
+    pricePence,
+    capacity,
+    formats,
+    description,
+    descriptionZh,
+    status,
+  };
+}
+
+export function sessionInputIssues(
   input: SessionInput,
   validVenueIds: Iterable<string> = venues.map((venue) => venue.id),
 ): SessionValidationIssue[] {
@@ -126,52 +161,18 @@ export function getSessionInputIssues(
       : [];
   const status = input.status === 'draft' ? 'draft' : input.status === 'published' ? 'published' : '';
   const issues: SessionValidationIssue[] = [];
+  const validStartTime = /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(startTime) && minutes(startTime) >= 0 && minutes(startTime) <= 1439;
+  const validEndTime = /^(?:(?:[01]\d|2[0-3]):[0-5]\d|24:00)$/.test(endTime) && minutes(endTime) >= 1 && minutes(endTime) <= 1440;
+
   if (!new Set(validVenueIds).has(venueId)) issues.push('venue');
   if (!isDate(date)) issues.push('date');
-  const startValid = /^(?:[01]\d|2[0-3]):[0-5]\d$/.test(startTime) && minutes(startTime) >= 0 && minutes(startTime) <= 1439;
-  const endValid = /^(?:(?:[01]\d|2[0-3]):[0-5]\d|24:00)$/.test(endTime) && minutes(endTime) >= 1 && minutes(endTime) <= 1440;
-  if (!startValid) issues.push('start_time');
-  if (!endValid) issues.push('end_time');
-  if (startValid && endValid && minutes(endTime) <= minutes(startTime)) issues.push('time_order');
+  if (!validStartTime) issues.push('startTime');
+  if (!validEndTime) issues.push('endTime');
+  if (validStartTime && validEndTime && minutes(endTime) <= minutes(startTime)) issues.push('timeRange');
+  if (!description || !descriptionZh) issues.push('description');
   if (!Number.isInteger(pricePence) || pricePence < 0) issues.push('price');
   if (!Number.isInteger(capacity) || capacity < 1 || capacity > 1000) issues.push('capacity');
   if (!formatsValid || formats.length < 1) issues.push('formats');
-  if (!description) issues.push('description');
-  if (!descriptionZh) issues.push('description_zh');
   if (!status) issues.push('status');
   return issues;
-}
-
-export function validateSessionInput(
-  input: SessionInput,
-  validVenueIds: Iterable<string> = venues.map((venue) => venue.id),
-): ValidatedSessionInput | null {
-  const venueId = cleanString(input.venueId, 80);
-  const date = cleanString(input.date, 10);
-  const startTime = cleanString(input.startTime, 5);
-  const endTime = cleanString(input.endTime, 5);
-  const description = cleanString(input.description, 2000);
-  const descriptionZh = cleanString(input.descriptionZh, 2000);
-  const pricePence = Number(input.pricePence);
-  const capacity = Number(input.capacity);
-  const formatsInput = input.formats;
-  const formats = formatsInput === undefined
-    ? [...GAME_FORMATS]
-    : Array.isArray(formatsInput)
-      ? [...new Set(formatsInput as GameFormat[])]
-      : [];
-  const status = input.status === 'draft' ? 'draft' : input.status === 'published' ? 'published' : '';
-  if (getSessionInputIssues(input, validVenueIds).length) return null;
-  return {
-    venueId,
-    date,
-    startTime,
-    endTime,
-    pricePence,
-    capacity,
-    formats,
-    description,
-    descriptionZh,
-    status,
-  };
 }

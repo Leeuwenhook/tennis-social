@@ -25,8 +25,8 @@ export type VenueRow = {
   name_zh: string;
   area: string;
   area_zh: string;
-  notes?: string;
   photo: string;
+  notes: string;
   peak_price_pence: number;
   off_peak_price_pence: number;
   created_at: string;
@@ -154,11 +154,11 @@ export function database(): Database {
 function venueInsert(db: Database, venue: ReturnType<typeof createDemoSeed>['venues'][number], now: string) {
   return db`
     INSERT INTO venues (
-      id, name, name_zh, area, area_zh, photo, peak_price_pence,
-      off_peak_price_pence, notes, created_at, updated_at
+      id, name, name_zh, area, area_zh, photo, notes, peak_price_pence,
+      off_peak_price_pence, created_at, updated_at
     ) VALUES (
-      ${venue.id}, ${venue.name}, ${venue.nameZh}, ${venue.area}, ${venue.areaZh}, ${venue.photo},
-      ${venue.peakPricePence}, ${venue.offPeakPricePence}, ${venue.notes ?? ''}, ${now}, ${now}
+      ${venue.id}, ${venue.name}, ${venue.nameZh}, ${venue.area}, ${venue.areaZh}, ${venue.photo}, ${venue.notes ?? ''},
+      ${venue.peakPricePence}, ${venue.offPeakPricePence}, ${now}, ${now}
     )
     ON CONFLICT (id) DO NOTHING
   `;
@@ -234,8 +234,8 @@ export function serializeVenue(row: VenueRow) {
     nameZh: row.name_zh,
     area: row.area,
     areaZh: row.area_zh,
-    notes: row.notes ?? '',
     photo: row.photo,
+    notes: row.notes ?? '',
     peakPricePence: row.peak_price_pence,
     offPeakPricePence: row.off_peak_price_pence,
   };

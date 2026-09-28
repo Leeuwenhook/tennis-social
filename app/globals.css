@@ -1157,6 +1157,28 @@
   font-weight: 800;
 }
 
+.detail-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 10px;
+}
+
+.share-button {
+  width: 100%;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 999px;
+  font-weight: 800;
+}
+
+.share-notice {
+  margin: 10px 0 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
 .detail-about {
   display: grid;
   grid-template-columns: 0.8fr 1.2fr;

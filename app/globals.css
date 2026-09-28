@@ -2347,11 +2347,43 @@
   box-shadow: 0 2px 8px rgb(25 57 44 / 7%);
 }
 
+.admin-workspace {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.admin-sidebar {
+  position: sticky;
+  top: 20px;
+}
+
+.admin-sidebar .admin-tabs {
+  display: grid;
+  width: 100%;
+  margin: 0;
+  padding: 8px;
+}
+
+.admin-sidebar .admin-tabs button {
+  padding: 12px 14px;
+  text-align: left;
+}
+
+.admin-main-content {
+  min-width: 0;
+}
+
 .admin-session-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(350px, 0.78fr);
   gap: 22px;
   align-items: start;
+}
+
+.admin-session-layout.session-layout-full {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .admin-session-list,
@@ -3354,6 +3386,24 @@
 
   .admin-tabs {
     width: 100%;
+  }
+
+  .admin-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-sidebar {
+    position: static;
+  }
+
+  .admin-sidebar .admin-tabs {
+    display: flex;
+    overflow-x: auto;
+  }
+
+  .admin-sidebar .admin-tabs button {
+    flex: 0 0 auto;
+    text-align: center;
   }
 
   .admin-tabs button {

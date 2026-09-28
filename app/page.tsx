@@ -1213,6 +1213,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   const [confirmationEmailStatus, setConfirmationEmailStatus] = useState<ConfirmationEmailStatus>('not_applicable');
   const [adminTab, setAdminTab] = useState<AdminTab>('sessions');
   const [showExpiredSessions, setShowExpiredSessions] = useState(false);
+  const [sessionEditorOpen, setSessionEditorOpen] = useState(false);
   const [sessionDateFilter, setSessionDateFilter] = useState('');
   const [sessionVenueFilter, setSessionVenueFilter] = useState('');
   const [sessionStatusFilter, setSessionStatusFilter] = useState<SessionStatus | ''>('');
@@ -2433,6 +2434,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   }
 
   function startEdit(session: Session) {
+    setSessionEditorOpen(true);
     setDraft({
       id: session.id,
       venueId: session.venueId,
@@ -2447,7 +2449,6 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       status: session.status,
     });
     setAdminMessage('');
-    scrollTop();
   }
 
   function sessionOverlaps(a: { startTime: string; endTime: string }, b: { startTime: string; endTime: string }) {
@@ -2560,7 +2561,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     } else if (savedOnServer) {
       setAdminMessage(t.sessionSaved);
     }
-    if (savedOnServer || useLocalFallback) setDraft(emptyDraft(venueList));
+    if (savedOnServer || useLocalFallback) {
+      setDraft(emptyDraft(venueList));
+      setSessionEditorOpen(false);
+    }
     setAdminBusy(false);
   }
 
@@ -3442,7 +3446,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       : false;
     return (
       <form className="admin-editor" onSubmit={saveDraft}>
-        <div className="admin-editor-heading"><div><p className="eyebrow muted">{draft.id ? t.editSession : t.addSession}</p><h2>{draft.id ? t.editSession : t.addSession}</h2></div>{draft.id ? <button type="button" className="text-button" onClick={() => setDraft(emptyDraft(venueList))}>{t.cancelEdit}</button> : null}</div>
+        <div className="admin-editor-heading"><div><p className="eyebrow muted">{draft.id ? t.editSession : t.addSession}</p><h2>{draft.id ? t.editSession : t.addSession}</h2></div><button type="button" className="text-button" onClick={() => { setSessionEditorOpen(false); setDraft(emptyDraft(venueList)); }}>{t.cancelEdit}</button></div>
         <div className="form-grid two-col">
           <div className="field"><Label htmlFor="admin-venue">{t.location}</Label><select id="admin-venue" value={draft.venueId} onChange={(event) => setDraft((current) => { const venue = getVenue(event.target.value, venueList); return { ...current, venueId: event.target.value, price: current.id ? current.price : String(venue.offPeakPricePence / 100) }; })} className="native-select" disabled={hasActiveBookings}>{venueList.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}</select></div>
           <div className="field"><Label htmlFor="admin-date">{t.date}</Label><Input id="admin-date" type="date" value={draft.date} onChange={(event) => setDraft((current) => ({ ...current, date: event.target.value }))} disabled={hasActiveBookings} /></div>
@@ -3545,7 +3549,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       0,
     );
     return (
-      <section className="admin-page page-width">
+      <section className="admin-page">
         <div className="admin-heading">
           <div>
             <p className="eyebrow"><Settings2 size={14} /> {t.admin}</p>
@@ -3564,6 +3568,8 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <div><span>{activeBookings.length}</span><small>{t.activeBookings}</small></div>
           <div><span>{openSpots}</span><small>{t.spotsLeft}</small></div>
         </div>
+        <div className="admin-workspace">
+        <aside className="admin-sidebar">
         <div className="admin-tabs" role="tablist">
           <button type="button" role="tab" aria-selected={adminTab === 'sessions'} className={adminTab === 'sessions' ? 'active' : ''} onClick={() => setAdminTab('sessions')}>
             {t.manageSessions}
@@ -3578,8 +3584,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             {t.manageVenues}
           </button>
         </div>
+        </aside>
+        <div className="admin-main-content">
         {adminTab === 'sessions' ? (
-          <div className="admin-session-layout">
+          <div className={`admin-session-layout${sessionEditorOpen ? '' : ' session-layout-full'}`}>
             <div className="admin-session-list">
               <div className="admin-list-heading">
                 <div><p className="eyebrow muted">{t.sessions}</p><h2>{showExpiredSessions ? t.expiredSessions : t.upcoming}</h2></div>
@@ -3588,6 +3596,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                   <Button variant={sessionView === 'list' ? 'default' : 'outline'} size="sm" onClick={() => setSessionView('list')} disabled={adminBusy}>{t.sessionTableView}</Button>
                   <Button variant={sessionView === 'week' ? 'default' : 'outline'} size="sm" onClick={() => setSessionView('week')} disabled={adminBusy}>{t.sessionCalendarView}</Button>
                   <Button variant="outline" size="sm" onClick={exportSessions} disabled={adminBusy}><Download size={14} /> {t.exportSessions}</Button>
+                  <Button size="sm" onClick={() => { setDraft(emptyDraft(venueList)); setSessionEditorOpen(true); }} disabled={adminBusy}><Plus size={14} /> {t.addSession}</Button>
                   <Button variant="outline" size="sm" onClick={() => void undoLastOperation()} disabled={adminBusy || !undoSessions}><RefreshCw size={14} /> {t.undo}</Button>
                   <Button
                     variant="outline"
@@ -3624,7 +3633,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
               {sessionView === 'week' ? renderSessionCalendar() : <div className="session-table-wrap"><table className="session-table"><thead><tr><th><input type="checkbox" aria-label={t.selectAll} checked={adminSessions.length > 0 && adminSessions.every((session) => selectedSessionIds.includes(session.id))} onChange={(event) => setSelectedSessionIds(event.target.checked ? adminSessions.map((session) => session.id) : [])} /></th><th>{t.date}</th><th>{t.location}</th><th>{t.time}</th><th>{t.status}</th><th>{t.capacity}</th><th>{t.actions}</th></tr></thead><tbody>{adminSessions.map((session) => { const venue = getVenue(session.venueId, venueList); const spots = Math.max(0, session.capacity - session.bookedSpots); return <tr key={session.id}><td><input type="checkbox" checked={selectedSessionIds.includes(session.id)} onChange={(event) => setSelectedSessionIds((current) => event.target.checked ? [...current, session.id] : current.filter((id) => id !== session.id))} /></td><td><strong>{formatDate(session.date, language)}</strong></td><td>{venue.name}</td><td>{session.startTime}–{session.endTime}</td><td><Badge variant={session.status === 'published' ? 'default' : 'outline'}>{session.status === 'published' ? t.published : t.draft}</Badge></td><td>{session.bookedSpots}/{session.capacity} · {spots} {t.spotsLeft}</td><td><div className="admin-row-actions"><Button variant="outline" size="sm" onClick={() => startEdit(session)} disabled={adminBusy}><Pencil size={14} /> {t.edit}</Button><Button variant="outline" size="sm" onClick={() => void createRecurringSessions(session)} disabled={adminBusy}><Repeat2 size={14} /> {t.createNextWeeks}</Button><Button variant="destructive" size="sm" onClick={() => void deleteSession(session)} disabled={adminBusy}><Trash2 size={14} /> {t.delete}</Button></div></td></tr>; })}</tbody></table></div>}
               {!adminSessions.length ? <div className="empty-state">{t.noSessions}</div> : null}
             </div>
-            {renderSessionEditor()}
+            {sessionEditorOpen ? renderSessionEditor() : null}
           </div>
         ) : adminTab === 'bookings' ? (
           <div className="admin-bookings">
@@ -3715,6 +3724,8 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             {renderVenueEditor()}
           </div>
         )}
+        </div>
+        </div>
       </section>
     );
   }

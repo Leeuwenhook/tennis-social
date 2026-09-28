@@ -2374,7 +2374,6 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       status: session.status,
     });
     setAdminMessage('');
-    scrollTop();
   }
 
   async function saveDraft(event: FormEvent<HTMLFormElement>) {

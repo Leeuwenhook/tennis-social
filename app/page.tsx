@@ -2526,6 +2526,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       descriptionZh: session.descriptionZh,
       status,
     };
+  }
 
   async function saveDraft(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

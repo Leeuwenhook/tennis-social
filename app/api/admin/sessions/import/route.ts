@@ -3,9 +3,16 @@ import {
   DatabaseNotConfiguredError,
   ensureSeeded,
   serializeSession,
+  serializeVenue,
   type SessionRow,
+  type VenueRow,
 } from '@/lib/server/database';
-import { validateSessionInput, type SessionInput } from '@/lib/server/admin-validation';
+import {
+  sessionInputIssues,
+  validateSessionInput,
+  type SessionInput,
+  type SessionValidationIssue,
+} from '@/lib/server/admin-validation';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { generateSessionDescriptions } from '@/lib/server/session-description';
 import { GAME_FORMATS, type GameFormat } from '@/lib/demo-data';
@@ -16,6 +23,17 @@ export const runtime = 'nodejs';
 type ImportRecord = {
   rowNumber?: unknown;
   session?: SessionInput & { venue?: unknown };
+};
+
+type ImportIssueCode = SessionValidationIssue | 'row' | 'duplicate';
+
+type PendingVenue = {
+  id: string;
+  name: string;
+  nameZh: string;
+  prices: number[];
+  photo: string;
+  notes: string;
 };
 
 function normalizedName(value: unknown) {
@@ -48,18 +66,30 @@ export async function POST(request: Request) {
   try {
     const db = database();
     await ensureSeeded(db);
-    const venueRows = await db`SELECT id, name, name_zh FROM venues` as Array<{ id: string; name: string; name_zh: string }>;
+    const venueRows = await db`
+      SELECT id, name, name_zh, area, area_zh, photo, notes,
+             peak_price_pence, off_peak_price_pence, created_at, updated_at
+      FROM venues
+    ` as VenueRow[];
     const validVenueIds = venueRows.map((venue) => venue.id);
-    const venuesByName = new Map<string, { id: string; name: string; nameZh: string }>();
+    const venuesByName = new Map<string, { id: string; name: string; nameZh: string; photo: string }>();
     for (const venue of venueRows) {
       for (const name of [venue.id, venue.name, venue.name_zh]) {
-        venuesByName.set(normalizedName(name), { id: venue.id, name: venue.name, nameZh: venue.name_zh });
+        venuesByName.set(normalizedName(name), {
+          id: venue.id,
+          name: venue.name,
+          nameZh: venue.name_zh,
+          photo: venue.photo,
+        });
       }
     }
 
-    const invalidRows: number[] = [];
-    const unknownVenues = new Set<string>();
+    const issues: Array<{ row: number; fields: ImportIssueCode[] }> = [];
+    const pendingVenuesByName = new Map<string, PendingVenue>();
+    const fallbackPhoto = venueRows.find((venue) => typeof venue.photo === 'string' && venue.photo.trim())?.photo
+      || '/venues/victoria-park.jpg';
     const sessions: Array<{ rowNumber: number; session: NonNullable<ReturnType<typeof validateSessionInput>> }> = [];
+
     for (let index = 0; index < input.sessions.length; index += 1) {
       const record = input.sessions[index] as ImportRecord;
       const rowNumber = typeof record?.rowNumber === 'number' && Number.isInteger(record.rowNumber)
@@ -67,21 +97,34 @@ export async function POST(request: Request) {
         : index + 2;
       const source = record?.session;
       if (!source || typeof source !== 'object') {
-        invalidRows.push(rowNumber);
+        issues.push({ row: rowNumber, fields: ['row'] });
         continue;
       }
-      const venue = venuesByName.get(normalizedName(source.venue));
-      const venueId = venue?.id ?? '';
-      if (!venue) {
-        const venueName = typeof source.venue === 'string' ? source.venue.trim() : '';
-        if (venueName) unknownVenues.add(venueName);
+
+      const venueName = typeof source.venue === 'string' ? source.venue.trim() : '';
+      const venueKey = normalizedName(venueName);
+      const existingVenue = venuesByName.get(venueKey);
+      let venue = existingVenue;
+      let pendingVenue = venueKey ? pendingVenuesByName.get(venueKey) : undefined;
+      if (!venue && venueName && venueName.length <= 120) {
+        pendingVenue ??= {
+          id: `venue-${crypto.randomUUID()}`,
+          name: venueName,
+          nameZh: venueName,
+          prices: [],
+          photo: fallbackPhoto,
+          notes: '（复用照片）',
+        };
+        pendingVenuesByName.set(venueKey, pendingVenue);
+        venue = pendingVenue;
       }
+
       const formats = Array.isArray(source.formats)
         ? source.formats.filter((format): format is GameFormat => GAME_FORMATS.includes(format as GameFormat))
         : [];
       const generatedDescriptions = generateSessionDescriptions({
-        venueName: venue?.name ?? (typeof source.venue === 'string' ? source.venue : ''),
-        venueNameZh: venue?.nameZh ?? (typeof source.venue === 'string' ? source.venue : ''),
+        venueName: venue?.name ?? venueName,
+        venueNameZh: venue?.nameZh ?? venueName,
         date: typeof source.date === 'string' ? source.date : '',
         startTime: typeof source.startTime === 'string' ? source.startTime : '',
         endTime: typeof source.endTime === 'string' ? source.endTime : '',
@@ -90,20 +133,30 @@ export async function POST(request: Request) {
       });
       const description = typeof source.description === 'string' ? source.description.trim() : '';
       const descriptionZh = typeof source.descriptionZh === 'string' ? source.descriptionZh.trim() : '';
-      const session = validateSessionInput({
+      const candidate = {
         ...source,
-        venueId,
+        venueId: venue?.id ?? '',
         description: description || generatedDescriptions.description,
         descriptionZh: descriptionZh || generatedDescriptions.descriptionZh,
-      }, validVenueIds);
-      if (!session) invalidRows.push(rowNumber);
-      else sessions.push({ rowNumber, session });
+      };
+      const venueIssues: ImportIssueCode[] = !venueName || venueName.length > 120 ? ['venue'] : [];
+      const validationIds = [...validVenueIds, ...[...pendingVenuesByName.values()].map((item) => item.id)];
+      const rowIssues = [...venueIssues, ...sessionInputIssues(candidate, validationIds)]
+        .filter((issue, issueIndex, list): issue is ImportIssueCode => list.indexOf(issue) === issueIndex);
+      const session = validateSessionInput(candidate, validationIds);
+      if (!session || rowIssues.length) {
+        issues.push({ row: rowNumber, fields: rowIssues.length ? rowIssues : ['row'] });
+      } else {
+        pendingVenue?.prices.push(session.pricePence);
+        sessions.push({ rowNumber, session });
+      }
     }
-    if (invalidRows.length) {
+
+    if (issues.length) {
       return Response.json({
         error: 'invalid_import_rows',
-        rows: invalidRows,
-        unknownVenues: [...unknownVenues].sort((a, b) => a.localeCompare(b)),
+        rows: issues.map((issue) => issue.row),
+        issues,
       }, { status: 400 });
     }
 
@@ -132,11 +185,31 @@ export async function POST(request: Request) {
       if (existingKeys.has(scheduleKey(session))) duplicateRows.add(rowNumber);
     }
     if (duplicateRows.size) {
-      return Response.json({ error: 'duplicate_import_rows', rows: [...duplicateRows].sort((a, b) => a - b) }, { status: 409 });
+      const rows = [...duplicateRows].sort((a, b) => a - b);
+      return Response.json({
+        error: 'duplicate_import_rows',
+        rows,
+        issues: rows.map((row) => ({ row, fields: ['duplicate'] as ImportIssueCode[] })),
+      }, { status: 409 });
     }
 
     const now = new Date().toISOString();
-    const inserts = sessions.map(({ session }) => {
+    const pendingVenues = [...pendingVenuesByName.values()].filter((venue) => venue.prices.length);
+    const venueInserts = pendingVenues.map((venue) => {
+      const peakPricePence = Math.max(...venue.prices);
+      return db`
+        INSERT INTO venues (
+          id, name, name_zh, area, area_zh, photo, notes, peak_price_pence,
+          off_peak_price_pence, created_at, updated_at
+        ) VALUES (
+          ${venue.id}, ${venue.name}, ${venue.nameZh}, 'London', '伦敦', ${venue.photo}, ${venue.notes},
+          ${peakPricePence}, ${peakPricePence}, ${now}, ${now}
+        )
+        RETURNING id, name, name_zh, area, area_zh, photo, notes,
+                  peak_price_pence, off_peak_price_pence, created_at, updated_at
+      `;
+    });
+    const sessionInserts = sessions.map(({ session }) => {
       const id = `session-${crypto.randomUUID()}`;
       return db`
         INSERT INTO sessions (
@@ -151,9 +224,21 @@ export async function POST(request: Request) {
                   booked_spots, formats_json, status, description, description_zh
       `;
     });
-    const inserted = await db.transaction(inserts) as unknown as SessionRow[][];
-    const imported = inserted.map((rows) => serializeSession(rows[0]));
-    return Response.json({ sessions: imported, importedCount: imported.length }, { status: 201 });
+    const inserted = await db.transaction([...venueInserts, ...sessionInserts]) as unknown as Array<Array<VenueRow | SessionRow>>;
+    const createdVenues = inserted.slice(0, venueInserts.length)
+      .map((rows) => rows[0] as VenueRow)
+      .filter(Boolean)
+      .map(serializeVenue);
+    const imported = inserted.slice(venueInserts.length)
+      .map((rows) => rows[0] as SessionRow)
+      .filter(Boolean)
+      .map(serializeSession);
+    return Response.json({
+      sessions: imported,
+      importedCount: imported.length,
+      createdVenues,
+      createdVenueCount: createdVenues.length,
+    }, { status: 201 });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {
       return Response.json({ error: 'database_not_configured' }, { status: 503 });

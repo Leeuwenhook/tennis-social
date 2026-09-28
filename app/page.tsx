@@ -146,9 +146,12 @@ type VenueDraft = {
   name: string;
   area: string;
   photo: string;
+  notes: string;
   peakPrice: string;
   offPeakPrice: string;
 };
+
+type SessionImportIssueCode = 'venue' | 'date' | 'startTime' | 'endTime' | 'timeRange' | 'description' | 'price' | 'capacity' | 'formats' | 'status' | 'row' | 'duplicate';
 
 type ReservationRequestStatus = 'pending' | 'reviewing' | 'completed';
 type ReservationRequest = {
@@ -316,7 +319,7 @@ const translations = {
     downloadSessionTemplate: 'Download Excel template',
     importSessions: 'Import Excel sessions',
     importingSessions: 'Importing…',
-    sessionImportHelp: 'Fill in the template and import up to 200 sessions at a time. Descriptions are optional and are generated from the session details when left blank.',
+    sessionImportHelp: 'Fill in the template and import up to 200 sessions at a time. Unknown venues are created automatically with a reused photo, and the Excel price becomes the venue peak default. Descriptions are optional and are generated from the session details when left blank.',
     sessionImportSuccess: '{count} sessions imported.',
     sessionImportFailed: 'Import failed. Check the workbook and try again.',
     sessionImportInvalidFile: 'Choose a valid .xlsx file up to 5 MB.',
@@ -326,6 +329,20 @@ const translations = {
     sessionImportTooLarge: 'This batch is too large. Split it into smaller imports.',
     sessionImportInvalidRows: 'Check these worksheet rows: {rows}.',
     sessionImportUnknownVenues: 'Rows {rows} use venues not found in Admin: {venues}. Add them under Manage venues, then import again.',
+    sessionImportInvalidDetails: 'Rows with issues: {details}.',
+    sessionImportCreatedVenues: 'Imported {count} sessions and created {venues} new venues with a reused photo. Review them under Manage venues.',
+    importIssueVenue: 'venue name',
+    importIssueDate: 'date',
+    importIssueStartTime: 'start time',
+    importIssueEndTime: 'end time',
+    importIssueTimeRange: 'end time must be later than start time',
+    importIssueDescription: 'description',
+    importIssuePrice: 'price',
+    importIssueCapacity: 'capacity',
+    importIssueFormats: 'format',
+    importIssueStatus: 'status',
+    importIssueRow: 'row structure',
+    importIssueDuplicate: 'duplicate schedule',
     sessionImportDuplicateRows: 'These rows duplicate an existing session or another imported row: {rows}.',
     editSession: 'Edit session',
     saveSession: 'Save session',
@@ -409,7 +426,7 @@ const translations = {
     logout: 'Sign out',
     manageVenues: 'Manage venues',
     venueList: 'Venue list',
-    venueListIntro: 'Update venue details, images and default peak/off-peak prices.',
+    venueListIntro: 'View, add, replace and remove venue images, then update venue details and default prices.',
     addVenue: 'Add venue',
     editVenue: 'Edit venue',
     saveVenue: 'Save venue',
@@ -418,7 +435,13 @@ const translations = {
     venueImage: 'Venue image',
     imageUrl: 'Image URL or public path',
     uploadImage: 'Choose image',
+    viewImage: 'View image',
+    replaceImage: 'Replace image',
+    removeImage: 'Remove image',
+    reuseImage: 'Use reused image',
     imageHelp: 'Use a public image URL, a path such as /venues/example.jpg, or choose a local image up to 1 MB.',
+    venueNotes: 'Notes',
+    reusedPhotoNote: '(reused photo)',
     peakPrice: 'Peak default price',
     offPeakPrice: 'Off-peak default price',
     usePeakPrice: 'Use peak default',
@@ -579,7 +602,7 @@ const translations = {
     downloadSessionTemplate: '下载 Excel 模板',
     importSessions: '导入 Excel 场次',
     importingSessions: '正在导入…',
-    sessionImportHelp: '填写模板后导入，每次最多 200 场。描述可留空，系统会根据场次信息自动生成。',
+    sessionImportHelp: '填写模板后导入，每次最多 200 场。Excel 中的价格会作为新场地的忙时默认价格；不存在的场地会自动创建并复用已有照片。描述可留空，系统会根据场次信息自动生成。',
     sessionImportSuccess: '已导入 {count} 场。',
     sessionImportFailed: '导入失败，请检查工作簿后重试。',
     sessionImportInvalidFile: '请选择有效的 .xlsx 文件，大小不得超过 5 MB。',
@@ -589,6 +612,20 @@ const translations = {
     sessionImportTooLarge: '本批数据过大，请拆分成多个批次导入。',
     sessionImportInvalidRows: '请检查工作表中的这些行：{rows}。',
     sessionImportUnknownVenues: '第 {rows} 行使用了后台不存在的场地：{venues}。请先在“管理场地”中新增这些场地，再重新导入。',
+    sessionImportInvalidDetails: '存在问题的行：{details}。',
+    sessionImportCreatedVenues: '已导入 {count} 场，并自动创建 {venues} 个场地；新场地暂复用已有图片，请到“管理场地”补充信息。',
+    importIssueVenue: '场地名称',
+    importIssueDate: '日期',
+    importIssueStartTime: '开始时间',
+    importIssueEndTime: '结束时间',
+    importIssueTimeRange: '结束时间须晚于开始时间',
+    importIssueDescription: '活动介绍',
+    importIssuePrice: '价格',
+    importIssueCapacity: '名额',
+    importIssueFormats: '比赛形式',
+    importIssueStatus: '状态',
+    importIssueRow: '行结构',
+    importIssueDuplicate: '重复场次',
     sessionImportDuplicateRows: '这些行与已有场次或本次导入中的其他行重复：{rows}。',
     editSession: '编辑场次',
     saveSession: '保存场次',
@@ -673,7 +710,7 @@ const translations = {
     logout: '退出登录',
     manageVenues: '管理场地',
     venueList: '场地列表',
-    venueListIntro: '更新场地信息、图片以及忙时/闲时默认价格。',
+    venueListIntro: '可查看、新增、替换或移除场地图片，并更新场地信息及忙时/闲时默认价格。',
     addVenue: '新增场地',
     editVenue: '编辑场地',
     saveVenue: '保存场地',
@@ -682,7 +719,13 @@ const translations = {
     venueImage: '场地图片',
     imageUrl: '图片 URL 或公开路径',
     uploadImage: '选择图片',
+    viewImage: '查看图片',
+    replaceImage: '替换图片',
+    removeImage: '移除图片',
+    reuseImage: '使用复用图片',
     imageHelp: '可填写公开图片 URL、/venues/example.jpg 路径，或选择 1 MB 以内的本地图片。',
+    venueNotes: '备注',
+    reusedPhotoNote: '（复用照片）',
     peakPrice: '忙时默认价格',
     offPeakPrice: '闲时默认价格',
     usePeakPrice: '使用忙时默认价',
@@ -883,6 +926,7 @@ function normalizeVenue(value: unknown): Venue | null {
     area: venue.area,
     areaZh: venue.areaZh,
     photo: venue.photo,
+    notes: typeof venue.notes === 'string' ? venue.notes : '',
     peakPricePence,
     offPeakPricePence,
   };
@@ -908,6 +952,21 @@ function formatMoney(pence: number, language: Language) {
     currency: 'GBP',
     maximumFractionDigits: 0,
   }).format(pence / 100);
+}
+
+function importIssueLabel(code: SessionImportIssueCode, language: Language) {
+  const labels: Record<SessionImportIssueCode, string> = language === 'zh'
+    ? {
+      venue: '场地名称', date: '日期', startTime: '开始时间', endTime: '结束时间',
+      timeRange: '结束时间须晚于开始时间', description: '活动介绍', price: '价格',
+      capacity: '名额', formats: '比赛形式', status: '状态', row: '行结构', duplicate: '重复场次',
+    }
+    : {
+      venue: 'venue name', date: 'date', startTime: 'start time', endTime: 'end time',
+      timeRange: 'end time must be later than start time', description: 'description', price: 'price',
+      capacity: 'capacity', formats: 'format', status: 'status', row: 'row structure', duplicate: 'duplicate schedule',
+    };
+  return labels[code];
 }
 
 function formatDate(date: string, language: Language) {
@@ -1005,6 +1064,7 @@ function emptyVenueDraft(venueList: Venue[] = venues): VenueDraft {
     name: '',
     area: '',
     photo: '',
+    notes: '',
     peakPrice: String((venue?.peakPricePence ?? DEFAULT_PEAK_PRICE_PENCE) / 100),
     offPeakPrice: String((venue?.offPeakPricePence ?? DEFAULT_OFF_PEAK_PRICE_PENCE) / 100),
   };
@@ -2009,6 +2069,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       name: venue.name,
       area: venue.area,
       photo: venue.photo,
+      notes: venue.notes ?? '',
       peakPrice: String(venue.peakPricePence / 100),
       offPeakPrice: String(venue.offPeakPricePence / 100),
     });
@@ -2027,11 +2088,30 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
-        setVenueDraft((current) => ({ ...current, photo: reader.result as string }));
+        setVenueDraft((current) => ({
+          ...current,
+          photo: reader.result as string,
+          notes: current.notes.replace(/\s*[（(]复用照片[）)]\s*/g, '').trim(),
+        }));
         setAdminMessage('');
       }
     };
     reader.readAsDataURL(file);
+  }
+
+  function fallbackVenuePhoto(currentVenueId: string | null) {
+    return venueList.find((venue) => venue.id !== currentVenueId && venue.photo.trim())?.photo
+      || venues.find((venue) => venue.photo.trim())?.photo
+      || '/venues/victoria-park.jpg';
+  }
+
+  function reuseVenuePhoto() {
+    setVenueDraft((current) => ({
+      ...current,
+      photo: fallbackVenuePhoto(current.id),
+      notes: current.notes.includes('复用照片') ? current.notes : `${current.notes ? `${current.notes} ` : ''}${t.reusedPhotoNote}`,
+    }));
+    setAdminMessage('');
   }
 
   function applyVenueDefaultPrice(kind: 'peak' | 'offPeak') {
@@ -2064,6 +2144,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       area,
       areaZh: existing?.areaZh.trim() || area,
       photo: venueDraft.photo.trim(),
+      notes: venueDraft.notes.trim(),
       peakPricePence,
       offPeakPricePence,
     };
@@ -2082,6 +2163,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             area: nextVenue.area,
             areaZh: nextVenue.areaZh,
             photo: nextVenue.photo,
+            notes: nextVenue.notes,
             peakPricePence,
             offPeakPricePence,
           }),
@@ -2379,8 +2461,11 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         error?: string;
         rows?: number[];
         unknownVenues?: string[];
+        issues?: Array<{ row?: unknown; fields?: unknown }>;
         sessions?: Session[];
         importedCount?: number;
+        createdVenues?: unknown[];
+        createdVenueCount?: number;
       };
 
       if (response.status === 401) {
@@ -2392,14 +2477,31 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       if (!response.ok) {
         const rowList = Array.isArray(data.rows) ? data.rows.join(', ') : '';
         if (data.error === 'invalid_import_rows') {
+          const issueDetails = Array.isArray(data.issues)
+            ? data.issues.map((issue) => {
+              const row = typeof issue.row === 'number' ? issue.row : '?';
+              const fields = Array.isArray(issue.fields)
+                ? issue.fields.filter((field): field is SessionImportIssueCode => typeof field === 'string').map((field) => importIssueLabel(field, language)).join(language === 'zh' ? '、' : ', ')
+                : '';
+              return `${row}（${fields || t.importIssueRow}）`;
+            }).join(language === 'zh' ? '；' : '; ')
+            : '';
           const unknownVenues = Array.isArray(data.unknownVenues)
             ? data.unknownVenues.filter((venue): venue is string => typeof venue === 'string' && venue.trim()).join(', ')
             : '';
-          setSessionImportMessage(unknownVenues
+          setSessionImportMessage(issueDetails
+            ? t.sessionImportInvalidDetails.replace('{details}', issueDetails)
+            : unknownVenues
             ? t.sessionImportUnknownVenues.replace('{rows}', rowList).replace('{venues}', unknownVenues)
             : t.sessionImportInvalidRows.replace('{rows}', rowList));
         } else if (data.error === 'duplicate_import_rows') {
-          setSessionImportMessage(t.sessionImportDuplicateRows.replace('{rows}', rowList));
+          const issueDetails = Array.isArray(data.issues)
+            ? data.issues.map((issue) => {
+              const row = typeof issue.row === 'number' ? issue.row : '?';
+              return `${row}（${t.importIssueDuplicate}）`;
+            }).join(language === 'zh' ? '；' : '; ')
+            : '';
+          setSessionImportMessage(issueDetails || t.sessionImportDuplicateRows.replace('{rows}', rowList));
         } else if (data.error === 'import_too_many_rows') {
           setSessionImportMessage(t.sessionImportTooManyRows);
         } else if (data.error === 'import_too_large') {
@@ -2417,7 +2519,18 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         return;
       }
       setSessions((current) => [...current, ...data.sessions as Session[]]);
-      setSessionImportMessage(t.sessionImportSuccess.replace('{count}', String(data.importedCount ?? data.sessions.length)));
+      const createdVenues = (data.createdVenues ?? []).map(normalizeVenue).filter((venue): venue is Venue => Boolean(venue));
+      if (createdVenues.length) {
+        setVenueList((current) => {
+          const createdIds = new Set(createdVenues.map((venue) => venue.id));
+          return [...current.filter((venue) => !createdIds.has(venue.id)), ...createdVenues];
+        });
+        setSessionImportMessage(t.sessionImportCreatedVenues
+          .replace('{count}', String(data.importedCount ?? data.sessions.length))
+          .replace('{venues}', String(data.createdVenueCount ?? createdVenues.length)));
+      } else {
+        setSessionImportMessage(t.sessionImportSuccess.replace('{count}', String(data.importedCount ?? data.sessions.length)));
+      }
     } catch (error) {
       if (error instanceof SessionImportError) {
         const messages = {
@@ -3116,10 +3229,22 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         </div>
         <div className="field venue-image-field">
           <Label htmlFor="venue-photo">{t.venueImage} <em>*</em></Label>
-          <Input id="venue-photo" type="text" value={venueDraft.photo.startsWith('data:') ? '' : venueDraft.photo} placeholder={t.imageUrl} onChange={(event) => setVenueDraft((current) => ({ ...current, photo: event.target.value }))} />
-          <div className="venue-upload-row"><Input id="venue-photo-file" type="file" accept="image/*" onChange={chooseVenueImage} /><span>{t.uploadImage}</span></div>
+          <Input id="venue-photo" type="text" value={venueDraft.photo.startsWith('data:') ? '' : venueDraft.photo} placeholder={t.imageUrl} onChange={(event) => setVenueDraft((current) => ({
+            ...current,
+            photo: event.target.value,
+            notes: current.notes.replace(/\s*[（(]复用照片[）)]\s*/g, '').trim(),
+          }))} />
+          <div className="venue-upload-row"><Input id="venue-photo-file" type="file" accept="image/*" aria-label={t.replaceImage} onChange={chooseVenueImage} /><span>{t.replaceImage} · {t.uploadImage}</span></div>
+          <div className="venue-image-actions">
+            {venueDraft.photo ? <a className={buttonVariants({ variant: 'outline', size: 'sm' })} href={venueDraft.photo} target="_blank" rel="noreferrer">{t.viewImage}</a> : null}
+            <Button type="button" variant="outline" size="sm" onClick={reuseVenuePhoto}>{venueDraft.photo ? t.removeImage : t.reuseImage}</Button>
+          </div>
           <p className="admin-field-note">{t.imageHelp}</p>
           {venueDraft.photo ? <img className="venue-image-preview" src={venueDraft.photo} alt={venueDraft.name || t.venueImage} /> : null}
+        </div>
+        <div className="field">
+          <Label htmlFor="venue-notes">{t.venueNotes}</Label>
+          <textarea id="venue-notes" value={venueDraft.notes} onChange={(event) => setVenueDraft((current) => ({ ...current, notes: event.target.value }))} className="native-textarea" rows={2} placeholder={t.venueNotes} />
         </div>
         {adminMessage ? <div className="admin-message"><Check size={15} /> {adminMessage}</div> : null}
         <Button type="submit" disabled={adminBusy}><Check size={16} /> {adminBusy ? t.saving : t.saveVenue}</Button>
@@ -3314,11 +3439,12 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
               </div>
               {venueList.map((venue) => (
                 <div className="admin-venue-row" key={venue.id}>
-                  <img src={venue.photo} alt="" />
+                  <a className="admin-venue-photo-link" href={venue.photo} target="_blank" rel="noreferrer" title={t.viewImage}><img src={venue.photo} alt={venue.name} /></a>
                   <div className="admin-venue-row-main">
                     <strong>{venue.name}</strong>
                     <span>{venue.area}</span>
                     <small>{t.peakPrice}: {formatMoney(venue.peakPricePence, language)} · {t.offPeakPrice}: {formatMoney(venue.offPeakPricePence, language)}</small>
+                    {venue.notes ? <small className="admin-venue-note">{venue.notes}</small> : null}
                   </div>
                   <div className="admin-row-actions">
                     <Button variant="outline" size="sm" onClick={() => startEditVenue(venue)} disabled={adminBusy}><Pencil size={14} /> {t.edit}</Button>

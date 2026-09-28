@@ -1214,6 +1214,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   const [adminTab, setAdminTab] = useState<AdminTab>('sessions');
   const [showExpiredSessions, setShowExpiredSessions] = useState(false);
   const [sessionEditorOpen, setSessionEditorOpen] = useState(false);
+  const [venueEditorOpen, setVenueEditorOpen] = useState(false);
   const [sessionDateFilter, setSessionDateFilter] = useState('');
   const [sessionVenueFilter, setSessionVenueFilter] = useState('');
   const [sessionStatusFilter, setSessionStatusFilter] = useState<SessionStatus | ''>('');
@@ -2174,6 +2175,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   }
 
   function startEditVenue(venue: Venue) {
+    setVenueEditorOpen(true);
     setVenueDraft({
       id: venue.id,
       name: venue.name,
@@ -2184,7 +2186,6 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       offPeakPrice: String(venue.offPeakPricePence / 100),
     });
     setAdminMessage('');
-    scrollTop();
   }
 
   function chooseVenueImage(event: ChangeEvent<HTMLInputElement>) {
@@ -2306,6 +2307,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     }
     if (savedOnServer || useLocalFallback) {
       setVenueDraft(emptyVenueDraft(venueList));
+      setVenueEditorOpen(false);
       setAdminMessage(t.venueSaved);
     }
     setAdminBusy(false);
@@ -3469,7 +3471,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       <form className="admin-editor venue-editor" onSubmit={saveVenue}>
         <div className="admin-editor-heading">
           <div><p className="eyebrow muted">{venueDraft.id ? t.editVenue : t.addVenue}</p><h2>{venueDraft.id ? t.editVenue : t.addVenue}</h2></div>
-          {venueDraft.id ? <button type="button" className="text-button" onClick={() => setVenueDraft(emptyVenueDraft(venueList))}>{t.cancelEdit}</button> : null}
+          <button type="button" className="text-button" onClick={() => { setVenueEditorOpen(false); setVenueDraft(emptyVenueDraft(venueList)); }}>{t.cancelEdit}</button>
         </div>
         <div className="form-grid two-col">
           <div className="field"><Label htmlFor="venue-name">{t.venueName} <em>*</em></Label><Input id="venue-name" value={venueDraft.name} onChange={(event) => setVenueDraft((current) => ({ ...current, name: event.target.value }))} /></div>
@@ -3699,11 +3701,11 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             ) : <div className="empty-state">{t.noRequests}</div>}
           </div>
         ) : (
-          <div className="admin-venue-layout">
+          <div className={`admin-venue-layout${venueEditorOpen ? '' : ' venue-layout-full'}`}>
             <div className="admin-venue-list">
               <div className="admin-list-heading">
                 <div><p className="eyebrow muted">{t.manageVenues}</p><h2>{t.venueList}</h2><p>{t.venueListIntro}</p></div>
-                <div className="admin-list-heading-actions"><Badge variant="secondary">{venueList.length}</Badge><Button variant="outline" size="sm" onClick={() => { setVenueDraft(emptyVenueDraft(venueList)); setAdminMessage(''); }} disabled={adminBusy}><Plus size={14} /> {t.addVenue}</Button></div>
+                <div className="admin-list-heading-actions"><Badge variant="secondary">{venueList.length}</Badge><Button variant="outline" size="sm" onClick={() => { setVenueDraft(emptyVenueDraft(venueList)); setAdminMessage(''); setVenueEditorOpen(true); }} disabled={adminBusy}><Plus size={14} /> {t.addVenue}</Button></div>
               </div>
               {venueList.map((venue) => (
                 <div className="admin-venue-row" key={venue.id}>
@@ -3721,7 +3723,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                 </div>
               ))}
             </div>
-            {renderVenueEditor()}
+            {venueEditorOpen ? renderVenueEditor() : null}
           </div>
         )}
         </div>

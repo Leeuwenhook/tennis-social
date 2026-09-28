@@ -4,6 +4,7 @@ export type Venue = {
   nameZh: string;
   area: string;
   areaZh: string;
+  notes?: string;
   photo: string;
   peakPricePence: number;
   offPeakPricePence: number;

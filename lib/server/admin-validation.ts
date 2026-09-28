@@ -6,6 +6,7 @@ export type VenueInput = {
   area?: unknown;
   areaZh?: unknown;
   photo?: unknown;
+  photos?: unknown;
   notes?: unknown;
   peakPricePence?: unknown;
   offPeakPricePence?: unknown;
@@ -17,6 +18,7 @@ export type ValidatedVenueInput = {
   area: string;
   areaZh: string;
   photo: string;
+  photos: string[];
   notes: string;
   peakPricePence: number;
   offPeakPricePence: number;
@@ -81,7 +83,9 @@ export function validateVenueInput(input: VenueInput): ValidatedVenueInput | nul
   const area = cleanString(input.area, 120);
   const areaZh = cleanString(input.areaZh, 120);
   const rawPhoto = typeof input.photo === 'string' ? input.photo.trim() : '';
-  const photo = rawPhoto.slice(0, 2_500_000);
+  const rawPhotos = Array.isArray(input.photos) ? input.photos.filter((photo): photo is string => typeof photo === 'string' && photo.trim()).map((photo) => photo.trim()) : [];
+  const photos = rawPhotos.length ? rawPhotos : rawPhoto ? [rawPhoto] : [];
+  const primaryPhoto = photos[0] ?? '';
   const notes = cleanString(input.notes, 1000);
   const peakPriceValue = typeof input.peakPricePence === 'string'
     ? input.peakPricePence.trim()
@@ -91,14 +95,14 @@ export function validateVenueInput(input: VenueInput): ValidatedVenueInput | nul
     : typeof input.offPeakPricePence === 'number' ? String(input.offPeakPricePence) : '';
   const peakPricePence = Number(peakPriceValue);
   const offPeakPricePence = Number(offPeakPriceValue);
-  const isSafePhoto = photo.startsWith('/') || /^https?:\/\//i.test(photo) || /^data:image\/[a-z0-9.+-]+;base64,/i.test(photo);
+  const isSafePhoto = (photo: string) => photo.startsWith('/') || /^https?:\/\//i.test(photo) || /^data:image\/[a-z0-9.+-]+;base64,/i.test(photo);
   if (
-    !name || !nameZh || !area || !areaZh || !rawPhoto || rawPhoto.length > 2_500_000 || !isSafePhoto || !peakPriceValue || !offPeakPriceValue ||
+    !name || !nameZh || !area || !areaZh || !photos.length || photos.some((photo) => photo.length > 2_500_000 || !isSafePhoto(photo)) || !peakPriceValue || !offPeakPriceValue ||
     !Number.isInteger(peakPricePence) || peakPricePence < 0 || peakPricePence > 100_000 ||
     !Number.isInteger(offPeakPricePence) || offPeakPricePence < 0 || offPeakPricePence > 100_000 ||
     peakPricePence < offPeakPricePence
   ) return null;
-  return { name, nameZh, area, areaZh, photo, notes, peakPricePence, offPeakPricePence };
+  return { name, nameZh, area, areaZh, photo: primaryPhoto, photos, notes, peakPricePence, offPeakPricePence };
 }
 
 export function validateSessionInput(

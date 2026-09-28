@@ -26,6 +26,7 @@ export type VenueRow = {
   area: string;
   area_zh: string;
   photo: string;
+  photos_json: string;
   notes: string;
   peak_price_pence: number;
   off_peak_price_pence: number;
@@ -155,10 +156,10 @@ function venueInsert(db: Database, venue: ReturnType<typeof createDemoSeed>['ven
   return db`
     INSERT INTO venues (
       id, name, name_zh, area, area_zh, photo, notes, peak_price_pence,
-      off_peak_price_pence, created_at, updated_at
+      off_peak_price_pence, photos_json, created_at, updated_at
     ) VALUES (
       ${venue.id}, ${venue.name}, ${venue.nameZh}, ${venue.area}, ${venue.areaZh}, ${venue.photo}, ${venue.notes ?? ''},
-      ${venue.peakPricePence}, ${venue.offPeakPricePence}, ${now}, ${now}
+      ${venue.peakPricePence}, ${venue.offPeakPricePence}, ${JSON.stringify(venue.photos?.length ? venue.photos : [venue.photo])}, ${now}, ${now}
     )
     ON CONFLICT (id) DO NOTHING
   `;
@@ -228,6 +229,14 @@ export async function resetSeed(db = database()) {
 }
 
 export function serializeVenue(row: VenueRow) {
+  let photos: string[] = [];
+  try {
+    const parsed = JSON.parse(row.photos_json || '[]') as unknown;
+    if (Array.isArray(parsed)) photos = parsed.filter((photo): photo is string => typeof photo === 'string' && photo.trim().length > 0);
+  } catch {
+    // Fall back to the legacy primary photo below.
+  }
+  if (!photos.length && row.photo) photos = [row.photo];
   return {
     id: row.id,
     name: row.name,
@@ -235,6 +244,7 @@ export function serializeVenue(row: VenueRow) {
     area: row.area,
     areaZh: row.area_zh,
     photo: row.photo,
+    photos,
     notes: row.notes ?? '',
     peakPricePence: row.peak_price_pence,
     offPeakPricePence: row.off_peak_price_pence,

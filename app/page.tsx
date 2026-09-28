@@ -146,6 +146,7 @@ type VenueDraft = {
   name: string;
   area: string;
   photo: string;
+  photos: string[];
   notes: string;
   peakPrice: string;
   offPeakPrice: string;
@@ -803,6 +804,18 @@ function getVenue(venueId: string, venueList: Venue[] = venues): Venue {
   return venueList.find((venue) => venue.id === venueId) ?? venueList[0] ?? venues[0];
 }
 
+function VenuePhoto({ venue, alt, className = '', controls = true }: { venue: Venue; alt: string; className?: string; controls?: boolean }) {
+  const photos = venue.photos?.length ? venue.photos : [venue.photo];
+  const [index, setIndex] = useState(0);
+  const photo = photos[Math.min(index, photos.length - 1)] ?? venue.photo;
+  return (
+    <div className={`venue-photo-gallery ${className}`}>
+      <img src={photo} alt={alt} />
+      {controls && photos.length > 1 ? <div className="venue-photo-controls"><button type="button" aria-label="Previous venue photo" onClick={(event) => { event.stopPropagation(); setIndex((current) => (current - 1 + photos.length) % photos.length); }}><ArrowLeft size={14} /></button><span>{index + 1}/{photos.length}</span><button type="button" aria-label="Next venue photo" onClick={(event) => { event.stopPropagation(); setIndex((current) => (current + 1) % photos.length); }}><ArrowRight size={14} /></button></div> : null}
+    </div>
+  );
+}
+
 function normalizeLocation(value: string) {
   return value.trim().toLocaleLowerCase();
 }
@@ -927,6 +940,10 @@ function normalizeVenue(value: unknown): Venue | null {
   const peakPricePence = Number(venue.peakPricePence);
   const offPeakPricePence = Number(venue.offPeakPricePence);
   if (!Number.isInteger(peakPricePence) || !Number.isInteger(offPeakPricePence)) return null;
+  const photos = Array.isArray(venue.photos)
+    ? venue.photos.filter((photo): photo is string => typeof photo === 'string' && photo.trim().length > 0)
+    : [];
+  if (!photos.length && venue.photo.trim()) photos.push(venue.photo);
   return {
     id: venue.id,
     name: venue.name,
@@ -934,6 +951,7 @@ function normalizeVenue(value: unknown): Venue | null {
     area: venue.area,
     areaZh: venue.areaZh,
     photo: venue.photo,
+    photos,
     notes: typeof venue.notes === 'string' ? venue.notes : '',
     peakPricePence,
     offPeakPricePence,
@@ -1072,6 +1090,7 @@ function emptyVenueDraft(venueList: Venue[] = venues): VenueDraft {
     name: '',
     area: '',
     photo: '',
+    photos: [],
     notes: '',
     peakPrice: String((venue?.peakPricePence ?? DEFAULT_PEAK_PRICE_PENCE) / 100),
     offPeakPrice: String((venue?.offPeakPricePence ?? DEFAULT_OFF_PEAK_PRICE_PENCE) / 100),
@@ -2106,6 +2125,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       name: venue.name,
       area: venue.area,
       photo: venue.photo,
+      photos: venue.photos?.length ? [...venue.photos] : [venue.photo],
       notes: venue.notes ?? '',
       peakPrice: String(venue.peakPricePence / 100),
       offPeakPrice: String(venue.offPeakPricePence / 100),
@@ -2114,25 +2134,27 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   }
 
   function chooseVenueImage(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0];
-    if (!file) return;
-    if (file.size > 1024 * 1024) {
+    const files = Array.from(event.currentTarget.files ?? []);
+    if (!files.length) return;
+    if (files.some((file) => file.size > 1024 * 1024)) {
       setAdminMessage(t.imageTooLarge);
       event.currentTarget.value = '';
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setVenueDraft((current) => ({
-          ...current,
-          photo: reader.result as string,
-          notes: current.notes.replace(/\s*[（(]复用照片[）)]\s*/g, '').trim(),
-        }));
-        setAdminMessage('');
-      }
-    };
-    reader.readAsDataURL(file);
+    Promise.all(files.map((file) => new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('invalid_image'));
+      reader.onerror = () => reject(reader.error ?? new Error('image_read_failed'));
+      reader.readAsDataURL(file);
+    }))).then((images) => {
+      setVenueDraft((current) => ({
+        ...current,
+        photo: current.photo || images[0] || '',
+        photos: [...current.photos, ...images],
+        notes: current.notes.replace(/\s*[（(]复用照片[）)]\s*/g, '').trim(),
+      }));
+      setAdminMessage('');
+    }).catch(() => setAdminMessage(t.imageTooLarge));
   }
 
   function fallbackVenuePhoto(currentVenueId: string | null) {
@@ -2145,6 +2167,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     setVenueDraft((current) => ({
       ...current,
       photo: fallbackVenuePhoto(current.id),
+      photos: [fallbackVenuePhoto(current.id)],
       notes: current.notes.includes('复用照片') ? current.notes : `${current.notes ? `${current.notes} ` : ''}${t.reusedPhotoNote}`,
     }));
     setAdminMessage('');
@@ -2161,7 +2184,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     const peakPricePence = Math.round(Number(venueDraft.peakPrice) * 100);
     const offPeakPricePence = Math.round(Number(venueDraft.offPeakPrice) * 100);
     if (
-      !venueDraft.name.trim() || !venueDraft.area.trim() || !venueDraft.photo.trim() ||
+      !venueDraft.name.trim() || !venueDraft.area.trim() || !venueDraft.photos.length || !venueDraft.photos[0].trim() ||
       !venueDraft.peakPrice.trim() || !venueDraft.offPeakPrice.trim() ||
       !Number.isInteger(peakPricePence) || peakPricePence < 0 ||
       !Number.isInteger(offPeakPricePence) || offPeakPricePence < 0 ||
@@ -2179,7 +2202,8 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       nameZh: existing?.nameZh.trim() || name,
       area,
       areaZh: existing?.areaZh.trim() || area,
-      photo: venueDraft.photo.trim(),
+      photo: venueDraft.photos[0].trim(),
+      photos: venueDraft.photos.map((photo) => photo.trim()).filter(Boolean),
       notes: venueDraft.notes.trim(),
       peakPricePence,
       offPeakPricePence,
@@ -2199,6 +2223,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             area: nextVenue.area,
             areaZh: nextVenue.areaZh,
             photo: nextVenue.photo,
+            photos: nextVenue.photos,
             notes: nextVenue.notes,
             peakPricePence,
             offPeakPricePence,
@@ -2676,7 +2701,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     return (
       <article className="session-card" key={session.id}>
         <button type="button" className="session-card-image" onClick={() => openSession(session.id)}>
-          <img src={venue.photo} alt={`${venue.name} tennis court`} />
+          <VenuePhoto venue={venue} alt={`${venue.name} tennis court`} controls={false} />
           <span className="image-overlay" />
           <span className="date-pill">
             <strong>{new Date(`${session.date}T12:00:00`).getDate()}</strong>
@@ -2898,7 +2923,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         <button type="button" className="back-link" onClick={() => navigate('home')}><ArrowLeft size={16} /> {t.back}</button>
         <div className="detail-layout">
           <div className="detail-visual">
-            <img src={selectedVenue.photo} alt={`${selectedVenue.name} tennis court`} />
+            <VenuePhoto venue={selectedVenue} alt={`${selectedVenue.name} tennis court`} />
             <div className="detail-image-caption"><MapPin size={16} /> {selectedVenue.name} · {selectedVenue.area}</div>
           </div>
           <div className="detail-copy">
@@ -2941,7 +2966,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     if (!selectedSession || !selectedVenue) return null;
     return (
       <aside className="order-summary">
-        <div className="summary-image"><img src={selectedVenue.photo} alt="" /></div>
+        <div className="summary-image"><VenuePhoto venue={selectedVenue} alt="" /></div>
         <div className="summary-content">
           <p className="eyebrow muted">{t.orderSummary}</p>
           <h3>{selectedVenue.name}</h3>
@@ -3267,15 +3292,15 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <Input id="venue-photo" type="text" value={venueDraft.photo.startsWith('data:') ? '' : venueDraft.photo} placeholder={t.imageUrl} onChange={(event) => setVenueDraft((current) => ({
             ...current,
             photo: event.target.value,
+            photos: event.target.value.trim() ? [event.target.value.trim(), ...current.photos.slice(1)] : current.photos,
             notes: current.notes.replace(/\s*[（(]复用照片[）)]\s*/g, '').trim(),
           }))} />
-          <div className="venue-upload-row"><Input id="venue-photo-file" type="file" accept="image/*" aria-label={t.replaceImage} onChange={chooseVenueImage} /><span>{t.replaceImage} · {t.uploadImage}</span></div>
+          <div className="venue-upload-row"><Input id="venue-photo-file" type="file" accept="image/*" multiple aria-label={t.replaceImage} onChange={chooseVenueImage} /><span>{t.replaceImage} · {t.uploadImage}</span></div>
           <div className="venue-image-actions">
-            {venueDraft.photo ? <a className={buttonVariants({ variant: 'outline', size: 'sm' })} href={venueDraft.photo} target="_blank" rel="noreferrer">{t.viewImage}</a> : null}
-            <Button type="button" variant="outline" size="sm" onClick={reuseVenuePhoto}>{venueDraft.photo ? t.removeImage : t.reuseImage}</Button>
+            {venueDraft.photos.map((photo, index) => <div className="venue-photo-item" key={`${photo.slice(0, 30)}-${index}`}><img src={photo} alt={`${venueDraft.name || t.venueImage} ${index + 1}`} /><a className={buttonVariants({ variant: 'outline', size: 'sm' })} href={photo} target="_blank" rel="noreferrer">{t.viewImage}</a><Button type="button" variant="destructive" size="sm" onClick={() => setVenueDraft((current) => { const photos = current.photos.filter((_, itemIndex) => itemIndex !== index); return { ...current, photos, photo: photos[0] ?? '' }; })}>{t.removeImage}</Button></div>)}
+            <Button type="button" variant="outline" size="sm" onClick={reuseVenuePhoto}>{venueDraft.photos.length ? t.reuseImage : t.reuseImage}</Button>
           </div>
           <p className="admin-field-note">{t.imageHelp}</p>
-          {venueDraft.photo ? <img className="venue-image-preview" src={venueDraft.photo} alt={venueDraft.name || t.venueImage} /> : null}
         </div>
         <div className="field">
           <Label htmlFor="venue-notes">{t.venueNotes}</Label>

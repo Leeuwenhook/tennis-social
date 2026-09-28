@@ -40,12 +40,12 @@ export async function PATCH(
     const rows = (await db`
       UPDATE venues
       SET name = ${venue.name}, name_zh = ${venue.nameZh}, area = ${venue.area},
-          area_zh = ${venue.areaZh}, photo = ${venue.photo}, notes = ${venue.notes},
+          area_zh = ${venue.areaZh}, photo = ${venue.photo}, photos_json = ${JSON.stringify(venue.photos)}, notes = ${venue.notes},
           peak_price_pence = ${venue.peakPricePence},
           off_peak_price_pence = ${venue.offPeakPricePence}, updated_at = ${now}
       WHERE id = ${id}
       RETURNING id, name, name_zh, area, area_zh, photo, notes,
-                peak_price_pence, off_peak_price_pence, created_at, updated_at
+                peak_price_pence, off_peak_price_pence, photos_json, created_at, updated_at
     `) as VenueRow[];
     if (!rows[0])
       return Response.json({ error: 'venue_not_found' }, { status: 404 });

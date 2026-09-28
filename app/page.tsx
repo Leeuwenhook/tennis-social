@@ -314,6 +314,10 @@ const translations = {
     adminTitle: 'Admin dashboard',
     adminIntro: 'Manage sessions, venues, bookings and advance court requests.',
     manageSessions: 'Manage sessions',
+    viewExpiredSessions: 'View expired sessions',
+    hideExpiredSessions: 'Hide expired sessions',
+    expiredSessions: 'Expired sessions',
+    noSessions: 'No sessions to display.',
     viewBookings: 'View bookings',
     addSession: 'Add session',
     downloadSessionTemplate: 'Download Excel template',
@@ -597,6 +601,10 @@ const translations = {
     adminTitle: '后台管理',
     adminIntro: '管理场次、场地、报名以及用户的提前预约请求。',
     manageSessions: '管理场次',
+    viewExpiredSessions: '查看已过期场次',
+    hideExpiredSessions: '隐藏已过期场次',
+    expiredSessions: '已过期场次',
+    noSessions: '暂无可显示的场次。',
     viewBookings: '查看报名',
     addSession: '新增场次',
     downloadSessionTemplate: '下载 Excel 模板',
@@ -1147,6 +1155,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   const [confirmation, setConfirmation] = useState<Booking | null>(null);
   const [confirmationEmailStatus, setConfirmationEmailStatus] = useState<ConfirmationEmailStatus>('not_applicable');
   const [adminTab, setAdminTab] = useState<AdminTab>('sessions');
+  const [showExpiredSessions, setShowExpiredSessions] = useState(false);
   const [draft, setDraft] = useState<SessionDraft>(() => emptyDraft(venues));
   const [venueDraft, setVenueDraft] = useState<VenueDraft>(() => emptyVenueDraft(venues));
   const [adminMessage, setAdminMessage] = useState('');
@@ -1508,6 +1517,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   );
 
   const allSessions = useMemo(() => [...sessions].sort(sessionSort), [sessions]);
+  const adminSessions = useMemo(
+    () => allSessions.filter((session) => showExpiredSessions || !isPast(session)),
+    [allSessions, showExpiredSessions],
+  );
   const couponDiscountPercent = selectedCoupon?.discountPercent ?? 0;
   const appliedDiscountPercent = Math.max(permanentDiscountPercent, couponDiscountPercent);
   const loyaltyDiscountPence = selectedSession && permanentDiscountPercent > couponDiscountPercent
@@ -3342,9 +3355,17 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <div className="admin-session-layout">
             <div className="admin-session-list">
               <div className="admin-list-heading">
-                <div><p className="eyebrow muted">{t.sessions}</p><h2>{t.upcoming}</h2></div>
+                <div><p className="eyebrow muted">{t.sessions}</p><h2>{showExpiredSessions ? t.expiredSessions : t.upcoming}</h2></div>
                 <div className="admin-session-import-actions">
-                  <Badge variant="secondary">{allSessions.length}</Badge>
+                  <Badge variant="secondary">{adminSessions.length}</Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowExpiredSessions((current) => !current)}
+                    disabled={adminBusy}
+                  >
+                    <Timer size={14} /> {showExpiredSessions ? t.hideExpiredSessions : t.viewExpiredSessions}
+                  </Button>
                   <a className={buttonVariants({ variant: 'outline', className: 'admin-template-download' })} href="/session-import-template.xlsx" download>
                     <Download size={14} /> {t.downloadSessionTemplate}
                   </a>
@@ -3363,7 +3384,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
               </div>
               <p className="admin-session-import-help">{t.sessionImportHelp}</p>
               {sessionImportMessage ? <div className={`admin-message${sessionImportFailed ? ' import-error' : ''}`} role="status">{sessionImportMessage}</div> : null}
-              {allSessions.map((session) => {
+              {adminSessions.map((session) => {
                 const venue = getVenue(session.venueId, venueList);
                 const spots = Math.max(0, session.capacity - session.bookedSpots);
                 return (
@@ -3388,6 +3409,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
                   </div>
                 );
               })}
+              {!adminSessions.length ? <div className="empty-state">{t.noSessions}</div> : null}
             </div>
             {renderSessionEditor()}
           </div>

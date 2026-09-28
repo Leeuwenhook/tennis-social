@@ -2491,6 +2491,130 @@
   line-height: 1.5;
 }
 
+.admin-session-filters,
+.admin-bulk-actions {
+  display: flex;
+  align-items: end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+}
+
+.admin-session-filters label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 10rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted-foreground);
+}
+
+.admin-bulk-actions {
+  align-items: center;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--muted);
+}
+
+.admin-bulk-actions > span {
+  margin-right: auto;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.session-table-wrap {
+  overflow-x: auto;
+}
+
+.session-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.session-table th,
+.session-table td {
+  padding: 0.8rem 0.55rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.session-table th {
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.session-table td:first-child,
+.session-table th:first-child {
+  width: 2rem;
+}
+
+.session-table .admin-row-actions {
+  justify-content: flex-end;
+}
+
+.session-calendar-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin: 1.25rem 0;
+}
+
+.session-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(9rem, 1fr));
+  gap: 0.5rem;
+  overflow-x: auto;
+}
+
+.session-calendar-day {
+  min-height: 12rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--background);
+}
+
+.session-calendar-day h3 {
+  margin: 0 0 0.65rem;
+  font-size: 0.78rem;
+}
+
+.session-calendar-item {
+  display: grid;
+  width: 100%;
+  gap: 0.2rem;
+  margin-bottom: 0.45rem;
+  padding: 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 0.55rem;
+  background: var(--muted);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.session-calendar-item.published {
+  border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+}
+
+.session-calendar-item span,
+.session-calendar-item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-calendar-item small,
+.session-calendar-empty {
+  color: var(--muted-foreground);
+}
+
 .admin-session-list > .admin-message {
   margin-bottom: 15px;
 }

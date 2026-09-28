@@ -58,6 +58,7 @@ export async function POST(request: Request) {
     }
 
     const invalidRows: number[] = [];
+    const unknownVenues = new Set<string>();
     const sessions: Array<{ rowNumber: number; session: NonNullable<ReturnType<typeof validateSessionInput>> }> = [];
     for (let index = 0; index < input.sessions.length; index += 1) {
       const record = input.sessions[index] as ImportRecord;
@@ -71,6 +72,10 @@ export async function POST(request: Request) {
       }
       const venue = venuesByName.get(normalizedName(source.venue));
       const venueId = venue?.id ?? '';
+      if (!venue) {
+        const venueName = typeof source.venue === 'string' ? source.venue.trim() : '';
+        if (venueName) unknownVenues.add(venueName);
+      }
       const formats = Array.isArray(source.formats)
         ? source.formats.filter((format): format is GameFormat => GAME_FORMATS.includes(format as GameFormat))
         : [];
@@ -95,7 +100,11 @@ export async function POST(request: Request) {
       else sessions.push({ rowNumber, session });
     }
     if (invalidRows.length) {
-      return Response.json({ error: 'invalid_import_rows', rows: invalidRows }, { status: 400 });
+      return Response.json({
+        error: 'invalid_import_rows',
+        rows: invalidRows,
+        unknownVenues: [...unknownVenues].sort((a, b) => a.localeCompare(b)),
+      }, { status: 400 });
     }
 
     const importKeys = new Map<string, number>();

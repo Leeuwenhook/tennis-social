@@ -325,6 +325,7 @@ const translations = {
     sessionImportTooManyRows: 'Import up to 200 sessions at a time.',
     sessionImportTooLarge: 'This batch is too large. Split it into smaller imports.',
     sessionImportInvalidRows: 'Check these worksheet rows: {rows}.',
+    sessionImportUnknownVenues: 'Rows {rows} use venues not found in Admin: {venues}. Add them under Manage venues, then import again.',
     sessionImportDuplicateRows: 'These rows duplicate an existing session or another imported row: {rows}.',
     editSession: 'Edit session',
     saveSession: 'Save session',
@@ -587,6 +588,7 @@ const translations = {
     sessionImportTooManyRows: '每次最多导入 200 场。',
     sessionImportTooLarge: '本批数据过大，请拆分成多个批次导入。',
     sessionImportInvalidRows: '请检查工作表中的这些行：{rows}。',
+    sessionImportUnknownVenues: '第 {rows} 行使用了后台不存在的场地：{venues}。请先在“管理场地”中新增这些场地，再重新导入。',
     sessionImportDuplicateRows: '这些行与已有场次或本次导入中的其他行重复：{rows}。',
     editSession: '编辑场次',
     saveSession: '保存场次',
@@ -2376,6 +2378,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       const data = await response.json() as {
         error?: string;
         rows?: number[];
+        unknownVenues?: string[];
         sessions?: Session[];
         importedCount?: number;
       };
@@ -2389,7 +2392,12 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       if (!response.ok) {
         const rowList = Array.isArray(data.rows) ? data.rows.join(', ') : '';
         if (data.error === 'invalid_import_rows') {
-          setSessionImportMessage(t.sessionImportInvalidRows.replace('{rows}', rowList));
+          const unknownVenues = Array.isArray(data.unknownVenues)
+            ? data.unknownVenues.filter((venue): venue is string => typeof venue === 'string' && venue.trim()).join(', ')
+            : '';
+          setSessionImportMessage(unknownVenues
+            ? t.sessionImportUnknownVenues.replace('{rows}', rowList).replace('{venues}', unknownVenues)
+            : t.sessionImportInvalidRows.replace('{rows}', rowList));
         } else if (data.error === 'duplicate_import_rows') {
           setSessionImportMessage(t.sessionImportDuplicateRows.replace('{rows}', rowList));
         } else if (data.error === 'import_too_many_rows') {

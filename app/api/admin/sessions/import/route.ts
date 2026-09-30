@@ -136,6 +136,7 @@ export async function POST(request: Request) {
       const candidate = {
         ...source,
         venueId: venue?.id ?? '',
+        seekingLevels: source.seekingLevels,
         description: description || generatedDescriptions.description,
         descriptionZh: descriptionZh || generatedDescriptions.descriptionZh,
       };
@@ -214,14 +215,14 @@ export async function POST(request: Request) {
       return db`
         INSERT INTO sessions (
           id, venue_id, date, start_time, end_time, price_pence, capacity,
-          booked_spots, formats_json, status, description, description_zh, created_at, updated_at
+          booked_spots, formats_json, seeking_levels_json, status, description, description_zh, created_at, updated_at
         ) VALUES (
           ${id}, ${session.venueId}, ${session.date}, ${session.startTime}, ${session.endTime},
-          ${session.pricePence}, ${session.capacity}, 0, ${JSON.stringify(session.formats)}, ${session.status},
+          ${session.pricePence}, ${session.capacity}, 0, ${JSON.stringify(session.formats)}, ${JSON.stringify(session.seekingLevels)}, ${session.status},
           ${session.description}, ${session.descriptionZh}, ${now}, ${now}
         )
         RETURNING id, venue_id, date, start_time, end_time, price_pence, capacity,
-                  booked_spots, formats_json, status, description, description_zh
+                  booked_spots, formats_json, seeking_levels_json, status, description, description_zh
       `;
     });
     const inserted = await db.transaction([...venueInserts, ...sessionInserts]) as unknown as Array<Array<VenueRow | SessionRow>>;

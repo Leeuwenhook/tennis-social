@@ -7,7 +7,6 @@ export type Venue = {
   notes?: string;
   photo: string;
   photos?: string[];
-  notes?: string;
   peakPricePence: number;
   offPeakPricePence: number;
 };
@@ -28,6 +27,7 @@ export type DemoSession = {
   capacity: number;
   bookedSpots: number;
   formats: GameFormat[];
+  seekingLevels?: string[];
   status: 'published';
   description: string;
   descriptionZh: string;

@@ -80,6 +80,7 @@ type Session = {
   capacity: number;
   bookedSpots: number;
   formats: GameFormat[];
+  seekingLevels?: string[];
   status: SessionStatus;
   description: string;
   descriptionZh: string;
@@ -138,6 +139,7 @@ type SessionDraft = {
   price: string;
   capacity: string;
   formats: GameFormat[];
+  seekingLevels: string[];
   description: string;
   descriptionZh: string;
   status: SessionStatus;
@@ -154,7 +156,7 @@ type VenueDraft = {
   offPeakPrice: string;
 };
 
-type SessionImportIssueCode = 'venue' | 'date' | 'startTime' | 'endTime' | 'timeRange' | 'description' | 'price' | 'capacity' | 'formats' | 'status' | 'row' | 'duplicate';
+type SessionImportIssueCode = 'venue' | 'date' | 'startTime' | 'endTime' | 'timeRange' | 'description' | 'price' | 'capacity' | 'formats' | 'seekingLevels' | 'status' | 'row' | 'duplicate';
 
 type ReservationRequestStatus = 'pending' | 'reviewing' | 'completed';
 type ReservationRequest = {
@@ -351,7 +353,7 @@ const translations = {
     downloadSessionTemplate: 'Download Excel template',
     importSessions: 'Import Excel sessions',
     importingSessions: 'Importing…',
-    sessionImportHelp: 'Fill in the template and import up to 200 sessions at a time. Unknown venues are created automatically with a reused photo, and the Excel price becomes the venue peak default. Descriptions are optional and are generated from the session details when left blank.',
+    sessionImportHelp: 'Fill in the template and import up to 200 sessions at a time. Set optional seeking levels as comma separated values such as 2.5, 3.0. Unknown venues are created automatically with a reused photo, and the Excel price becomes the venue peak default. Descriptions are optional and are generated from the session details when left blank.',
     sessionImportSuccess: '{count} sessions imported.',
     sessionImportFailed: 'Import failed. Check the workbook and try again.',
     sessionImportInvalidFile: 'Choose a valid .xlsx file up to 5 MB.',
@@ -663,7 +665,7 @@ const translations = {
     downloadSessionTemplate: '下载 Excel 模板',
     importSessions: '导入 Excel 场次',
     importingSessions: '正在导入…',
-    sessionImportHelp: '填写模板后导入，每次最多 200 场。Excel 中的价格会作为新场地的忙时默认价格；不存在的场地会自动创建并复用已有照片。描述可留空，系统会根据场次信息自动生成。',
+    sessionImportHelp: '填写模板后导入，每次最多 200 场；可在“寻找水平”列填写逗号分隔的水平，例如 2.5、3.0。Excel 中的价格会作为新场地的忙时默认价格；不存在的场地会自动创建并复用已有照片。描述可留空，系统会根据场次信息自动生成。',
     sessionImportSuccess: '已导入 {count} 场。',
     sessionImportFailed: '导入失败，请检查工作簿后重试。',
     sessionImportInvalidFile: '请选择有效的 .xlsx 文件，大小不得超过 5 MB。',
@@ -963,9 +965,13 @@ function profileFormFromUser(user: UserProfile): ProfileForm {
 
 function normalizeSession(session: Session): Session {
   const rawPreferences = (session as Session & { bookingPreferences?: unknown }).bookingPreferences;
+  const rawSeekingLevels = (session as Session & { seekingLevels?: unknown }).seekingLevels;
   return {
     ...session,
     formats: normalizeFormats((session as Session & { formats?: unknown }).formats),
+    seekingLevels: Array.isArray(rawSeekingLevels)
+      ? [...new Set(rawSeekingLevels.filter((level): level is string => typeof level === 'string' && LEVELS.includes(level)))]
+      : [],
     bookingPreferences: Array.isArray(rawPreferences) ? normalizeBookingPreferences(rawPreferences) : undefined,
   };
 }
@@ -1037,12 +1043,12 @@ function importIssueLabel(code: SessionImportIssueCode, language: Language) {
     ? {
       venue: '场地名称', date: '日期', startTime: '开始时间', endTime: '结束时间',
       timeRange: '结束时间须晚于开始时间', description: '活动介绍', price: '价格',
-      capacity: '名额', formats: '比赛形式', status: '状态', row: '行结构', duplicate: '重复场次',
+      capacity: '名额', formats: '比赛形式', seekingLevels: '寻找水平', status: '状态', row: '行结构', duplicate: '重复场次',
     }
     : {
       venue: 'venue name', date: 'date', startTime: 'start time', endTime: 'end time',
       timeRange: 'end time must be later than start time', description: 'description', price: 'price',
-      capacity: 'capacity', formats: 'format', status: 'status', row: 'row structure', duplicate: 'duplicate schedule',
+      capacity: 'capacity', formats: 'format', seekingLevels: 'seeking levels', status: 'status', row: 'row structure', duplicate: 'duplicate schedule',
     };
   return labels[code];
 }
@@ -1141,6 +1147,7 @@ function emptyDraft(venueList: Venue[] = venues): SessionDraft {
     price: String(venue.offPeakPricePence / 100),
     capacity: '8',
     formats: [...GAME_FORMATS],
+    seekingLevels: [],
     description: 'A friendly tennis session for new and returning players.',
     descriptionZh: '适合新朋友和熟悉球友的轻松网球活动。',
     status: 'published',
@@ -2502,6 +2509,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       price: String(session.pricePence / 100),
       capacity: String(session.capacity),
       formats: normalizeFormats(session.formats),
+      seekingLevels: session.seekingLevels ?? [],
       description: session.description,
       descriptionZh: session.descriptionZh,
       status: session.status,
@@ -2522,6 +2530,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       pricePence: session.pricePence,
       capacity: session.capacity,
       formats: session.formats,
+      seekingLevels: session.seekingLevels ?? [],
       description: session.description,
       descriptionZh: session.descriptionZh,
       status,
@@ -2575,6 +2584,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       capacity,
       bookedSpots: existing?.bookedSpots ?? 0,
       formats,
+      seekingLevels: draft.seekingLevels,
       status: draft.status,
       description: draft.description.trim(),
       descriptionZh: draft.descriptionZh.trim(),
@@ -2644,6 +2654,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             pricePence: session.pricePence,
             capacity: session.capacity,
             formats: session.formats,
+            seekingLevels: session.seekingLevels ?? [],
             description: session.description,
             descriptionZh: session.descriptionZh,
             status,
@@ -2698,7 +2709,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
   }
 
   function exportSessions() {
-    const header = ['id', 'date', 'startTime', 'endTime', 'venue', 'status', 'price', 'capacity', 'bookedSpots'];
+    const header = ['id', 'date', 'startTime', 'endTime', 'venue', 'status', 'price', 'capacity', 'bookedSpots', 'seekingLevels'];
     const rows = adminSessions.map((session) => [
       session.id,
       session.date,
@@ -2709,6 +2720,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       (session.pricePence / 100).toFixed(2),
       String(session.capacity),
       String(session.bookedSpots),
+      (session.seekingLevels ?? []).join(', '),
     ]);
     const csv = [header, ...rows].map((row) => row.map((value) => `"${value.replaceAll('"', '""')}"`).join(',')).join('\n');
     const url = URL.createObjectURL(new Blob([`\ufeff${csv}`], { type: 'text/csv;charset=utf-8' }));
@@ -2795,7 +2807,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             }).join(language === 'zh' ? '；' : '; ')
             : '';
           const unknownVenues = Array.isArray(data.unknownVenues)
-            ? data.unknownVenues.filter((venue): venue is string => typeof venue === 'string' && venue.trim()).join(', ')
+            ? data.unknownVenues.filter((venue): venue is string => typeof venue === 'string' && Boolean(venue.trim())).join(', ')
             : '';
           setSessionImportMessage(issueDetails
             ? t.sessionImportInvalidDetails.replace('{details}', issueDetails)
@@ -2946,6 +2958,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     const preferences = summarizeBookingPreferences(
       session.bookingPreferences ?? bookingPreferencesFromBookings(session.id, bookings),
     );
+    const manualPreferences = (session.seekingLevels ?? []).flatMap((level) => session.formats.map((format) => ({ level, format, count: 1 })));
+    const displayedPreferences = [...manualPreferences, ...preferences].filter((preference, index, list) =>
+      list.findIndex((item) => item.level === preference.level && item.format === preference.format) === index,
+    );
     return (
       <article className="session-card" key={session.id}>
         <button type="button" className="session-card-image" onClick={() => openSession(session.id)}>
@@ -2972,13 +2988,13 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <div className="session-format-tags" aria-label={t.formats}>
             {session.formats.map((format) => <span key={format}>{formatNames([format], t)}</span>)}
           </div>
-          {preferences.length ? (
+          {displayedPreferences.length ? (
             <div className="session-seeking" aria-label={t.lookingFor}>
               <Users size={15} />
               <div>
                 <small>{t.lookingFor}</small>
                 <div className="session-seeking-list">
-                  {preferences.map((preference) => (
+                  {displayedPreferences.map((preference) => (
                     <span key={`${preference.level}-${preference.format}`}>
                       {t.lookingForLevel
                         .replace('{level}', preference.level)
@@ -3519,6 +3535,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           <div className="field"><Label htmlFor="admin-capacity">{t.capacity}</Label><Input id="admin-capacity" type="number" min="1" value={draft.capacity} onChange={(event) => setDraft((current) => ({ ...current, capacity: event.target.value }))} /></div>
           <div className="field"><Label htmlFor="admin-status">{t.status}</Label><select id="admin-status" value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value as SessionStatus }))} className="native-select"><option value="published">{t.published}</option><option value="draft">{t.draft}</option></select></div>
           <div className="field admin-format-field"><span className="field-label">{t.formats}</span><fieldset className="format-checkboxes"><legend className="sr-only">{t.formats}</legend>{GAME_FORMATS.map((format) => <label className="format-checkbox" key={format}><input type="checkbox" checked={draft.formats.includes(format)} onChange={(event) => setDraft((current) => ({ ...current, formats: event.target.checked ? [...new Set([...current.formats, format])] : current.formats.filter((item) => item !== format) }))} /><span>{formatNames([format], t)}</span></label>)}</fieldset></div>
+          <div className="field admin-format-field"><span className="field-label">{language === 'zh' ? '预设寻找水平' : 'Preset levels to find'}</span><fieldset className="format-checkboxes"><legend className="sr-only">{language === 'zh' ? '预设寻找水平' : 'Preset levels to find'}</legend>{LEVELS.map((level) => <label className="format-checkbox" key={level}><input type="checkbox" checked={(draft.seekingLevels ?? []).includes(level)} onChange={(event) => setDraft((current) => ({ ...current, seekingLevels: event.target.checked ? [...new Set([...(current.seekingLevels ?? []), level])] : (current.seekingLevels ?? []).filter((item) => item !== level) }))} /><span>{level}</span></label>)}</fieldset><small className="admin-field-note">{language === 'zh' ? '报名产生的水平也会自动显示。' : 'Booked player levels will also appear automatically.'}</small></div>
         </div>
         {hasActiveBookings ? <p className="admin-field-note"><ShieldCheck size={15} /> {t.lockedFields}</p> : null}
         <div className="form-grid two-col"><div className="field"><Label htmlFor="admin-description">English description</Label><textarea id="admin-description" value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} className="native-textarea" rows={3} /></div><div className="field"><Label htmlFor="admin-description-zh">中文介绍</Label><textarea id="admin-description-zh" value={draft.descriptionZh} onChange={(event) => setDraft((current) => ({ ...current, descriptionZh: event.target.value }))} className="native-textarea" rows={3} /></div></div>

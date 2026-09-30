@@ -14,6 +14,7 @@ export type SessionRow = {
   capacity: number;
   booked_spots: number;
   formats_json: string;
+  seeking_levels_json: string;
   status: 'published' | 'draft';
   description: string;
   description_zh: string;
@@ -169,10 +170,10 @@ function sessionInsert(db: Database, session: ReturnType<typeof createDemoSeed>[
   return db`
     INSERT INTO sessions (
       id, venue_id, date, start_time, end_time, price_pence, capacity,
-      booked_spots, formats_json, status, description, description_zh, created_at, updated_at
+      booked_spots, formats_json, seeking_levels_json, status, description, description_zh, created_at, updated_at
     ) VALUES (
       ${session.id}, ${session.venueId}, ${session.date}, ${session.startTime}, ${session.endTime},
-      ${session.pricePence}, ${session.capacity}, ${session.bookedSpots}, ${JSON.stringify(session.formats)}, ${session.status},
+      ${session.pricePence}, ${session.capacity}, ${session.bookedSpots}, ${JSON.stringify(session.formats)}, ${JSON.stringify(session.seekingLevels ?? [])}, ${session.status},
       ${session.description}, ${session.descriptionZh}, ${now}, ${now}
     )
     ON CONFLICT (id) DO NOTHING
@@ -493,6 +494,13 @@ export function serializeSession(row: SessionRow) {
   } catch {
     // Existing rows without valid format data remain available in both formats.
   }
+  let seekingLevels: string[] = [];
+  try {
+    const parsed = JSON.parse(row.seeking_levels_json ?? '[]') as unknown;
+    if (Array.isArray(parsed)) seekingLevels = [...new Set(parsed.filter((value): value is string => typeof value === 'string' && Boolean(value.trim())))];
+  } catch {
+    // Existing rows without the optional field have no manually configured levels.
+  }
   return {
     id: row.id,
     venueId: row.venue_id,
@@ -503,6 +511,7 @@ export function serializeSession(row: SessionRow) {
     capacity: row.capacity,
     bookedSpots: row.booked_spots,
     formats,
+    seekingLevels,
     status: row.status,
     description: row.description,
     descriptionZh: row.description_zh,

@@ -35,14 +35,14 @@ export async function POST(request: Request) {
     const rows = await db`
       INSERT INTO sessions (
         id, venue_id, date, start_time, end_time, price_pence, capacity,
-        booked_spots, formats_json, status, description, description_zh, created_at, updated_at
+        booked_spots, formats_json, seeking_levels_json, status, description, description_zh, created_at, updated_at
       ) VALUES (
         ${id}, ${session.venueId}, ${session.date}, ${session.startTime}, ${session.endTime},
-        ${session.pricePence}, ${session.capacity}, 0, ${JSON.stringify(session.formats)}, ${session.status},
+        ${session.pricePence}, ${session.capacity}, 0, ${JSON.stringify(session.formats)}, ${JSON.stringify(session.seekingLevels)}, ${session.status},
         ${session.description}, ${session.descriptionZh}, ${now}, ${now}
       )
       RETURNING id, venue_id, date, start_time, end_time, price_pence, capacity,
-                booked_spots, formats_json, status, description, description_zh
+                booked_spots, formats_json, seeking_levels_json, status, description, description_zh
     ` as SessionRow[];
     return Response.json({ session: serializeSession(rows[0]) }, { status: 201 });
   } catch (error) {

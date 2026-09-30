@@ -2859,6 +2859,19 @@
   object-fit: cover;
 }
 
+.admin-venue-photo-stack {
+  display: grid;
+  justify-items: start;
+  gap: 5px;
+}
+
+.admin-venue-photo-count {
+  color: var(--muted-foreground);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+
 .admin-venue-photo-link {
   display: block;
   border-radius: 12px;
@@ -2915,10 +2928,51 @@
 }
 
 .venue-image-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 8px;
+}
+
+.venue-photo-item {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: var(--secondary);
+}
+
+.venue-photo-item-preview {
+  position: relative;
+}
+
+.venue-photo-item-preview img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border-radius: 9px;
+  object-fit: cover;
+}
+
+.venue-photo-item-preview span {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  color: #fff;
+  background: rgb(16 66 52 / 86%);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.venue-photo-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .venue-photo-gallery {

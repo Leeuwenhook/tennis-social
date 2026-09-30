@@ -472,6 +472,8 @@ const translations = {
     viewImage: 'View image',
     replaceImage: 'Replace image',
     removeImage: 'Remove image',
+    photoCount: '{count} photos',
+    primaryPhoto: 'Primary',
     reuseImage: 'Use reused image',
     imageHelp: 'Use a public image URL, a path such as /venues/example.jpg, or choose a local image up to 1 MB.',
     venueNotes: 'Notes',
@@ -785,6 +787,8 @@ const translations = {
     viewImage: '查看图片',
     replaceImage: '替换图片',
     removeImage: '移除图片',
+    photoCount: '{count} 张照片',
+    primaryPhoto: '主图',
     reuseImage: '使用复用图片',
     imageHelp: '可填写公开图片 URL、/venues/example.jpg 路径，或选择 1 MB 以内的本地图片。',
     venueNotes: '备注',
@@ -2270,17 +2274,20 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     }).catch(() => setAdminMessage(t.imageTooLarge));
   }
 
-  function fallbackVenuePhoto(currentVenueId: string | null) {
-    return venueList.find((venue) => venue.id !== currentVenueId && venue.photo.trim())?.photo
-      || venues.find((venue) => venue.photo.trim())?.photo
-      || '/venues/victoria-park.jpg';
+  function fallbackVenuePhoto(currentVenueId: string | null, venueName = '') {
+    const candidates = venueList.filter((venue) => venue.id !== currentVenueId && venue.photo.trim());
+    if (!candidates.length) return venues.find((venue) => venue.photo.trim())?.photo || '/venues/victoria-park.jpg';
+    let hash = 0;
+    for (const character of venueName) hash = (hash * 31 + character.codePointAt(0)!) >>> 0;
+    return candidates[hash % candidates.length].photo;
   }
 
   function reuseVenuePhoto() {
+    const photo = fallbackVenuePhoto(venueDraft.id, venueDraft.name);
     setVenueDraft((current) => ({
       ...current,
-      photo: fallbackVenuePhoto(current.id),
-      photos: [fallbackVenuePhoto(current.id)],
+      photo: current.photo || photo,
+      photos: current.photos.includes(photo) ? current.photos : [...current.photos, photo],
       notes: current.notes.includes('复用照片') ? current.notes : `${current.notes ? `${current.notes} ` : ''}${t.reusedPhotoNote}`,
     }));
     setAdminMessage('');
@@ -3568,7 +3575,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
           }))} />
           <div className="venue-upload-row"><Input id="venue-photo-file" type="file" accept="image/*" multiple aria-label={t.replaceImage} onChange={chooseVenueImage} /><span>{t.replaceImage} · {t.uploadImage}</span></div>
           <div className="venue-image-actions">
-            {venueDraft.photos.map((photo, index) => <div className="venue-photo-item" key={`${photo.slice(0, 30)}-${index}`}><img src={photo} alt={`${venueDraft.name || t.venueImage} ${index + 1}`} /><a className={buttonVariants({ variant: 'outline', size: 'sm' })} href={photo} target="_blank" rel="noreferrer">{t.viewImage}</a><Button type="button" variant="destructive" size="sm" onClick={() => setVenueDraft((current) => { const photos = current.photos.filter((_, itemIndex) => itemIndex !== index); return { ...current, photos, photo: photos[0] ?? '' }; })}>{t.removeImage}</Button></div>)}
+            {venueDraft.photos.map((photo, index) => <div className="venue-photo-item" key={`${photo.slice(0, 30)}-${index}`}><div className="venue-photo-item-preview"><img src={photo} alt={`${venueDraft.name || t.venueImage} ${index + 1}`} />{index === 0 ? <span>{t.primaryPhoto}</span> : null}</div><div className="venue-photo-item-actions"><a className={buttonVariants({ variant: 'outline', size: 'sm' })} href={photo} target="_blank" rel="noreferrer">{t.viewImage}</a><Button type="button" variant="destructive" size="sm" onClick={() => setVenueDraft((current) => { const photos = current.photos.filter((_, itemIndex) => itemIndex !== index); return { ...current, photos, photo: photos[0] ?? '' }; })}>{t.removeImage}</Button></div></div>)}
             <Button type="button" variant="outline" size="sm" onClick={reuseVenuePhoto}>{venueDraft.photos.length ? t.reuseImage : t.reuseImage}</Button>
           </div>
           <p className="admin-field-note">{t.imageHelp}</p>
@@ -3788,7 +3795,10 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
               </div>
               {venueList.map((venue) => (
                 <div className="admin-venue-row" key={venue.id}>
-                  <a className="admin-venue-photo-link" href={venue.photo} target="_blank" rel="noreferrer" title={t.viewImage}><img src={venue.photo} alt={venue.name} /></a>
+                  <div className="admin-venue-photo-stack">
+                    <a className="admin-venue-photo-link" href={venue.photo} target="_blank" rel="noreferrer" title={t.viewImage}><img src={venue.photo} alt={venue.name} /></a>
+                    {(venue.photos?.length ?? 1) > 1 ? <span className="admin-venue-photo-count">{t.photoCount.replace('{count}', String(venue.photos?.length ?? 1))}</span> : null}
+                  </div>
                   <div className="admin-venue-row-main">
                     <strong>{venue.name}</strong>
                     <span>{venue.area}</span>

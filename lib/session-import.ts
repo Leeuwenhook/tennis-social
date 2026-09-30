@@ -10,6 +10,7 @@ export type SessionImportRecord = {
     pricePence: number | string;
     capacity: number | string;
     formats: string[];
+    seekingLevels: string[];
     description: string;
     descriptionZh: string;
     status: string;
@@ -41,6 +42,7 @@ const headers = {
   price: ['priceperperson', '每人价格'],
   capacity: ['capacity', '名额'],
   formats: ['formats', '形式'],
+  seekingLevels: ['seekinglevels', '寻找水平', 'lookingforlevels', '寻找网球水平'],
   description: ['descriptionenglish', '英文描述'],
   descriptionZh: ['descriptionchinese', '中文描述'],
   status: ['status', '状态'],
@@ -120,6 +122,10 @@ function locateHeader(rows: Array<{ rowNumber: number; values: string[] }>) {
     for (const [field, aliases] of Object.entries(headers) as Array<[keyof typeof headers, readonly string[]]>) {
       const index = names.findIndex((name) => aliases.some((alias) => name.includes(normalizedHeader(alias))));
       if (index < 0) {
+        if (field === 'seekingLevels') {
+          indices[field] = -1;
+          continue;
+        }
         found = false;
         break;
       }
@@ -167,6 +173,10 @@ function parseFormats(value: string) {
   return [...new Set(formats)];
 }
 
+function parseSeekingLevels(value: string) {
+  return [...new Set(value.split(/[,，;；|/\s]+/).map((token) => token.trim()).filter(Boolean))];
+}
+
 function poundsToPence(value: string): number | string {
   const clean = value.trim().replace(/[£,\s]/g, '');
   const pounds = Number(clean);
@@ -205,7 +215,7 @@ export async function parseSessionWorkbook(file: File): Promise<SessionImportRec
     const records = rows
       .filter((row) => row.rowNumber > headerRow.rowNumber && row.values.some((value) => value?.trim()))
       .map(({ rowNumber, values }): SessionImportRecord => {
-        const get = (field: keyof typeof headers) => values[indices[field]] ?? '';
+        const get = (field: keyof typeof headers) => indices[field] >= 0 ? values[indices[field]] ?? '' : '';
         const status = get('status').trim() || 'draft';
         return {
           rowNumber,
@@ -217,6 +227,7 @@ export async function parseSessionWorkbook(file: File): Promise<SessionImportRec
             pricePence: poundsToPence(get('price')),
             capacity: numericOrInvalid(get('capacity')),
             formats: parseFormats(get('formats')),
+            seekingLevels: parseSeekingLevels(get('seekingLevels')),
             description: get('description').trim(),
             descriptionZh: get('descriptionZh').trim(),
             status,

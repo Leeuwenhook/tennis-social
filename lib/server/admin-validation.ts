@@ -1,5 +1,7 @@
 import { GAME_FORMATS, venues, type GameFormat } from '../demo-data';
 
+const TENNIS_LEVELS = new Set(['1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0']);
+
 export type VenueInput = {
   name?: unknown;
   nameZh?: unknown;
@@ -32,6 +34,7 @@ export type SessionInput = {
   pricePence?: unknown;
   capacity?: unknown;
   formats?: unknown;
+  seekingLevels?: unknown;
   description?: unknown;
   descriptionZh?: unknown;
   status?: unknown;
@@ -45,6 +48,7 @@ export type ValidatedSessionInput = {
   pricePence: number;
   capacity: number;
   formats: GameFormat[];
+  seekingLevels: string[];
   description: string;
   descriptionZh: string;
   status: 'published' | 'draft';
@@ -60,6 +64,7 @@ export type SessionValidationIssue =
   | 'price'
   | 'capacity'
   | 'formats'
+  | 'seekingLevels'
   | 'status';
 
 function cleanString(value: unknown, maxLength: number) {
@@ -83,7 +88,7 @@ export function validateVenueInput(input: VenueInput): ValidatedVenueInput | nul
   const area = cleanString(input.area, 120);
   const areaZh = cleanString(input.areaZh, 120);
   const rawPhoto = typeof input.photo === 'string' ? input.photo.trim() : '';
-  const rawPhotos = Array.isArray(input.photos) ? input.photos.filter((photo): photo is string => typeof photo === 'string' && photo.trim()).map((photo) => photo.trim()) : [];
+  const rawPhotos = Array.isArray(input.photos) ? input.photos.filter((photo): photo is string => typeof photo === 'string' && Boolean(photo.trim())).map((photo) => photo.trim()) : [];
   const photos = rawPhotos.length ? rawPhotos : rawPhoto ? [rawPhoto] : [];
   const primaryPhoto = photos[0] ?? '';
   const notes = cleanString(input.notes, 1000);
@@ -118,15 +123,15 @@ export function validateSessionInput(
   const pricePence = Number(input.pricePence);
   const capacity = Number(input.capacity);
   const formatsInput = input.formats;
-  const formatsValid = formatsInput === undefined || (
-    Array.isArray(formatsInput) && formatsInput.every((format) => GAME_FORMATS.includes(format as GameFormat))
-  );
+  const seekingLevels = Array.isArray(input.seekingLevels)
+    ? [...new Set(input.seekingLevels.filter((level): level is string => typeof level === 'string' && TENNIS_LEVELS.has(level.trim())).map((level) => level.trim()))]
+    : [];
   const formats = formatsInput === undefined
     ? [...GAME_FORMATS]
     : Array.isArray(formatsInput)
       ? [...new Set(formatsInput as GameFormat[])]
       : [];
-  const status = input.status === 'draft' ? 'draft' : input.status === 'published' ? 'published' : '';
+  const status: 'draft' | 'published' | '' = input.status === 'draft' ? 'draft' : input.status === 'published' ? 'published' : '';
   if (sessionInputIssues(input, validVenueIds).length) return null;
   return {
     venueId,
@@ -136,9 +141,10 @@ export function validateSessionInput(
     pricePence,
     capacity,
     formats,
+    seekingLevels,
     description,
     descriptionZh,
-    status,
+    status: status as 'draft' | 'published',
   };
 }
 
@@ -155,6 +161,8 @@ export function sessionInputIssues(
   const pricePence = Number(input.pricePence);
   const capacity = Number(input.capacity);
   const formatsInput = input.formats;
+  const seekingLevelsInput = input.seekingLevels;
+  const seekingLevelsValid = seekingLevelsInput === undefined || (Array.isArray(seekingLevelsInput) && seekingLevelsInput.every((level) => typeof level === 'string' && TENNIS_LEVELS.has(level.trim())));
   const formatsValid = formatsInput === undefined || (
     Array.isArray(formatsInput) && formatsInput.every((format) => GAME_FORMATS.includes(format as GameFormat))
   );
@@ -177,6 +185,7 @@ export function sessionInputIssues(
   if (!Number.isInteger(pricePence) || pricePence < 0) issues.push('price');
   if (!Number.isInteger(capacity) || capacity < 1 || capacity > 1000) issues.push('capacity');
   if (!formatsValid || formats.length < 1) issues.push('formats');
+  if (!seekingLevelsValid) issues.push('seekingLevels');
   if (!status) issues.push('status');
   return issues;
 }

@@ -32,6 +32,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { BookingChat } from '@/components/booking-chat';
 import { parseSessionWorkbook, SessionImportError } from '@/lib/session-import';
 import {
   createDemoBookings,
@@ -3834,6 +3835,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         {view === 'admin' ? renderAdmin() : null}
       </main>
       <footer className="site-footer page-width"><span><AppMark /> Tennis Social</span><small>{t.demoNotice}</small></footer>
+      {initialView === 'home' ? <BookingChat /> : null}
     </div>
   );
 }

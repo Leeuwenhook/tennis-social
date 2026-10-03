@@ -31,6 +31,7 @@ export async function GET() {
       SELECT id, venue_id, date, start_time, end_time, price_pence, capacity,
              booked_spots, formats_json, seeking_levels_json, status, description, description_zh
       FROM sessions
+      WHERE status = 'published'
       ORDER BY date, start_time
     ` as SessionRow[];
     const bookingRows = await db`

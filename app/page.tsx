@@ -1561,6 +1561,20 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         // The browser cache remains available for local previews without a database.
       }
     };
+    const loadAdminSessions = async () => {
+      try {
+        const response = await fetch('/api/admin/sessions', { cache: 'no-store' });
+        if (response.status === 401) {
+          if (!cancelled) setAdminAuthenticated(false);
+          return;
+        }
+        if (!response.ok) return;
+        const data = await response.json() as { sessions?: Session[] };
+        if (!cancelled && data.sessions) setSessions(data.sessions.map(normalizeSession));
+      } catch {
+        // The browser cache remains available for local previews without a database.
+      }
+    };
     const loadAdminVenues = async () => {
       try {
         const response = await fetch('/api/admin/venues', { cache: 'no-store' });
@@ -1591,6 +1605,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       }
     };
     void loadAdminBookings();
+    void loadAdminSessions();
     void loadAdminVenues();
     void loadReservationRequests();
     return () => { cancelled = true; };

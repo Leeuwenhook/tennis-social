@@ -11,6 +11,7 @@ Responsive bilingual tennis session booking community demo for London.
 - Payment confirmation emails sent through Resend with booking details and an attached `.ics` calendar invite, followed by a reminder email at 6 pm London time on the evening before the session.
 - Loyalty rewards: after ten confirmed paid activities, a signed-in user receives a permanent 10% discount on the activity fee for every future booking. The previous half-price voucher policy remains stored but is paused by default.
 - Shared demo sessions, bookings and venues backed by Neon Postgres, with a protected admin at `/admin` for session editing, venue/image management, default pricing, booking review, cancellation and data reset.
+- Optional bilingual booking assistant chat that collects court-request details through Gemini and submits a reservation request only after explicit confirmation.
 - Vercel-ready Vinext/Nitro build output; browser storage remains only as a local preview fallback.
 
 ## Run locally
@@ -23,6 +24,8 @@ npm run dev
 ```
 
 Before running the migration, set `DATABASE_URL` in `.env` to your Neon Postgres connection string. Without a database, the public catalogue and browser-only admin preview remain available, but shared admin changes and checkout are unavailable. The local demo login defaults to `admin` / `admin1234`; set `ADMIN_USERNAME`, `ADMIN_PASSWORD` and a strong `ADMIN_SESSION_SECRET` before deploying. To give a second person access, set `ADMIN_USERNAME_2` and `ADMIN_PASSWORD_2` as a pair; both accounts use the same `/admin` login page and can manage the same data. Keep these values in Vercel Environment Variables or the ignored local `.env`, never in Git. The app sends email only; it does not send SMS messages.
+
+To enable the booking assistant, set the server-only `GEMINI_API_KEY` in the local `.env` and the Vercel Preview/Production environments. `GEMINI_MODEL` is optional and defaults to `gemini-2.5-flash`; the chat remains unavailable when the key is absent. Never expose the key through a `NEXT_PUBLIC_` variable.
 
 ## Vercel, Neon and Stripe test setup
 

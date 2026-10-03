@@ -6,6 +6,10 @@ export const dynamic = 'force-dynamic';
 
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 
+const MAX_MESSAGES = 24;
+const MAX_MESSAGE_LENGTH = 4000;
+const MAX_REQUEST_FIELD_LENGTH = 500;
+
 const requestShape = `{
   "venueName": string | null,
   "postcode": string | null,
@@ -33,9 +37,10 @@ export async function POST(request: Request) {
   const messages = Array.isArray(body.messages)
     ? body.messages.filter((item): item is ChatMessage => Boolean(item) && typeof item === 'object' &&
       ((item as ChatMessage).role === 'user' || (item as ChatMessage).role === 'assistant') &&
-      typeof (item as ChatMessage).content === 'string').slice(-24)
+      typeof (item as ChatMessage).content === 'string' &&
+      (item as ChatMessage).content.trim().length > 0).slice(-MAX_MESSAGES)
     : [];
-  if (!messages.length || messages.some((item) => item.content.length > 4000)) {
+  if (!messages.length || messages.some((item) => item.content.length > MAX_MESSAGE_LENGTH)) {
     return Response.json({ error: 'invalid_request' }, { status: 400 });
   }
 
@@ -61,15 +66,22 @@ export async function POST(request: Request) {
     parts: [{ text: message.content }],
   }));
   const model = GEMINI_MODEL || 'gemini-2.5-flash';
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: systemInstruction }] },
-      contents,
-      generationConfig: { temperature: 0.35, responseMimeType: 'application/json' },
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      signal: AbortSignal.timeout(15_000),
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        contents,
+        generationConfig: { temperature: 0.35, responseMimeType: 'application/json' },
+      }),
+    });
+  } catch (error) {
+    console.error('Gemini chat request failed', error);
+    return Response.json({ error: 'chat_unavailable' }, { status: 502 });
+  }
   if (!response.ok) {
     console.error('Gemini chat request failed', response.status, await response.text());
     return Response.json({ error: 'chat_unavailable' }, { status: 502 });
@@ -81,7 +93,21 @@ export async function POST(request: Request) {
     if (!text) throw new Error('Empty Gemini response');
     const parsed = JSON.parse(text) as { reply?: unknown; request?: Record<string, unknown> };
     if (typeof parsed.reply !== 'string' || !parsed.request || typeof parsed.request !== 'object') throw new Error('Invalid Gemini response');
-    return Response.json({ reply: parsed.reply.slice(0, 4000), request: parsed.request });
+    const source = parsed.request;
+    const textField = (key: string) => typeof source[key] === 'string' ? source[key].trim().slice(0, MAX_REQUEST_FIELD_LENGTH) : null;
+    const normalizedRequest = {
+      venueName: textField('venueName'),
+      postcode: textField('postcode'),
+      preferredDate: textField('preferredDate'),
+      startTime: textField('startTime'),
+      endTime: textField('endTime'),
+      contactName: textField('contactName'),
+      email: textField('email'),
+      phone: textField('phone'),
+      message: textField('message'),
+      complete: source.complete === true,
+    };
+    return Response.json({ reply: parsed.reply.trim().slice(0, MAX_MESSAGE_LENGTH), request: normalizedRequest }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     console.error('Unable to parse Gemini chat response', error);
     return Response.json({ error: 'chat_unavailable' }, { status: 502 });

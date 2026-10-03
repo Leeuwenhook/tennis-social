@@ -124,7 +124,7 @@ export function createBookingCalendar(
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Tennis Social//Booking Calendar//EN',
+    'PRODID:-//Tennis Match//Booking Calendar//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
@@ -132,7 +132,7 @@ export function createBookingCalendar(
     `DTSTAMP:${utcIcsDate(now)}`,
     `DTSTART;TZID=${LONDON_TIME_ZONE}:${localIcsDate(session.date, session.start_time)}`,
     `DTEND;TZID=${LONDON_TIME_ZONE}:${localIcsDate(session.date, session.end_time)}`,
-    `SUMMARY:${escapeIcs(`Tennis Social: ${venue.name}`)}`,
+    `SUMMARY:${escapeIcs(`Tennis Match: ${venue.name}`)}`,
     `LOCATION:${escapeIcs(`${venue.name}, ${venue.area}, London`)}`,
     `DESCRIPTION:${escapeIcs(description)}`,
     'STATUS:CONFIRMED',
@@ -171,7 +171,7 @@ export function renderBookingConfirmationEmail(input: BookingEmailInput): Render
     <div style="background:#f4f7f2;padding:32px 16px;font-family:Arial,Helvetica,sans-serif;color:#173b2f;line-height:1.6">
       <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #dce8dc;border-radius:16px;overflow:hidden">
         <div style="padding:28px 32px;background:#173b2f;color:#ffffff">
-          <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#d5eb85">Tennis Social</div>
+          <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#d5eb85">Tennis Match</div>
           <h1 style="margin:8px 0 0;font-size:28px;line-height:1.2">Booking confirmed · 预订成功</h1>
         </div>
         <div style="padding:28px 32px">
@@ -207,7 +207,7 @@ export function renderBookingConfirmationEmail(input: BookingEmailInput): Render
     </div>
   `;
   const text = [
-    'Tennis Social — Booking confirmed / 预订成功',
+    'Tennis Match — Booking confirmed / 预订成功',
     '',
     `Hi ${booking.contact_name}, your payment was successful and your place is confirmed.`,
     `你好 ${booking.contact_name}，你的付款已成功，活动名额已经确认。`,
@@ -241,10 +241,10 @@ export function renderBookingReminderEmail(input: BookingEmailInput): RenderedBo
   const format = formatFormat(booking.format);
   const html = `
     <div style="background:#f4f7f2;padding:32px 16px;font-family:Arial,Helvetica,sans-serif;color:#173b2f;line-height:1.6">
-      <span style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden">Your Tennis Social session is tomorrow. / 提醒：你预订的网球活动将在明天举行。</span>
+      <span style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden">Your Tennis Match session is tomorrow. / 提醒：你预订的网球活动将在明天举行。</span>
       <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #dce8dc;border-radius:16px;overflow:hidden">
         <div style="padding:28px 32px;background:#173b2f;color:#ffffff">
-          <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#d5eb85">Tennis Social</div>
+          <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#d5eb85">Tennis Match</div>
           <h1 style="margin:8px 0 0;font-size:28px;line-height:1.2">Your session is tomorrow · 明日有约</h1>
         </div>
         <div style="padding:28px 32px">
@@ -268,7 +268,7 @@ export function renderBookingReminderEmail(input: BookingEmailInput): RenderedBo
     </div>
   `;
   const text = [
-    'Tennis Social — Your session is tomorrow / 明日有约',
+    'Tennis Match — Your session is tomorrow / 明日有约',
     '',
     `Hi ${booking.contact_name}, a quick reminder that your tennis session is tomorrow.`,
     `你好 ${booking.contact_name}，温馨提醒：你预订的网球活动将在明天举行。`,

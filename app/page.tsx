@@ -228,6 +228,7 @@ const translations = {
   en: {
     sessions: 'Sessions',
     admin: 'Admin',
+    adminPortal: 'Admin portal',
     brandTag: 'London tennis community',
     eyebrow: 'FIND YOUR NEXT COURT',
     headline: 'Good tennis is better together.',
@@ -542,6 +543,7 @@ const translations = {
   zh: {
     sessions: '场次',
     admin: '后台管理',
+    adminPortal: '管理平台',
     brandTag: '伦敦网球社群',
     eyebrow: '寻找下一场约球',
     headline: '一起打球，会更开心。',
@@ -1085,6 +1087,13 @@ function formatDuration(startTime: string, endTime: string, language: Language) 
     return hours ? `${hours}小时${remainder ? ` ${remainder}分钟` : ''}` : `${remainder}分钟`;
   }
   return hours ? `${hours}h${remainder ? ` ${remainder}m` : ''}` : `${remainder}m`;
+}
+
+function formatSessionBadgeDuration(startTime: string, endTime: string, language: Language) {
+  const minutes = Math.max(0, parseMinutes(endTime) - parseMinutes(startTime));
+  if (minutes < 120) return null;
+  const display = String(Number((minutes / 60).toFixed(2)));
+  return language === 'zh' ? `${display}小时场` : `${display}h session`;
 }
 
 function isPast(session: Session) {
@@ -2580,7 +2589,14 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
       return;
     }
     const existing = draft.id ? sessions.find((session) => session.id === draft.id) : undefined;
-    const conflictingSession = sessions.find((session) => session.id !== existing?.id && session.venueId === draft.venueId && session.date === draft.date && sessionOverlaps(draft, session));
+    // Schedule conflicts only matter when the session's venue or time is changing.
+    // Status, description and capacity edits (including publishing/drafting an
+    // expired session) should remain available even if another record shares
+    // the same slot.
+    const scheduleChanged = !existing || existing.venueId !== draft.venueId || existing.date !== draft.date || existing.startTime !== draft.startTime || existing.endTime !== draft.endTime;
+    const conflictingSession = scheduleChanged
+      ? sessions.find((session) => session.id !== existing?.id && session.venueId === draft.venueId && session.date === draft.date && sessionOverlaps(draft, session))
+      : undefined;
     if (conflictingSession) {
       setAdminMessage(t.conflictDetected);
       return;
@@ -2944,7 +2960,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         <button type="button" className="brand-lockup" onClick={() => navigate('home')}>
           <AppMark />
           <span>
-            <strong>Tennis Social</strong>
+            <strong>Tennis Match</strong>
             <small>{t.brandTag}</small>
           </span>
         </button>
@@ -2956,7 +2972,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             onClick={() => setLanguage(language === 'en' ? 'zh' : 'en')}
           >
             <Globe2 size={16} />
-            <span>{language === 'en' ? '中文' : 'EN'}</span>
+            <span>中文/En</span>
           </button>
           <button type="button" aria-label={user ? user.name : t.account} className={`account-link ${view === 'account' ? 'active' : ''}`} onClick={() => navigate('account')}>
             <UserRound size={15} /> <span className="site-nav-label">{user ? user.name : t.account}</span>
@@ -2977,6 +2993,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
     const displayedPreferences = [...manualPreferences, ...preferences].filter((preference, index, list) =>
       list.findIndex((item) => item.level === preference.level && item.format === preference.format) === index,
     );
+    const durationBadge = formatSessionBadgeDuration(session.startTime, session.endTime, language);
     return (
       <article className="session-card" key={session.id}>
         <button type="button" className="session-card-image" onClick={() => openSession(session.id)}>
@@ -2986,6 +3003,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
             <strong>{new Date(`${session.date}T12:00:00`).getDate()}</strong>
             <small>{new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-GB', { month: 'short' }).format(new Date(`${session.date}T12:00:00`))}</small>
           </span>
+          {durationBadge ? <span className="duration-pill">{durationBadge}</span> : null}
           {isFull ? <span className="full-pill">{t.full}</span> : null}
         </button>
         <div className="session-card-body">
@@ -3639,7 +3657,7 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
 
   function renderAdmin() {
     if (!adminAuthChecked || !adminAuthenticated) return renderAdminLogin();
-    const publishedCount = sessions.filter((session) => session.status === 'published').length;
+    const publishedCount = sessions.filter((session) => session.status === 'published' && !isPast(session)).length;
     const openSpots = sessions.reduce(
       (sum, session) => sum + Math.max(0, session.capacity - session.bookedSpots),
       0,
@@ -3838,7 +3856,11 @@ export function TennisSocialApp({ initialView = 'home' }: { initialView?: View }
         {view === 'request' ? renderReservationRequest() : null}
         {view === 'admin' ? renderAdmin() : null}
       </main>
-      <footer className="site-footer page-width"><span><AppMark /> Tennis Social</span><small>{t.demoNotice}</small></footer>
+      <footer className="site-footer page-width">
+        <span><AppMark /> Tennis Match</span>
+        <small>{t.demoNotice}</small>
+        {view === 'home' ? <button type="button" className="admin-footer-link" onClick={() => navigate('admin')}>{t.adminPortal}</button> : null}
+      </footer>
     </div>
   );
 }

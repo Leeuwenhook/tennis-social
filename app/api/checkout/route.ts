@@ -235,7 +235,7 @@ export async function POST(request: Request) {
         bookingId: booking.id,
         sessionId: booking.session_id,
         format: booking.format,
-        venueName: venueRows[0]?.venue_name ?? 'Tennis Social',
+        venueName: venueRows[0]?.venue_name ?? 'Tennis Match',
         participantCount: booking.participant_count,
         sessionPricePence: Math.floor(
           (booking.session_price_pence * booking.participant_count -

@@ -799,7 +799,8 @@
 }
 
 .date-pill,
-.full-pill {
+.full-pill,
+.duration-pill {
   position: absolute;
   display: inline-flex;
   align-items: center;
@@ -831,13 +832,26 @@
 
 .full-pill {
   top: 14px;
-  right: 14px;
+  left: 14px;
   padding: 7px 10px;
   color: #8b3c31;
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.duration-pill {
+  top: 14px;
+  right: 14px;
+  border: 1px solid rgb(255 255 255 / 70%);
+  background: rgb(231 246 236 / 95%);
+  color: var(--primary);
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.01em;
+  box-shadow: 0 5px 14px rgb(19 51 40 / 16%);
 }
 
 .session-card-body {
@@ -3054,6 +3068,27 @@
   font-weight: 900;
 }
 
+.admin-footer-link {
+  margin-left: auto;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0;
+  text-decoration: none;
+  opacity: 0.72;
+  transition: color 180ms ease, opacity 180ms ease;
+}
+
+.admin-footer-link:hover,
+.admin-footer-link:focus-visible {
+  color: var(--primary);
+  opacity: 1;
+  text-decoration: underline;
+}
+
 .site-footer .app-mark {
   width: 24px;
   height: 24px;
@@ -3345,6 +3380,11 @@
   .site-footer {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .admin-footer-link {
+    align-self: flex-end;
+    margin-left: 0;
   }
 }
 

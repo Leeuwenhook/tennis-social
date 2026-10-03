@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Tennis Social | London tennis sessions',
+  title: 'Tennis Match | London tennis sessions',
   description:
     'Find friendly, organised tennis sessions across London and book a place in a few steps.',
   icons: {

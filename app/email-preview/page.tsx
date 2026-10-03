@@ -7,7 +7,7 @@ import {
 } from '@/lib/server/email';
 
 export const metadata: Metadata = {
-  title: 'Email previews | Tennis Social',
+  title: 'Email previews | Tennis Match',
   description: 'Preview the booking confirmation and session reminder emails.',
 };
 
@@ -96,7 +96,7 @@ export default function EmailPreviewPage() {
   return (
     <main style={{ minHeight: '100vh', padding: '40px 18px 72px', background: '#edf2eb', color: '#173b2f', fontFamily: 'Arial,Helvetica,sans-serif' }}>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
-        <p style={{ margin: '0 0 8px', color: '#557064', fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase' }}>Tennis Social · Email design preview</p>
+        <p style={{ margin: '0 0 8px', color: '#557064', fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase' }}>Tennis Match · Email design preview</p>
         <h1 style={{ margin: '0 0 10px', fontSize: 32 }}>两封预订邮件预览</h1>
         <p style={{ margin: '0 0 28px', color: '#557064', lineHeight: 1.6 }}>使用同一笔示例预订，展示付款成功确认邮件和活动前一晚提醒邮件。收件地址为演示地址，不会真的发送。</p>
         <nav style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 30 }}>

@@ -1,4 +1,4 @@
-# Tennis Social
+# Tennis Match
 
 Responsive, bilingual (English & Simplified Chinese) tennis session booking and community platform designed for London players and organisers.
 
@@ -95,7 +95,7 @@ STRIPE_WEBHOOK_SECRET=whsec_...
 
 # Resend Email
 RESEND_API_KEY=re_...
-EMAIL_FROM=Tennis Social <bookings@your-verified-domain.com>
+EMAIL_FROM=Tennis Match <bookings@your-verified-domain.com>
 
 # Vercel Cron Security (minimum 16 random characters)
 CRON_SECRET=your_long_random_cron_secret

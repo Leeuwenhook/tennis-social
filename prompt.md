@@ -152,7 +152,7 @@ CORE REQUIREMENTS:
       consistent test data
     - Bookings not visible on public session page
     - Images, forms, buttons adapt mobile/desktop; keyboard operable
-    - Name: Tennis Social (configurable); currency: GBP; time: London local
+    - Name: Tennis Match (configurable); currency: GBP; time: London local
     - This sprint: NO user registration, no real payment, no email/SMS, no chat, 
       no waitlist, no real refund rules
 

@@ -1,58 +1,157 @@
 # Tennis Social
 
-Responsive bilingual tennis session booking community demo for London.
+Responsive, bilingual (English & Simplified Chinese) tennis session booking and community platform designed for London players and organisers.
 
-## Included
+Built on Vinext (Next.js App Router on Vite) and Nitro, backed by Neon Serverless PostgreSQL, Stripe Checkout, and Resend.
 
-- English by default with a Simplified Chinese switch.
-- Desktop and mobile layouts with real venue photos.
-- Session browsing, detail pages, participant levels, friend bookings and racket rental.
-- Stripe Checkout handoff with server-side pricing, 30-minute reservations and webhook confirmation.
-- Payment confirmation emails sent through Resend with booking details and an attached `.ics` calendar invite, followed by a reminder email at 6 pm London time on the evening before the session.
-- Loyalty rewards: after ten confirmed paid activities, a signed-in user receives a permanent 10% discount on the activity fee for every future booking. The previous half-price voucher policy remains stored but is paused by default.
-- Shared demo sessions, bookings and venues backed by Neon Postgres, with a protected admin at `/admin` for session editing, venue/image management, default pricing, booking review, cancellation and data reset.
-- Vercel-ready Vinext/Nitro build output; browser storage remains only as a local preview fallback.
+---
 
-## Run locally
+## Features
 
+### 1. Player & Session Experience
+- **Bilingual by Design**: Seamless one-click switching between English and Simplified Chinese (with language preference and active form state preserved).
+- **Session Catalogue**: Live calendar of upcoming tennis sessions across London venues, with date, time, duration, fee per person, game formats (singles/doubles), and real-time remaining spots.
+- **Seeking Levels & Matching**: Visual indicators for participant tennis levels (ITN/NTRP 1.0 to 5.0) and preferred formats to help players find matching games.
+- **Group Bookings & Equipment Rental**:
+  - Book for yourself or bring friends with individual tennis level selection for each participant.
+  - Optional tennis racket rental (£2 per racket) automatically capped to the group size.
+- **Session Sharing**: Direct link sharing via Web Share API with clipboard fallback.
+- **Court & Partner Requests**: Visitors can request custom sessions for specific venues or request court finding near a London postcode (`find_nearby`), with guaranteed booking for requests made at least 7 days in advance.
+
+### 2. Payments & Transactional Notifications
+- **Stripe Checkout Integration**:
+  - Server-side price calculation in integer pence.
+  - Atomic PostgreSQL reservation holding places for 30 minutes to eliminate race conditions and overselling.
+  - Stripe Webhook handling for `checkout.session.completed`, `checkout.session.expired`, `checkout.session.async_payment_succeeded`, and refunds.
+- **Automated Email Pipeline (Resend)**:
+  - **Confirmation Email**: Instant booking confirmation with order breakdown, venue notes, and an attached `tennis-social-booking.ics` iCalendar file for 1-click addition to Apple/Google/Outlook calendars.
+  - **Day-Before Reminder**: Automated reminder sent at 18:00 London time on the evening before the session via protected Vercel Cron endpoints (`0 17 * * *` and `0 18 * * *` UTC schedules covering both BST and GMT).
+  - Preview interface at `/email-preview` for inspecting email templates.
+
+### 3. Member Accounts & Loyalty Program
+- **Player Accounts**: Optional member registration with encrypted passwords (scrypt + salt) and secure session cookies. Pre-fills contact and playing preferences.
+- **Permanent Loyalty Discount**: Members who complete 10 confirmed paid sessions automatically unlock a permanent 10% discount on the session activity fee for all future bookings (racket rentals remain standard price).
+- **Legacy Voucher Support**: The previous 50% milestone voucher schema is retained and can be enabled via `ENABLE_LEGACY_LOYALTY_COUPONS=true`.
+
+### 4. Admin Management Dashboard (`/admin`)
+- **Secure Authentication**: HMAC-SHA256 signed session cookies with timing-safe verification. Supports primary and optional secondary admin accounts configured via environment variables.
+- **Session Operations**:
+  - Interactive table view and 7-day calendar view.
+  - Create and edit sessions with field locking for sessions with confirmed bookings.
+  - Bulk publish / draft status toggling with undo capability.
+  - Automated 4-week recurring session generator with collision avoidance.
+  - Excel (`.xlsx`) batch session import with template download and validation report.
+  - One-click CSV export of session schedules.
+- **Venue & Asset Management**:
+  - Multi-photo gallery support per venue with local file upload (up to 1 MB) or URL input.
+  - Independent peak and off-peak baseline pricing.
+  - Venue notes and court details.
+- **Bookings & Requests Review**:
+  - Real-time booking log with participant levels, format, equipment rental, and one-click cancellation (releasing held spots).
+  - Reservation request workflow tracking (New / In Review / Completed).
+  - One-click demo data reset to restore baseline fixtures.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Framework** | [Vinext](https://github.com/vinext) (Next.js App Router on Vite) + [Nitro](https://nitro.unjs.io/) |
+| **Frontend** | React 19, Tailwind CSS v4, Base UI / shadcn/ui components, Lucide Icons |
+| **Database** | [Neon](https://neon.tech/) Serverless PostgreSQL |
+| **ORM & Migrations** | [Drizzle ORM](https://orm.drizzle.team/) & Drizzle Kit |
+| **Payments** | [Stripe Checkout](https://stripe.com/) & Webhooks |
+| **Email & Calendar** | [Resend](https://resend.com/) API + `.ics` iCalendar generation |
+| **Code Quality** | [oxlint](https://oxc.rs/) & [oxfmt](https://oxc.rs/) |
+
+---
+
+## Local Development
+
+### Prerequisites
+- Node.js `>= 22.13.0`
+- A Neon PostgreSQL database (or compatible PostgreSQL instance)
+
+### 1. Installation
 ```bash
 npm install
-cp .env.example .env
-npm run db:migrate
-npm run dev
 ```
 
-Before running the migration, set `DATABASE_URL` in `.env` to your Neon Postgres connection string. Without a database, the public catalogue and browser-only admin preview remain available, but shared admin changes and checkout are unavailable. The local demo login defaults to `admin` / `admin1234`; set `ADMIN_USERNAME`, `ADMIN_PASSWORD` and a strong `ADMIN_SESSION_SECRET` before deploying. To give a second person access, set `ADMIN_USERNAME_2` and `ADMIN_PASSWORD_2` as a pair; both accounts use the same `/admin` login page and can manage the same data. Keep these values in Vercel Environment Variables or the ignored local `.env`, never in Git. The app sends email only; it does not send SMS messages.
-
-## Vercel, Neon and Stripe test setup
-
-Create a Neon Postgres database through the Vercel Marketplace, then make `DATABASE_URL` available in the Vercel Preview and Production environments. To initialize the schema, open the Neon Console from the integration, click **Connect**, copy the connection string, and put it in a local-only `.env` file as `DATABASE_URL`:
-
+### 2. Configure Environment Variables
+Copy `.env.example` to `.env` and fill in your credentials:
 ```bash
-# Replace the placeholder in .env with the connection string copied from Neon.
-npm run db:migrate
+cp .env.example .env
 ```
 
-Vercel Production secrets may be redacted as `[SENSITIVE]` when pulled by the CLI, so do not use that placeholder for migrations. Keep the real connection string only in the ignored local `.env` file.
+Key environment variables:
+```ini
+# Database
+DATABASE_URL=postgresql://user:password@host.neon.tech/database?sslmode=require
 
-Set these Stripe test-mode values locally and in the matching Vercel environments. Keep the secret values out of Git:
-
-```text
+# Stripe Test Keys
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
-```
 
-Set the Resend values as well. `EMAIL_FROM` must use a sender address from a verified Resend domain; the API key must stay server-side:
-
-```text
+# Resend Email
 RESEND_API_KEY=re_...
-EMAIL_FROM=Tennis Social <bookings@your-verified-domain.example>
+EMAIL_FROM=Tennis Social <bookings@your-verified-domain.com>
+
+# Vercel Cron Security (minimum 16 random characters)
+CRON_SECRET=your_long_random_cron_secret
+
+# Admin Dashboard Access (Configure your credentials)
+ADMIN_USERNAME=your_admin_username
+ADMIN_PASSWORD=your_secure_admin_password
+ADMIN_SESSION_SECRET=your_random_32_character_secret
+
+# Optional Second Admin Account
+# ADMIN_USERNAME_2=second_admin
+# ADMIN_PASSWORD_2=second_secure_password
+
+# Legacy Policy Flag
+# ENABLE_LEGACY_LOYALTY_COUPONS=true
 ```
 
-Run `npm run db:migrate` after pulling the new migration. Venue images can be entered as public paths/URLs or selected locally from the admin form (up to 1 MB). A pending booking reserves its places for 30 minutes; `checkout.session.completed` confirms it and triggers the confirmation email; `checkout.session.expired` releases it. The confirmation email includes the booking summary, activity description and a `tennis-social-booking.ics` calendar attachment. A Vercel Cron job sends a second email to confirmed bookings for the next day after 6 pm in the `Europe/London` timezone. The two UTC schedules cover both British Summer Time and Greenwich Mean Time. Vercel Cron expressions use UTC, and Vercel Hobby projects allow only one cron execution per day; use a plan that supports two daily schedules, or an external scheduler, when the reminder must stay at exactly 18:00 across daylight-saving changes. Add a random `CRON_SECRET` of at least 16 characters to Vercel so the reminder endpoint is protected. Vercel Cron runs only on Production deployments, so deploy the change to Production to activate reminders. The `/email-preview` page shows both email designs with sample booking details. Loyalty participation is counted from confirmed paid bookings attached to a signed-in account; guest bookings do not build a reward balance. The permanent 10% discount is calculated server-side and applies to the activity fee after the tenth confirmed booking; racket rental remains full price. The former half-price coupon data and code are retained for a future rollout and can only be re-enabled with `ENABLE_LEGACY_LOYALTY_COUPONS=true`. Point the Stripe webhook to `https://<your-vercel-domain>/api/stripe/webhook`. Use Stripe test cards until the full refund and cancellation policy is in place.
+> **Security Note**: Never commit `.env` or production credentials to source control. Set unique, strong passwords for `ADMIN_PASSWORD` and generate random secrets for `ADMIN_SESSION_SECRET` and `CRON_SECRET`.
 
-See [PLAN.public.md](PLAN.public.md) for the product scope and acceptance criteria.
+### 3. Run Database Migrations
+```bash
+npm run db:migrate
+```
 
-## Deploy to Vercel
+### 4. Start Development Server
+```bash
+npm run dev
+```
+Open [http://localhost:3000](http://localhost:3000) to view the application, or [http://localhost:3000/admin](http://localhost:3000/admin) to access the admin workspace.
 
-Import this repository into Vercel after configuring Neon and Stripe. The included `vercel.json` runs `npm run build:vercel`; Nitro writes the Vercel Build Output API files to `.vercel/output`, which Vercel detects automatically. The project requires Node.js 22.13 or newer.
+---
+
+## Database Migrations
+
+Generate migration files from schema changes in [db/schema.ts](db/schema.ts):
+```bash
+npm run db:generate
+```
+
+Apply pending migrations to the configured database:
+```bash
+npm run db:migrate
+```
+
+---
+
+## Deployment (Vercel)
+
+The repository includes `vercel.json` configured for Nitro's Vercel build output (`npm run build:vercel`):
+
+1. **Connect Repository**: Import the project into Vercel.
+2. **Environment Variables**: Add all variables from `.env.example` in Vercel Project Settings > Environment Variables.
+3. **Database Integration**: Connect Neon Postgres via Vercel Marketplace or supply `DATABASE_URL`. Run `npm run db:migrate` against your production database.
+4. **Stripe Webhook**: In Stripe Dashboard > Webhooks, create an endpoint pointing to:
+   ```
+   https://<your-vercel-domain>/api/stripe/webhook
+   ```
+   Select events: `checkout.session.completed`, `checkout.session.expired`, `checkout.session.async_payment_succeeded`, `charge.refunded`. Copy the signing secret into `STRIPE_WEBHOOK_SECRET`.
+5. **Scheduled Reminders**: Vercel Cron automatically activates in production according to `vercel.json` crons configuration.

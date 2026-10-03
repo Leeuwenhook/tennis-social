@@ -1,4 +1,6 @@
 export type RuntimeEnv = {
+  GEMINI_API_KEY?: string;
+  GEMINI_MODEL?: string;
   DATABASE_URL?: string;
   POSTGRES_URL?: string;
   STRIPE_SECRET_KEY?: string;
@@ -16,6 +18,8 @@ export type RuntimeEnv = {
 
 export function getRuntimeEnv(): RuntimeEnv {
   return {
+    GEMINI_API_KEY: process.env.GEMINI_API_KEY || process.env.GOOGLE_GEMINI_API_KEY,
+    GEMINI_MODEL: process.env.GEMINI_MODEL,
     DATABASE_URL: process.env.DATABASE_URL,
     POSTGRES_URL: process.env.POSTGRES_URL,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,

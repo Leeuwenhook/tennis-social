@@ -40,6 +40,11 @@ function normalizedName(value: unknown) {
   return typeof value === 'string' ? value.trim().normalize('NFKC').toLocaleLowerCase() : '';
 }
 
+function photoForVenueIndex(index: number, photos: string[]) {
+  if (!photos.length) return '/venues/victoria-park.jpg';
+  return photos[index % photos.length];
+}
+
 function scheduleKey(session: { venueId: string; date: string; startTime: string; endTime: string }) {
   return `${session.venueId}|${session.date}|${session.startTime}|${session.endTime}`;
 }
@@ -86,8 +91,16 @@ export async function POST(request: Request) {
 
     const issues: Array<{ row: number; fields: ImportIssueCode[] }> = [];
     const pendingVenuesByName = new Map<string, PendingVenue>();
-    const fallbackPhoto = venueRows.find((venue) => typeof venue.photo === 'string' && venue.photo.trim())?.photo
-      || '/venues/victoria-park.jpg';
+    const venuePhotos = [...new Set(venueRows.flatMap((venue) => {
+      let photos: string[] = [];
+      try {
+        const parsed = JSON.parse(venue.photos_json || '[]') as unknown;
+        if (Array.isArray(parsed)) photos = parsed.filter((photo): photo is string => typeof photo === 'string' && photo.trim().length > 0);
+      } catch {
+        // Use the legacy primary photo below when the gallery JSON is invalid.
+      }
+      return [...photos, venue.photo].filter((photo): photo is string => typeof photo === 'string' && photo.trim().length > 0);
+    }))];
     const sessions: Array<{ rowNumber: number; session: NonNullable<ReturnType<typeof validateSessionInput>> }> = [];
 
     for (let index = 0; index < input.sessions.length; index += 1) {
@@ -112,7 +125,7 @@ export async function POST(request: Request) {
           name: venueName,
           nameZh: venueName,
           prices: [],
-          photo: fallbackPhoto,
+          photo: photoForVenueIndex(pendingVenuesByName.size, venuePhotos),
           notes: '（复用照片）',
         };
         pendingVenuesByName.set(venueKey, pendingVenue);

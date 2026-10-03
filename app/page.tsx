@@ -11,6 +11,7 @@ import { ConfirmationView } from "@/components/views/confirmation-view";
 import { DetailView } from "@/components/views/detail-view";
 import { HomeView } from "@/components/views/home-view";
 import { RequestView } from "@/components/views/request-view";
+import { BookingChat } from "@/components/booking-chat";
 import {
   createDemoBookings,
   createDemoSessions,
@@ -2017,6 +2018,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
         <small>{t.demoNotice}</small>
         {view === 'home' ? <button type="button" className="admin-footer-link" onClick={() => navigate('admin')}>{t.adminPortal ?? (language === 'zh' ? '管理平台' : 'Admin portal')}</button> : null}
       </footer>
+      {view === 'home' ? <BookingChat /> : null}
     </div>
   );
 }

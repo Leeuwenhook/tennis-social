@@ -933,6 +933,30 @@
   line-height: 1.1;
 }
 
+.session-location-summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  margin: 7px 0 0;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.session-location-summary svg {
+  flex: 0 0 auto;
+  color: var(--primary);
+}
+
+.session-location-summary span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .session-price {
   flex: 0 0 auto;
   color: var(--primary);
@@ -1211,6 +1235,59 @@
   color: var(--muted-foreground);
   font-size: 13px;
   font-weight: 700;
+}
+
+.detail-location {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 11px;
+  margin-top: 18px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  background: var(--secondary);
+  padding: 14px 16px;
+}
+
+.detail-location > svg {
+  margin-top: 2px;
+  color: var(--primary);
+}
+
+.detail-location-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.detail-location-copy small {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.detail-location-copy span {
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.detail-location a {
+  align-self: center;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.detail-location a:hover,
+.detail-location a:focus-visible {
+  text-decoration: underline;
 }
 
 .summary-format {
@@ -3509,6 +3586,15 @@
 
   .language-switch {
     padding-inline: 7px;
+  }
+
+  .detail-location {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .detail-location a {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .brand-lockup small {

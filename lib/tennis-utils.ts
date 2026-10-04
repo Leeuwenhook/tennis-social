@@ -54,6 +54,21 @@ export function venueLabel(venue: Venue) {
   return venue.name;
 }
 
+export function venueLocationSummary(venue: Venue, language: 'en' | 'zh' = 'en') {
+  const address = language === 'zh' ? venue.addressZh || venue.address : venue.address;
+  return [address, venue.postcode].filter(Boolean).join(' · ') || (language === 'zh' ? venue.areaZh : venue.area);
+}
+
+export function venueFullLocation(venue: Venue, language: 'en' | 'zh' = 'en') {
+  const address = language === 'zh' ? venue.addressZh || venue.address : venue.address;
+  return [venue.name, address, venue.postcode].filter(Boolean).join(', ');
+}
+
+export function venueMapsUrl(venue: Venue) {
+  const query = [venue.name, venue.address, venue.postcode, venue.area].filter(Boolean).join(', ');
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
 export function venueSearchText(venue: Venue) {
   return [venue.name, venue.nameZh, venue.area, venue.areaZh].join(' ').toLocaleLowerCase();
 }
@@ -163,6 +178,9 @@ export function normalizeVenue(value: unknown): Venue | null {
     nameZh: venue.nameZh,
     area: venue.area,
     areaZh: venue.areaZh,
+    address: typeof venue.address === 'string' ? venue.address : undefined,
+    addressZh: typeof venue.addressZh === 'string' ? venue.addressZh : undefined,
+    postcode: typeof venue.postcode === 'string' ? venue.postcode : undefined,
     photo: venue.photo,
     photos,
     notes: typeof venue.notes === 'string' ? venue.notes : '',

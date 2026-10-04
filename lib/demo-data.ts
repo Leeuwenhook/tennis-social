@@ -4,6 +4,10 @@ export type Venue = {
   nameZh: string;
   area: string;
   areaZh: string;
+  /** Street-level location details are optional so older database rows remain valid. */
+  address?: string;
+  addressZh?: string;
+  postcode?: string;
   notes?: string;
   photo: string;
   photos?: string[];
@@ -58,6 +62,9 @@ export const venues: Venue[] = [
     nameZh: '维多利亚公园',
     area: 'Tower Hamlets',
     areaZh: 'Tower Hamlets 区',
+    address: 'Victoria Park Tennis Courts, Grove Road, London',
+    addressZh: 'Victoria Park 网球场，Grove Road，伦敦',
+    postcode: 'E9 7BT',
     photo: '/venues/victoria-park.jpg',
     photos: ['/venues/victoria-park.jpg', '/venues/victoria-park-original.jpg'],
     peakPricePence: 1500,
@@ -69,6 +76,9 @@ export const venues: Venue[] = [
     nameZh: '沃克斯豪尔公园',
     area: 'Lambeth',
     areaZh: 'Lambeth 区',
+    address: 'Vauxhall Park Tennis Courts, Lawn Lane, London',
+    addressZh: 'Vauxhall Park 网球场，Lawn Lane，伦敦',
+    postcode: 'SW8 1UD',
     photo: '/venues/vauxhall-park.jpg',
     photos: ['/venues/vauxhall-park.jpg', '/venues/vauxhall-park-original.jpg'],
     peakPricePence: 1500,
@@ -80,6 +90,9 @@ export const venues: Venue[] = [
     nameZh: '贝斯纳尔格林',
     area: 'East London',
     areaZh: '东伦敦',
+    address: 'Bethnal Green Gardens Tennis Courts, Bethnal Green, London',
+    addressZh: 'Bethnal Green Gardens 网球场，Bethnal Green，伦敦',
+    postcode: 'E2 9PA',
     photo: '/venues/bethnal-green.jpg',
     photos: ['/venues/bethnal-green.jpg', '/venues/bethnal-green-original.jpg'],
     peakPricePence: 1300,
@@ -91,6 +104,9 @@ export const venues: Venue[] = [
     nameZh: 'Poplar Rec Ground',
     area: 'Poplar',
     areaZh: 'Poplar 区',
+    address: 'Poplar Recreation Ground Tennis Courts, Poplar, London',
+    addressZh: 'Poplar Recreation Ground 网球场，Poplar，伦敦',
+    postcode: 'E14 0AN',
     photo: '/venues/poplar-rec-ground.jpg',
     photos: ['/venues/poplar-rec-ground.jpg', '/venues/poplar-rec-ground-original.jpg'],
     peakPricePence: 1200,
@@ -102,6 +118,9 @@ export const venues: Venue[] = [
     nameZh: 'King Edward Memorial Park',
     area: 'Shadwell',
     areaZh: 'Shadwell 区',
+    address: 'King Edward Memorial Park Tennis Courts, Glamis Road, London',
+    addressZh: 'King Edward Memorial Park 网球场，Glamis Road，伦敦',
+    postcode: 'E1W 3TD',
     photo: '/venues/king-edward-memorial-park.jpg',
     photos: ['/venues/king-edward-memorial-park.jpg', '/venues/king-edward-memorial-park-original.jpg'],
     peakPricePence: 1600,

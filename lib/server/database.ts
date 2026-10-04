@@ -1,6 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 
-import { GAME_FORMATS, RACKET_PRICE_PENCE, type GameFormat } from '../demo-data';
+import { GAME_FORMATS, RACKET_PRICE_PENCE, venues, type GameFormat } from '../demo-data';
 import { getRuntimeEnv } from './runtime';
 import { createDemoSeed } from './seed';
 
@@ -230,6 +230,7 @@ export async function resetSeed(db = database()) {
 }
 
 export function serializeVenue(row: VenueRow) {
+  const demoLocation = venues.find((venue) => venue.id === row.id);
   let photos: string[] = [];
   try {
     const parsed = JSON.parse(row.photos_json || '[]') as unknown;
@@ -244,6 +245,12 @@ export function serializeVenue(row: VenueRow) {
     nameZh: row.name_zh,
     area: row.area,
     areaZh: row.area_zh,
+    // Location columns were not part of the original venues table. Keep the
+    // fields optional and reuse seeded demo details when an existing row has a
+    // matching id, so old databases and custom venues remain readable.
+    address: demoLocation?.address,
+    addressZh: demoLocation?.addressZh,
+    postcode: demoLocation?.postcode,
     photo: row.photo,
     photos,
     notes: row.notes ?? '',

@@ -1243,6 +1243,7 @@
   align-items: start;
   gap: 11px;
   margin-top: 18px;
+  margin-bottom: 18px;
   border: 1px solid var(--border);
   border-radius: 15px;
   background: var(--secondary);

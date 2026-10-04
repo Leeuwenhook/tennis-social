@@ -22,6 +22,7 @@ export function ConfirmationView({
   venueList,
   user,
   confirmationEmailStatus,
+  racketRentalEnabled,
   language,
   t,
   onNavigateHome,
@@ -32,6 +33,7 @@ export function ConfirmationView({
   venueList: Venue[];
   user: UserProfile | null;
   confirmationEmailStatus: ConfirmationEmailStatus;
+  racketRentalEnabled: boolean;
   language: Language;
   t: Translations;
   onNavigateHome: () => void;
@@ -88,16 +90,18 @@ export function ConfirmationView({
               </strong>
             </span>
           </div>
-          <div>
-            <CreditCard size={18} />
-            <span>
-              <small>{t.rental}</small>
-              <strong>
-                {confirmation.racketCount}{' '}
-                {confirmation.racketCount === 1 ? t.racket : t.rackets}
-              </strong>
-            </span>
-          </div>
+          {racketRentalEnabled ? (
+            <div>
+              <CreditCard size={18} />
+              <span>
+                <small>{t.rental}</small>
+                <strong>
+                  {confirmation.racketCount}{' '}
+                  {confirmation.racketCount === 1 ? t.racket : t.rackets}
+                </strong>
+              </span>
+            </div>
+          ) : null}
           <div>
             <CreditCard size={18} />
             <span>
@@ -136,12 +140,14 @@ export function ConfirmationView({
               <strong>−{formatMoney(confirmation.couponDiscountPence, language)}</strong>
             </div>
           ) : null}
-          <div>
-            <span>
-              {t.racketFee} × {confirmation.racketCount}
-            </span>
-            <strong>{formatMoney(confirmation.racketCount * RACKET_PRICE_PENCE, language)}</strong>
-          </div>
+          {racketRentalEnabled ? (
+            <div>
+              <span>
+                {t.racketFee} × {confirmation.racketCount}
+              </span>
+              <strong>{formatMoney(confirmation.racketCount * RACKET_PRICE_PENCE, language)}</strong>
+            </div>
+          ) : null}
           <div>
             <span>{t.total}</span>
             <strong>{formatMoney(confirmation.totalPence, language)}</strong>

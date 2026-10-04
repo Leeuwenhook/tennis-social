@@ -64,6 +64,9 @@ export function AdminView({
   reservationRequests,
   publishedCount,
   openSpots,
+  racketRentalEnabled,
+  racketRentalBusy,
+  onUpdateRacketRental,
   adminBusy,
   adminMessage,
   sessionEditorOpen,
@@ -132,6 +135,9 @@ export function AdminView({
   reservationRequests: ReservationRequest[];
   publishedCount: number;
   openSpots: number;
+  racketRentalEnabled: boolean;
+  racketRentalBusy: boolean;
+  onUpdateRacketRental: (enabled: boolean) => void;
   adminBusy: boolean;
   adminMessage: string;
   sessionEditorOpen: boolean;
@@ -518,6 +524,18 @@ export function AdminView({
             />
           </div>
           <div className="field">
+            <Label htmlFor="venue-address">{language === 'zh' ? '详细地址' : 'Street address'}</Label>
+            <Input id="venue-address" value={venueDraft.address} onChange={(event) => setVenueDraft((current) => ({ ...current, address: event.target.value }))} />
+          </div>
+          <div className="field">
+            <Label htmlFor="venue-postcode">{t.postcode}</Label>
+            <Input id="venue-postcode" value={venueDraft.postcode} onChange={(event) => setVenueDraft((current) => ({ ...current, postcode: event.target.value }))} />
+          </div>
+          <div className="field">
+            <Label htmlFor="venue-address-zh">{language === 'zh' ? '中文地址' : 'Chinese address'}</Label>
+            <Input id="venue-address-zh" value={venueDraft.addressZh} onChange={(event) => setVenueDraft((current) => ({ ...current, addressZh: event.target.value }))} />
+          </div>
+          <div className="field">
             <Label htmlFor="venue-peak-price">
               {t.peakPrice} <em>*</em>
             </Label>
@@ -703,6 +721,22 @@ export function AdminView({
             {t.logout}
           </Button>
         </div>
+      </div>
+      <div className="admin-setting-card">
+        <div>
+          <strong>{t.racketRentalSetting}</strong>
+          <p>{racketRentalEnabled ? t.racketRentalEnabled : t.racketRentalDisabled}</p>
+        </div>
+        <label className="toggle-control">
+          <input
+            type="checkbox"
+            checked={racketRentalEnabled}
+            disabled={racketRentalBusy || adminBusy}
+            aria-label={t.updateRacketRental}
+            onChange={(event) => onUpdateRacketRental(event.target.checked)}
+          />
+          <span aria-hidden="true" />
+        </label>
       </div>
       <div className="admin-stats">
         <div>

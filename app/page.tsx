@@ -25,6 +25,8 @@ import {
 import { formatLongDate, importIssueLabel, parseMinutes } from "@/lib/formatters";
 import { parseSessionWorkbook, SessionImportError } from "@/lib/session-import";
 import {
+  ADMIN_SESSION_STORAGE_KEY,
+  SESSION_RECOVERY_STORAGE_KEY,
   BOOKING_STORAGE_KEY,
   dateFromToday,
   emptyDraft,
@@ -121,6 +123,8 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
   const [sessionImportMessage, setSessionImportMessage] = useState('');
   const [sessionImportFailed, setSessionImportFailed] = useState(false);
   const [adminBusy, setAdminBusy] = useState(false);
+  const [racketRentalEnabled, setRacketRentalEnabled] = useState(false);
+  const [racketRentalBusy, setRacketRentalBusy] = useState(false);
   const sessionImportInput = useRef<HTMLInputElement>(null);
   const [adminAuthChecked, setAdminAuthChecked] = useState(false);
   const [adminAuthenticated, setAdminAuthenticated] = useState(false);
@@ -177,6 +181,8 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
   const [requestVenueActiveIndex, setRequestVenueActiveIndex] = useState(-1);
   const [submittedRequest, setSubmittedRequest] = useState<ReservationRequest | null>(null);
   const sessionsRef = useRef(sessions);
+  const sessionLoadVersion = useRef(0);
+  const adminBusyRef = useRef(false);
   const openSessionRef = useRef<(sessionId: string) => void>(() => undefined);
   const paymentSubmittingRef = useRef(false);
   const cancellingBookingRef = useRef(new Set<string>());
@@ -223,7 +229,13 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
 
   useEffect(() => {
     try {
-      const savedSessions = window.localStorage.getItem(SESSION_STORAGE_KEY);
+      const legacySessions = window.localStorage.getItem(SESSION_STORAGE_KEY);
+      if (legacySessions && !window.localStorage.getItem(SESSION_RECOVERY_STORAGE_KEY)) {
+        window.localStorage.setItem(SESSION_RECOVERY_STORAGE_KEY, legacySessions);
+      }
+      const savedSessions = initialRoute.view === 'admin'
+        ? window.localStorage.getItem(ADMIN_SESSION_STORAGE_KEY) || legacySessions
+        : legacySessions;
       const savedBookings = window.localStorage.getItem(BOOKING_STORAGE_KEY);
       const savedVenues = window.localStorage.getItem(VENUE_STORAGE_KEY);
       const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -268,38 +280,21 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       }
     };
 
-    const loadSessions = async () => {
+    const loadPublicSettings = async () => {
       try {
-        const response = await fetch('/api/sessions', { cache: 'no-store' });
-        if (!response.ok) return;
-        const data = await response.json() as { sessions?: Session[] };
-        if (!cancelled) {
-          setSessions((data.sessions ?? []).map(normalizeSession));
-          setSessionsReady(true);
+        const response = await fetch('/api/config', { cache: 'no-store' });
+        const data = await response.json() as { racketRentalEnabled?: unknown };
+        if (!cancelled && typeof data.racketRentalEnabled === 'boolean') {
+          setRacketRentalEnabled(data.racketRentalEnabled);
+          if (!data.racketRentalEnabled) setBookingForm((current) => ({ ...current, racketCount: 0 }));
         }
       } catch {
-        // The seeded read-only demo remains visible if the server is unavailable.
-      } finally {
-        if (!cancelled) setSessionsReady(true);
+        // The safe default keeps rental disabled until the persisted setting is known.
       }
     };
 
-    // Sessions can be created from the admin view in another tab. Refresh when
-    // this tab becomes visible so the home page does not keep a stale list.
     const refreshOnVisibility = () => {
-      if (document.visibilityState === 'visible') void loadSessions();
-    };
-    const syncStoredSessions = (event: StorageEvent) => {
-      if (event.key !== SESSION_STORAGE_KEY || !event.newValue) return;
-      try {
-        const parsedSessions = JSON.parse(event.newValue) as Session[];
-        if (!cancelled && Array.isArray(parsedSessions)) {
-          setSessions(parsedSessions.map(normalizeSession));
-          setSessionsReady(true);
-        }
-      } catch {
-        // Ignore malformed browser cache entries and keep the current state.
-      }
+      if (document.visibilityState === 'visible') void loadPublicSettings();
     };
 
     const loadVenues = async () => {
@@ -373,16 +368,14 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       }
     };
 
-    void loadSessions();
+    void loadPublicSettings();
     void loadVenues();
     void loadUserSession();
     void reconcileCheckout();
     document.addEventListener('visibilitychange', refreshOnVisibility);
-    window.addEventListener('storage', syncStoredSessions);
     return () => {
       cancelled = true;
       document.removeEventListener('visibilitychange', refreshOnVisibility);
-      window.removeEventListener('storage', syncStoredSessions);
     };
   }, [hydrated]);
 
@@ -406,6 +399,24 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
   useEffect(() => {
     if (!hydrated || view !== 'admin' || !adminAuthChecked || !adminAuthenticated) return;
     let cancelled = false;
+    const loadAdminSettings = async () => {
+      try {
+        const response = await fetch('/api/admin/settings', { cache: 'no-store' });
+        if (response.status === 401) {
+          if (!cancelled) setAdminAuthenticated(false);
+          return;
+        }
+        const data = await response.json() as { racketRentalEnabled?: unknown };
+        if (!cancelled && response.ok && typeof data.racketRentalEnabled === 'boolean') {
+          setRacketRentalEnabled(data.racketRentalEnabled);
+          if (!data.racketRentalEnabled) setBookingForm((current) => ({ ...current, racketCount: 0 }));
+        } else if (!cancelled && !response.ok) {
+          setAdminMessage(t.dataUnavailable);
+        }
+      } catch {
+        if (!cancelled) setAdminMessage(t.dataUnavailable);
+      }
+    };
     const loadAdminBookings = async () => {
       try {
         const response = await fetch('/api/admin/bookings', { cache: 'no-store' });
@@ -416,20 +427,6 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
         if (!response.ok) return;
         const data = await response.json() as { bookings?: Booking[] };
         if (!cancelled && data.bookings) setBookings(data.bookings.map(normalizeBooking));
-      } catch {
-        // The browser cache remains available for local previews without a database.
-      }
-    };
-    const loadAdminSessions = async () => {
-      try {
-        const response = await fetch('/api/admin/sessions', { cache: 'no-store' });
-        if (response.status === 401) {
-          if (!cancelled) setAdminAuthenticated(false);
-          return;
-        }
-        if (!response.ok) return;
-        const data = await response.json() as { sessions?: Session[] };
-        if (!cancelled && data.sessions) setSessions(data.sessions.map(normalizeSession));
       } catch {
         // The browser cache remains available for local previews without a database.
       }
@@ -463,20 +460,71 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
         // The rest of the admin dashboard remains usable if requests are unavailable.
       }
     };
+    void loadAdminSettings();
     void loadAdminBookings();
-    void loadAdminSessions();
     void loadAdminVenues();
     void loadReservationRequests();
     return () => { cancelled = true; };
   }, [adminAuthChecked, adminAuthenticated, hydrated, view]);
 
+  // One session loader owns the list: public requests must never overwrite the
+  // authenticated admin list, and responses started before a save are stale.
+  const isAdminView = view === 'admin';
+  useEffect(() => {
+    if (!hydrated || (isAdminView && (!adminAuthChecked || !adminAuthenticated))) return;
+    let cancelled = false;
+    const load = async () => {
+      if (adminBusyRef.current) return;
+      const version = ++sessionLoadVersion.current;
+      try {
+        const response = await fetch(isAdminView ? '/api/admin/sessions' : '/api/sessions', { cache: 'no-store' });
+        if (cancelled || version !== sessionLoadVersion.current) return;
+        if (isAdminView && response.status === 401) {
+          setAdminAuthenticated(false);
+          return;
+        }
+        if (!response.ok) throw new Error('sessions_unavailable');
+        const data = await response.json() as { sessions?: Session[] };
+        if (!Array.isArray(data.sessions)) throw new Error('invalid_sessions');
+        if (!cancelled && version === sessionLoadVersion.current) {
+          setSessions(data.sessions.map(normalizeSession));
+        }
+      } catch {
+        if (!cancelled && version === sessionLoadVersion.current && isAdminView) {
+          setAdminMessage(translations[language].adminSessionsUnavailable);
+        }
+      } finally {
+        if (!cancelled && version === sessionLoadVersion.current) setSessionsReady(true);
+      }
+    };
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    const sync = (event: StorageEvent) => {
+      if (event.key === SESSION_STORAGE_KEY || event.key === ADMIN_SESSION_STORAGE_KEY) void load();
+    };
+    void load();
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('storage', sync);
+    return () => {
+      cancelled = true;
+      ++sessionLoadVersion.current;
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('storage', sync);
+    };
+  }, [adminAuthChecked, adminAuthenticated, hydrated, isAdminView]);
+
   useEffect(() => {
     if (!hydrated) return;
-    window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessions));
-    window.localStorage.setItem(BOOKING_STORAGE_KEY, JSON.stringify(bookings));
-    window.localStorage.setItem(VENUE_STORAGE_KEY, JSON.stringify(venueList));
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
-  }, [bookings, hydrated, language, sessions, venueList]);
+    try {
+      window.localStorage.setItem(isAdminView ? ADMIN_SESSION_STORAGE_KEY : SESSION_STORAGE_KEY, JSON.stringify(sessions));
+      window.localStorage.setItem(BOOKING_STORAGE_KEY, JSON.stringify(bookings));
+      window.localStorage.setItem(VENUE_STORAGE_KEY, JSON.stringify(venueList));
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    } catch {
+      // Browser storage is only a cache; database saves do not depend on it.
+    }
+  }, [bookings, hydrated, isAdminView, language, sessions, venueList]);
 
   useEffect(() => {
     document.documentElement.lang = language === 'zh' ? 'zh-CN' : 'en';
@@ -513,7 +561,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     : 0;
   const totalPence = selectedSession
     ? Math.floor(selectedSession.pricePence * (100 - appliedDiscountPercent) / 100) * bookingForm.participants.length +
-      bookingForm.racketCount * RACKET_PRICE_PENCE
+      (racketRentalEnabled ? bookingForm.racketCount : 0) * RACKET_PRICE_PENCE
     : 0;
 
   function scrollTop() {
@@ -792,6 +840,8 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
 
   async function updateReservationRequestStatus(id: string, status: ReservationRequestStatus) {
     if (adminBusy) return;
+    adminBusyRef.current = true;
+    ++sessionLoadVersion.current;
     setAdminBusy(true);
     setAdminMessage('');
     try {
@@ -811,6 +861,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     } catch {
       setAdminMessage(t.dataUnavailable);
     } finally {
+      adminBusyRef.current = false;
       setAdminBusy(false);
     }
   }
@@ -1031,7 +1082,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
           phone: bookingForm.phone,
           participants: bookingForm.participants,
           format: bookingForm.format,
-          racketCount: bookingForm.racketCount,
+          racketCount: racketRentalEnabled ? bookingForm.racketCount : 0,
           couponId: selectedCoupon?.id ?? '',
         }),
       });
@@ -1111,6 +1162,9 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       id: venue.id,
       name: venue.name,
       area: venue.area,
+      address: venue.address ?? '',
+      addressZh: venue.addressZh ?? '',
+      postcode: venue.postcode ?? '',
       photo: venue.photo,
       photos: venue.photos?.length ? [...venue.photos] : [venue.photo],
       notes: venue.notes ?? '',
@@ -1189,15 +1243,19 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       nameZh: existing?.nameZh.trim() || name,
       area,
       areaZh: existing?.areaZh.trim() || area,
+      address: venueDraft.address.trim(),
+      addressZh: venueDraft.addressZh.trim(),
+      postcode: venueDraft.postcode.trim().toUpperCase(),
       photo: venueDraft.photos[0].trim(),
       photos: venueDraft.photos.map((photo) => photo.trim()).filter(Boolean),
       notes: venueDraft.notes.trim(),
       peakPricePence,
       offPeakPricePence,
     };
+    adminBusyRef.current = true;
+    ++sessionLoadVersion.current;
     setAdminBusy(true);
     let savedOnServer = false;
-    let useLocalFallback = false;
     try {
       const response = await fetch(
         existing ? `/api/admin/venues/${encodeURIComponent(existing.id)}` : '/api/admin/venues',
@@ -1209,6 +1267,9 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             nameZh: nextVenue.nameZh,
             area: nextVenue.area,
             areaZh: nextVenue.areaZh,
+            address: nextVenue.address,
+            addressZh: nextVenue.addressZh,
+            postcode: nextVenue.postcode,
             photo: nextVenue.photo,
             photos: nextVenue.photos,
             notes: nextVenue.notes,
@@ -1230,23 +1291,19 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
           savedOnServer = true;
         }
       } else if (response.status >= 500) {
-        useLocalFallback = true;
+        setAdminMessage(t.adminSaveUnavailable);
       } else {
         setAdminMessage(t.venueSaveFailed);
       }
     } catch {
-      useLocalFallback = true;
+      setAdminMessage(t.adminSaveUnavailable);
     }
-    if (!savedOnServer && useLocalFallback) {
-      setVenueList((current) => existing
-        ? current.map((venue) => (venue.id === existing.id ? nextVenue : venue))
-        : [...current, nextVenue]);
-    }
-    if (savedOnServer || useLocalFallback) {
+    if (savedOnServer) {
       setVenueDraft(emptyVenueDraft(venueList));
       setVenueEditorOpen(false);
       setAdminMessage(t.venueSaved);
     }
+    adminBusyRef.current = false;
     setAdminBusy(false);
   }
 
@@ -1256,9 +1313,10 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       setAdminMessage(t.sessionDeleteBlocked);
       return;
     }
+    adminBusyRef.current = true;
+    ++sessionLoadVersion.current;
     setAdminBusy(true);
     let deletedOnServer = false;
-    let useLocalFallback = false;
     try {
       const response = await fetch(`/api/admin/sessions/${encodeURIComponent(session.id)}`, { method: 'DELETE' });
       const data = response.status === 204 ? {} : await response.json() as { error?: string };
@@ -1270,18 +1328,19 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       } else if (data.error === 'session_has_bookings') {
         setAdminMessage(t.sessionDeleteBlocked);
       } else if (response.status >= 500) {
-        useLocalFallback = true;
+        setAdminMessage(t.adminSaveUnavailable);
       } else {
         setAdminMessage(t.sessionDeleteFailed);
       }
     } catch {
-      useLocalFallback = true;
+      setAdminMessage(t.adminSaveUnavailable);
     }
-    if (deletedOnServer || useLocalFallback) {
+    if (deletedOnServer) {
       setSessions((current) => current.filter((item) => item.id !== session.id));
       setDraft((current) => current.id === session.id ? emptyDraft(venueList) : current);
       setAdminMessage(t.sessionDeleted);
     }
+    adminBusyRef.current = false;
     setAdminBusy(false);
   }
 
@@ -1294,9 +1353,10 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       setAdminMessage(t.venueDeleteBlocked);
       return;
     }
+    adminBusyRef.current = true;
+    ++sessionLoadVersion.current;
     setAdminBusy(true);
     let deletedOnServer = false;
-    let useLocalFallback = false;
     try {
       const response = await fetch(`/api/admin/venues/${encodeURIComponent(venue.id)}`, { method: 'DELETE' });
       const data = response.status === 204 ? {} : await response.json() as { error?: string };
@@ -1308,24 +1368,27 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       } else if (data.error === 'venue_in_use') {
         setAdminMessage(t.venueDeleteBlocked);
       } else if (response.status >= 500) {
-        useLocalFallback = true;
+        setAdminMessage(t.adminSaveUnavailable);
       } else {
         setAdminMessage(t.venueDeleteFailed);
       }
     } catch {
-      useLocalFallback = true;
+      setAdminMessage(t.adminSaveUnavailable);
     }
-    if (deletedOnServer || useLocalFallback) {
+    if (deletedOnServer) {
       const remainingVenues = venueList.filter((item) => item.id !== venue.id);
       setVenueList(remainingVenues);
       setVenueDraft((current) => current.id === venue.id ? emptyVenueDraft(remainingVenues) : current);
       setAdminMessage(t.venueDeleted);
     }
+    adminBusyRef.current = false;
     setAdminBusy(false);
   }
 
   async function resetDemo() {
     if (!window.confirm(t.resetConfirm)) return;
+    adminBusyRef.current = true;
+    ++sessionLoadVersion.current;
     setAdminBusy(true);
     let resetFromServer = false;
     let resetUnauthorized = false;
@@ -1350,16 +1413,18 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
         }
       }
     } catch {
-      // Fall back to a browser-only reset for local previews without Postgres.
+      // Keep the dashboard state unchanged when the server reset is unavailable.
     }
     if (resetUnauthorized) {
+      adminBusyRef.current = false;
       setAdminBusy(false);
       return;
     }
-    if (!resetFromServer && !resetUnauthorized) {
-      const nextSessions = createDemoSessions() as Session[];
-      setSessions(nextSessions);
-      setBookings(createDemoBookings(nextSessions) as Booking[]);
+    if (!resetFromServer) {
+      setAdminMessage(t.adminSaveUnavailable);
+      adminBusyRef.current = false;
+      setAdminBusy(false);
+      return;
     }
     setConfirmation(null);
     setSelectedSessionId(null);
@@ -1368,6 +1433,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     setAdminMessage(t.resetDone);
     paymentSubmittingRef.current = false;
     cancellingBookingRef.current.clear();
+    adminBusyRef.current = false;
     setAdminBusy(false);
     navigate('admin');
   }
@@ -1467,9 +1533,10 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       descriptionZh: draft.descriptionZh.trim(),
     };
     const payload = sessionPayload(nextSession);
+    adminBusyRef.current = true;
+    ++sessionLoadVersion.current;
     setAdminBusy(true);
     let savedOnServer = false;
-    let useLocalFallback = false;
     try {
       const response = await fetch(
         existing ? `/api/admin/sessions/${encodeURIComponent(existing.id)}` : '/api/admin/sessions',
@@ -1485,31 +1552,32 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
           ? current.map((session) => (session.id === existing.id ? data.session as Session : session))
           : [...current, data.session as Session]);
         savedOnServer = true;
+      } else if (response.status === 401) {
+        setAdminAuthenticated(false);
+        setAdminMessage(t.invalidCredentials);
       } else if (data.error === 'locked_fields') {
         setAdminMessage(t.lockedFields);
       } else if (data.error === 'capacity_too_low') {
         setAdminMessage(t.cannotReduceCapacity);
-      } else if (response.status < 500) {
-        setAdminMessage(t.saveFailed);
+      } else if (response.status === 503) {
+        setAdminMessage(t.adminSaveUnavailable);
       } else {
-        useLocalFallback = true;
+        setAdminMessage(t.saveFailed);
       }
     } catch {
-      // Fall back to local editing when the shared database is not configured.
-      useLocalFallback = true;
+      setAdminMessage(t.adminSaveUnavailable);
     }
-    if (!savedOnServer && useLocalFallback) {
-      setSessions((current) => existing
-        ? current.map((session) => (session.id === existing.id ? nextSession : session))
-        : [...current, nextSession]);
+    if (savedOnServer) {
       setAdminMessage(t.sessionSaved);
-    } else if (savedOnServer) {
-      setAdminMessage(t.sessionSaved);
-    }
-    if (savedOnServer || useLocalFallback) {
+      setSessionDateFilter('');
+      setSessionVenueFilter('');
+      setSessionStatusFilter('');
+      setCalendarDate(nextSession.date);
+      if (isPast(nextSession)) setShowExpiredSessions(true);
       setDraft(emptyDraft(venueList));
       setSessionEditorOpen(false);
     }
+    adminBusyRef.current = false;
     setAdminBusy(false);
   }
 
@@ -1517,6 +1585,8 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     const targets = sessions.filter((session) => selectedSessionIds.includes(session.id));
     if (!targets.length) return;
     setUndoSessions(sessions);
+    adminBusyRef.current = true;
+    ++sessionLoadVersion.current;
     setAdminBusy(true);
     const results = await Promise.all(targets.map(async (session) => {
       try {
@@ -1552,10 +1622,13 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     setAdminMessage(updated.length === targets.length
       ? t.bulkUpdateSuccess.replace('{count}', String(updated.length))
       : t.bulkUpdateFailed);
+    adminBusyRef.current = false;
     setAdminBusy(false);
   }
 
   async function createRecurringSessions(session: Session) {
+    adminBusyRef.current = true;
+    ++sessionLoadVersion.current;
     setAdminBusy(true);
     const created: Session[] = [];
     for (let week = 1; week <= 4; week += 1) {
@@ -1582,6 +1655,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     } else {
       setAdminMessage(t.bulkUpdateFailed);
     }
+    adminBusyRef.current = false;
     setAdminBusy(false);
   }
 
@@ -1613,6 +1687,8 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       setAdminMessage(t.noOperationToUndo);
       return;
     }
+    adminBusyRef.current = true;
+    ++sessionLoadVersion.current;
     setAdminBusy(true);
     const previousById = new Map(undoSessions.map((session) => [session.id, session]));
     const currentChanged = sessions.filter((session) => previousById.has(session.id));
@@ -1636,6 +1712,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     setSessions(undoSessions);
     setUndoSessions(null);
     setAdminMessage(t.operationUndone);
+    adminBusyRef.current = false;
     setAdminBusy(false);
   }
 
@@ -1646,6 +1723,8 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
 
     setSessionImportMessage('');
     setSessionImportFailed(false);
+    adminBusyRef.current = true;
+    ++sessionLoadVersion.current;
     setAdminBusy(true);
     try {
       const sessionsToImport = await parseSessionWorkbook(file);
@@ -1744,6 +1823,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
         setSessionImportFailed(true);
       }
     } finally {
+      adminBusyRef.current = false;
       setAdminBusy(false);
     }
   }
@@ -1757,9 +1837,10 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       !window.confirm(t.cancelConfirm)
     ) return;
     cancellingBookingRef.current.add(bookingId);
+    adminBusyRef.current = true;
+    ++sessionLoadVersion.current;
     setAdminBusy(true);
     let cancelledOnServer = false;
-    let useLocalFallback = false;
     try {
       const response = await fetch(`/api/admin/bookings/${encodeURIComponent(bookingId)}`, {
         method: 'PATCH',
@@ -1767,12 +1848,11 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
         body: JSON.stringify({ status: 'cancelled' }),
       });
       if (response.ok) cancelledOnServer = true;
-      else if (response.status >= 500) useLocalFallback = true;
+      else setAdminMessage(t.adminSaveUnavailable);
     } catch {
-      // Fall back to local cancellation for local previews without Postgres.
-      useLocalFallback = true;
+      setAdminMessage(t.adminSaveUnavailable);
     }
-    if (cancelledOnServer || useLocalFallback) {
+    if (cancelledOnServer) {
       setBookings((current) => current.map((item) => (item.id === bookingId ? { ...item, status: 'cancelled' } : item)));
       setSessions((current) => current.map((session) => {
         if (session.id !== booking.sessionId) return session;
@@ -1793,7 +1873,35 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
         };
       }));
     }
+    adminBusyRef.current = false;
     setAdminBusy(false);
+  }
+
+  async function updateRacketRentalSetting(enabled: boolean) {
+    if (racketRentalBusy || enabled === racketRentalEnabled) return;
+    setRacketRentalBusy(true);
+    try {
+      const response = await fetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ racketRentalEnabled: enabled }),
+      });
+      const data = await response.json() as { racketRentalEnabled?: unknown; error?: string };
+      if (response.status === 401) {
+        setAdminAuthenticated(false);
+        setAdminMessage(t.invalidCredentials);
+      } else if (response.ok && typeof data.racketRentalEnabled === 'boolean') {
+        setRacketRentalEnabled(data.racketRentalEnabled);
+        if (!data.racketRentalEnabled) setBookingForm((current) => ({ ...current, racketCount: 0 }));
+        setAdminMessage(t.sessionSaved);
+      } else {
+        setAdminMessage(t.dataUnavailable);
+      }
+    } catch {
+      setAdminMessage(t.dataUnavailable);
+    } finally {
+      setRacketRentalBusy(false);
+    }
   }
 
   function setLanguage(nextLanguage: Language) {
@@ -1801,7 +1909,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
   }
 
   const publishedCount = sessions.filter((s) => s.status === 'published' && !isPast(s)).length;
-  const openSpots = sessions.reduce((sum, s) => sum + Math.max(0, s.capacity - s.bookedSpots), 0);
+  const openSpots = upcomingSessions.reduce((sum, s) => sum + Math.max(0, s.capacity - s.bookedSpots), 0);
 
   return (
     <div className="app-shell">
@@ -1863,6 +1971,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             couponDiscountPence={couponDiscountPence}
             permanentDiscountPercent={permanentDiscountPercent}
             totalPence={totalPence}
+            racketRentalEnabled={racketRentalEnabled}
             language={language}
             t={t}
             onNavigate={navigate}
@@ -1881,6 +1990,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             venueList={venueList}
             user={user}
             confirmationEmailStatus={confirmationEmailStatus}
+            racketRentalEnabled={racketRentalEnabled}
             language={language}
             t={t}
             onNavigateHome={() => navigate("home")}
@@ -1959,6 +2069,9 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             reservationRequests={reservationRequests}
             publishedCount={publishedCount}
             openSpots={openSpots}
+            racketRentalEnabled={racketRentalEnabled}
+            racketRentalBusy={racketRentalBusy}
+            onUpdateRacketRental={(enabled) => void updateRacketRentalSetting(enabled)}
             adminBusy={adminBusy}
             adminMessage={adminMessage}
             sessionEditorOpen={sessionEditorOpen}

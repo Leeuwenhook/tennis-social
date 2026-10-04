@@ -106,7 +106,7 @@ export async function sendDueBookingReminders(
 
     try {
       const venueRows = await db`
-        SELECT id, name, name_zh, area, area_zh, photo,
+        SELECT id, name, name_zh, area, area_zh, address, address_zh, postcode, photo,
                peak_price_pence, off_peak_price_pence, created_at, updated_at
         FROM venues
         WHERE id = ${booking.venue_id}

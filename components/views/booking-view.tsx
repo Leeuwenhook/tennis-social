@@ -62,6 +62,7 @@ export function BookingView({
   couponDiscountPence,
   permanentDiscountPercent,
   totalPence,
+  racketRentalEnabled,
   language,
   t,
   onNavigate,
@@ -93,6 +94,7 @@ export function BookingView({
   couponDiscountPence: number;
   permanentDiscountPercent: number;
   totalPence: number;
+  racketRentalEnabled: boolean;
   language: Language;
   t: Translations;
   onNavigate: (view: View, options?: { sessionId?: string | null; bookingStage?: BookingStage }) => void;
@@ -161,12 +163,14 @@ export function BookingView({
                 <strong>−{formatMoney(couponDiscountPence, language)}</strong>
               </div>
             ) : null}
-            <div>
-              <span>
-                {t.racketFee} × {bookingForm.racketCount}
-              </span>
-              <strong>{formatMoney(bookingForm.racketCount * RACKET_PRICE_PENCE, language)}</strong>
-            </div>
+            {racketRentalEnabled ? (
+              <div>
+                <span>
+                  {t.racketFee} × {bookingForm.racketCount}
+                </span>
+                <strong>{formatMoney(bookingForm.racketCount * RACKET_PRICE_PENCE, language)}</strong>
+              </div>
+            ) : null}
           </div>
           <div className="summary-total">
             <span>{t.total}</span>
@@ -438,29 +442,33 @@ export function BookingView({
               <TriangleAlert size={16} /> {formErrors.participants}
             </div>
           ) : null}
-          <div className="form-divider" />
-          <div className="form-section-heading">
-            <div>
-              <h2>{t.rental}</h2>
-              <p>{t.rentalIntro}</p>
-            </div>
-            <QuantityControl
-              label={t.rental}
-              value={bookingForm.racketCount}
-              min={0}
-              max={bookingForm.participants.length}
-              onChange={(value) => {
-                setBookingForm((current) => ({ ...current, racketCount: value }));
-              }}
-            />
-          </div>
-          <div className="rental-hint">
-            <span>
-              {bookingForm.racketCount}{' '}
-              {bookingForm.racketCount === 1 ? t.racket : t.rackets}
-            </span>
-            <span>{formatMoney(bookingForm.racketCount * RACKET_PRICE_PENCE, language)}</span>
-          </div>
+          {racketRentalEnabled ? (
+            <>
+              <div className="form-divider" />
+              <div className="form-section-heading">
+                <div>
+                  <h2>{t.rental}</h2>
+                  <p>{t.rentalIntro}</p>
+                </div>
+                <QuantityControl
+                  label={t.rental}
+                  value={bookingForm.racketCount}
+                  min={0}
+                  max={bookingForm.participants.length}
+                  onChange={(value) => {
+                    setBookingForm((current) => ({ ...current, racketCount: value }));
+                  }}
+                />
+              </div>
+              <div className="rental-hint">
+                <span>
+                  {bookingForm.racketCount}{' '}
+                  {bookingForm.racketCount === 1 ? t.racket : t.rackets}
+                </span>
+                <span>{formatMoney(bookingForm.racketCount * RACKET_PRICE_PENCE, language)}</span>
+              </div>
+            </>
+          ) : null}
           <Button size="lg" className="primary-wide form-submit" type="submit">
             {t.continuePayment}
             <ArrowRight size={17} />

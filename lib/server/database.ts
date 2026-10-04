@@ -26,6 +26,9 @@ export type VenueRow = {
   name_zh: string;
   area: string;
   area_zh: string;
+  address?: string;
+  address_zh?: string;
+  postcode?: string;
   photo: string;
   photos_json: string;
   notes: string;
@@ -113,25 +116,17 @@ export const PERMANENT_LOYALTY_DISCOUNT_PERCENT = 10;
 
 export const RACKET_RENTAL_SETTING_KEY = 'racket_rental_enabled';
 
-/**
- * Read the global racket rental switch. The migration seeds this setting to
- * enabled, and the insert below keeps older databases safe during rollout.
- */
+/** Rentals default to off, including during rollout to a pre-migration DB. */
 export async function racketRentalEnabled(db = database()) {
-  const rows = await db`
-    SELECT value
-    FROM app_settings
-    WHERE key = ${RACKET_RENTAL_SETTING_KEY}
-  ` as Array<{ value: string }>;
-  if (!rows[0]) {
-    await db`
-      INSERT INTO app_settings (key, value, updated_at)
-      VALUES (${RACKET_RENTAL_SETTING_KEY}, 'false', ${new Date().toISOString()})
-      ON CONFLICT (key) DO NOTHING
-    `;
-    return false;
+  try {
+    const rows = await db`
+      SELECT value FROM app_settings WHERE key = ${RACKET_RENTAL_SETTING_KEY}
+    ` as Array<{ value: string }>;
+    return rows[0]?.value === 'true';
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === '42P01') return false;
+    throw error;
   }
-  return rows[0].value === 'true';
 }
 
 export async function setRacketRentalEnabled(enabled: boolean, db = database()) {
@@ -143,7 +138,7 @@ export async function setRacketRentalEnabled(enabled: boolean, db = database()) 
       SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
     RETURNING value
   ` as Array<{ value: string }>;
-  return rows[0]?.value !== 'false';
+  return rows[0]?.value === 'true';
 }
 
 /**
@@ -192,10 +187,10 @@ function venueInsert(db: Database, venue: ReturnType<typeof createDemoSeed>['ven
   return db`
     INSERT INTO venues (
       id, name, name_zh, area, area_zh, photo, notes, peak_price_pence,
-      off_peak_price_pence, photos_json, created_at, updated_at
+      off_peak_price_pence, photos_json, address, address_zh, postcode, created_at, updated_at
     ) VALUES (
       ${venue.id}, ${venue.name}, ${venue.nameZh}, ${venue.area}, ${venue.areaZh}, ${venue.photo}, ${venue.notes ?? ''},
-      ${venue.peakPricePence}, ${venue.offPeakPricePence}, ${JSON.stringify(venue.photos?.length ? venue.photos : [venue.photo])}, ${now}, ${now}
+      ${venue.peakPricePence}, ${venue.offPeakPricePence}, ${JSON.stringify(venue.photos?.length ? venue.photos : [venue.photo])}, ${venue.address ?? ''}, ${venue.addressZh ?? ''}, ${venue.postcode ?? ''}, ${now}, ${now}
     )
     ON CONFLICT (id) DO NOTHING
   `;
@@ -280,12 +275,9 @@ export function serializeVenue(row: VenueRow) {
     nameZh: row.name_zh,
     area: row.area,
     areaZh: row.area_zh,
-    // Location columns were not part of the original venues table. Keep the
-    // fields optional and reuse seeded demo details when an existing row has a
-    // matching id, so old databases and custom venues remain readable.
-    address: demoLocation?.address,
-    addressZh: demoLocation?.addressZh,
-    postcode: demoLocation?.postcode,
+    address: row.address?.trim() || demoLocation?.address || '',
+    addressZh: row.address_zh?.trim() || demoLocation?.addressZh || '',
+    postcode: row.postcode?.trim() || demoLocation?.postcode || '',
     photo: row.photo,
     photos,
     notes: row.notes ?? '',

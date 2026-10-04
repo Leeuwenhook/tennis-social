@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { VenuePhoto } from '@/components/venue-photo';
 import type { Venue } from '@/lib/demo-data';
 import { formatDuration, formatLongDate, formatMoney, formatNames } from '@/lib/formatters';
+import { venueFullLocation, venueMapsUrl } from '@/lib/tennis-utils';
 import type { Translations } from '@/lib/translations';
 import type { Language, Session } from '@/types/tennis';
 
@@ -40,6 +41,7 @@ export function DetailView({
 }) {
   const spots = Math.max(0, selectedSession.capacity - selectedSession.bookedSpots);
   const full = spots === 0;
+  const fullLocation = venueFullLocation(selectedVenue, language);
 
   return (
     <section className="detail-page page-width">
@@ -112,6 +114,16 @@ export function DetailView({
             <span>
               {t.noLevelLimit}. {t.allLevels}.
             </span>
+          </div>
+          <div className="detail-location">
+            <MapPin size={19} aria-hidden="true" />
+            <div className="detail-location-copy">
+              <small>{t.location}</small>
+              <span>{fullLocation}</span>
+            </div>
+            <a href={venueMapsUrl(selectedVenue)} target="_blank" rel="noreferrer">
+              {t.openInGoogleMaps}
+            </a>
           </div>
           <div className="detail-actions">
             <Button

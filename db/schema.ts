@@ -1,11 +1,20 @@
 import { index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
+export const appSettings = pgTable('app_settings', {
+  key: text('key').primaryKey(),
+  value: text('value').notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
+
 export const venues = pgTable('venues', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   nameZh: text('name_zh').notNull(),
   area: text('area').notNull(),
   areaZh: text('area_zh').notNull(),
+  address: text('address').notNull().default(''),
+  addressZh: text('address_zh').notNull().default(''),
+  postcode: text('postcode').notNull().default(''),
   notes: text('notes').notNull().default(''),
   photo: text('photo').notNull(),
   photosJson: text('photos_json').notNull().default('[]'),

@@ -4,6 +4,7 @@ import {
   ensureSeeded,
   expireStaleReservations,
   ensurePermanentLoyaltyDiscount,
+  racketRentalEnabled,
   legacyLoyaltyCouponsEnabled,
   PERMANENT_LOYALTY_DISCOUNT_PERCENT,
   releaseBooking,
@@ -94,6 +95,11 @@ export async function POST(request: Request) {
     const db = database();
     await ensureSeeded(db);
     await expireStaleReservations(db);
+    const rentalEnabled = await racketRentalEnabled(db);
+    if (!rentalEnabled && racketCount > 0) {
+      return Response.json({ error: 'racket_rental_disabled' }, { status: 409 });
+    }
+    const effectiveRacketCount = rentalEnabled ? racketCount : 0;
     const authenticatedUser = await getAuthenticatedUser(request, db);
     const now = new Date();
     const nowIso = now.toISOString();
@@ -200,7 +206,7 @@ export async function POST(request: Request) {
       )
       SELECT
         ${bookingId}, reserved.id, ${authenticatedUser?.id ?? null}, ${name}, ${email}, ${phone}, ${JSON.stringify(participants)},
-        ${format}, ${participants.length}, ${racketCount}, reserved.price_pence, ${RACKET_PRICE_PENCE},
+        ${format}, ${participants.length}, ${effectiveRacketCount}, reserved.price_pence, ${RACKET_PRICE_PENCE},
         ${couponId || null},
         CASE WHEN ${couponDiscountPercent} >= ${permanentDiscountPercent} AND ${couponDiscountPercent} > 0
           THEN reserved.price_pence * ${participants.length} - (FLOOR(reserved.price_pence * ${100 - couponDiscountPercent} / 100.0)::integer * ${participants.length})
@@ -209,7 +215,7 @@ export async function POST(request: Request) {
         CASE WHEN ${permanentDiscountPercent} > ${couponDiscountPercent}
           THEN reserved.price_pence * ${participants.length} - (FLOOR(reserved.price_pence * ${100 - permanentDiscountPercent} / 100.0)::integer * ${participants.length})
           ELSE 0 END,
-        FLOOR(reserved.price_pence * ${100 - appliedDiscountPercent} / 100.0)::integer * ${participants.length} + ${RACKET_PRICE_PENCE * racketCount},
+        FLOOR(reserved.price_pence * ${100 - appliedDiscountPercent} / 100.0)::integer * ${participants.length} + ${RACKET_PRICE_PENCE * effectiveRacketCount},
         'pending_payment', ${expiresAt}, ${nowIso}, ${nowIso}
       FROM reserved
       RETURNING id, session_id, user_id, contact_name, email, phone, participants_json,

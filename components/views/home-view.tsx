@@ -6,6 +6,7 @@ import CalendarPlus from 'lucide-react/dist/esm/icons/calendar-plus.mjs';
 import Check from 'lucide-react/dist/esm/icons/check.mjs';
 import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right.mjs';
 import Clock3 from 'lucide-react/dist/esm/icons/clock-3.mjs';
+import MapPin from 'lucide-react/dist/esm/icons/map-pin.mjs';
 import Users from 'lucide-react/dist/esm/icons/users.mjs';
 
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ import {
   bookingPreferencesFromBookings,
   getVenue,
   summarizeBookingPreferences,
+  venueLocationSummary,
 } from '@/lib/tennis-utils';
 import type { Translations } from '@/lib/translations';
 import type { Booking, Language, Session } from '@/types/tennis';
@@ -87,6 +89,10 @@ export function HomeView({
             <div>
               <p className="eyebrow muted">{venue.area}</p>
               <h3>{venue.name}</h3>
+              <p className="session-location-summary">
+                <MapPin size={13} aria-hidden="true" />
+                <span>{venueLocationSummary(venue, language)}</span>
+              </p>
             </div>
             <span className="session-price">
               {formatMoney(session.pricePence, language)}

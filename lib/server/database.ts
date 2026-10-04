@@ -1,6 +1,6 @@
 import { neon } from '@neondatabase/serverless';
 
-import { GAME_FORMATS, RACKET_PRICE_PENCE, type GameFormat } from '../demo-data';
+import { GAME_FORMATS, RACKET_PRICE_PENCE, venues, type GameFormat } from '../demo-data';
 import { getRuntimeEnv } from './runtime';
 import { createDemoSeed } from './seed';
 
@@ -26,6 +26,9 @@ export type VenueRow = {
   name_zh: string;
   area: string;
   area_zh: string;
+  address?: string;
+  address_zh?: string;
+  postcode?: string;
   photo: string;
   photos_json: string;
   notes: string;
@@ -111,6 +114,33 @@ export type LoyaltyStatus = {
 export const PERMANENT_LOYALTY_DISCOUNT_AFTER = 10;
 export const PERMANENT_LOYALTY_DISCOUNT_PERCENT = 10;
 
+export const RACKET_RENTAL_SETTING_KEY = 'racket_rental_enabled';
+
+/** Rentals default to off, including during rollout to a pre-migration DB. */
+export async function racketRentalEnabled(db = database()) {
+  try {
+    const rows = await db`
+      SELECT value FROM app_settings WHERE key = ${RACKET_RENTAL_SETTING_KEY}
+    ` as Array<{ value: string }>;
+    return rows[0]?.value === 'true';
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === '42P01') return false;
+    throw error;
+  }
+}
+
+export async function setRacketRentalEnabled(enabled: boolean, db = database()) {
+  const now = new Date().toISOString();
+  const rows = await db`
+    INSERT INTO app_settings (key, value, updated_at)
+    VALUES (${RACKET_RENTAL_SETTING_KEY}, ${enabled ? 'true' : 'false'}, ${now})
+    ON CONFLICT (key) DO UPDATE
+      SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+    RETURNING value
+  ` as Array<{ value: string }>;
+  return rows[0]?.value === 'true';
+}
+
 /**
  * The half-price coupon policy is retained in the schema and award function
  * for a possible future rollout, but is disabled until this flag is enabled.
@@ -157,10 +187,10 @@ function venueInsert(db: Database, venue: ReturnType<typeof createDemoSeed>['ven
   return db`
     INSERT INTO venues (
       id, name, name_zh, area, area_zh, photo, notes, peak_price_pence,
-      off_peak_price_pence, photos_json, created_at, updated_at
+      off_peak_price_pence, photos_json, address, address_zh, postcode, created_at, updated_at
     ) VALUES (
       ${venue.id}, ${venue.name}, ${venue.nameZh}, ${venue.area}, ${venue.areaZh}, ${venue.photo}, ${venue.notes ?? ''},
-      ${venue.peakPricePence}, ${venue.offPeakPricePence}, ${JSON.stringify(venue.photos?.length ? venue.photos : [venue.photo])}, ${now}, ${now}
+      ${venue.peakPricePence}, ${venue.offPeakPricePence}, ${JSON.stringify(venue.photos?.length ? venue.photos : [venue.photo])}, ${venue.address ?? ''}, ${venue.addressZh ?? ''}, ${venue.postcode ?? ''}, ${now}, ${now}
     )
     ON CONFLICT (id) DO NOTHING
   `;
@@ -230,6 +260,7 @@ export async function resetSeed(db = database()) {
 }
 
 export function serializeVenue(row: VenueRow) {
+  const demoLocation = venues.find((venue) => venue.id === row.id);
   let photos: string[] = [];
   try {
     const parsed = JSON.parse(row.photos_json || '[]') as unknown;
@@ -244,6 +275,9 @@ export function serializeVenue(row: VenueRow) {
     nameZh: row.name_zh,
     area: row.area,
     areaZh: row.area_zh,
+    address: row.address?.trim() || demoLocation?.address || '',
+    addressZh: row.address_zh?.trim() || demoLocation?.addressZh || '',
+    postcode: row.postcode?.trim() || demoLocation?.postcode || '',
     photo: row.photo,
     photos,
     notes: row.notes ?? '',

@@ -101,6 +101,9 @@ export type SessionDraft = {
 };
 
 export type VenueDraft = {
+  address: string;
+  addressZh: string;
+  postcode: string;
   id: string | null;
   name: string;
   area: string;

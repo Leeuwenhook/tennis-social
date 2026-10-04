@@ -65,7 +65,7 @@ export async function GET(request: Request) {
     await expireStaleReservations(db);
     const rows = await db`
       SELECT id, venue_id, date, start_time, end_time, price_pence, capacity,
-             booked_spots, formats_json, status, description, description_zh
+             booked_spots, formats_json, seeking_levels_json, status, description, description_zh
       FROM sessions
       ORDER BY date, start_time
     ` as SessionRow[];

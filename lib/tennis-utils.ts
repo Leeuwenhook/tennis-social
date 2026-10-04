@@ -22,6 +22,8 @@ import type {
 
 export const LEVELS = ['1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0'] as const;
 export const PREFERRED_TIMES = ['weekends', 'weekday_evenings', 'anytime', 'mornings', 'afternoons'] as const;
+export const ADMIN_SESSION_STORAGE_KEY = 'tennis-match-admin-sessions-v1';
+export const SESSION_RECOVERY_STORAGE_KEY = 'tennis-match-session-recovery-v1';
 export const SESSION_STORAGE_KEY = 'tennis-social-sessions-v2';
 export const BOOKING_STORAGE_KEY = 'tennis-social-bookings-v2';
 export const VENUE_STORAGE_KEY = 'tennis-social-venues-v1';
@@ -54,8 +56,23 @@ export function venueLabel(venue: Venue) {
   return venue.name;
 }
 
+export function venueLocationSummary(venue: Venue, language: 'en' | 'zh' = 'en') {
+  const address = language === 'zh' ? venue.addressZh || venue.address : venue.address;
+  return [address, venue.postcode].filter(Boolean).join(' · ') || (language === 'zh' ? venue.areaZh : venue.area);
+}
+
+export function venueFullLocation(venue: Venue, language: 'en' | 'zh' = 'en') {
+  const address = language === 'zh' ? venue.addressZh || venue.address : venue.address;
+  return [venue.name, address || venue.area, venue.postcode].filter(Boolean).join(', ');
+}
+
+export function venueMapsUrl(venue: Venue) {
+  const query = [venue.name, venue.address, venue.postcode, venue.area].filter(Boolean).join(', ');
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
+
 export function venueSearchText(venue: Venue) {
-  return [venue.name, venue.nameZh, venue.area, venue.areaZh].join(' ').toLocaleLowerCase();
+  return [venue.name, venue.nameZh, venue.area, venue.areaZh, venue.address, venue.addressZh, venue.postcode].join(' ').toLocaleLowerCase();
 }
 
 export function validFormats(value: unknown): GameFormat[] {
@@ -163,6 +180,9 @@ export function normalizeVenue(value: unknown): Venue | null {
     nameZh: venue.nameZh,
     area: venue.area,
     areaZh: venue.areaZh,
+    address: typeof venue.address === 'string' ? venue.address : undefined,
+    addressZh: typeof venue.addressZh === 'string' ? venue.addressZh : undefined,
+    postcode: typeof venue.postcode === 'string' ? venue.postcode : undefined,
     photo: venue.photo,
     photos,
     notes: typeof venue.notes === 'string' ? venue.notes : '',
@@ -234,6 +254,9 @@ export function emptyVenueDraft(venueList: Venue[] = venues): VenueDraft {
     id: null,
     name: '',
     area: '',
+    address: '',
+    addressZh: '',
+    postcode: '',
     photo: '',
     photos: [],
     notes: '',

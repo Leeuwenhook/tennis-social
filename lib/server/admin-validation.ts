@@ -7,6 +7,9 @@ export type VenueInput = {
   nameZh?: unknown;
   area?: unknown;
   areaZh?: unknown;
+  address?: unknown;
+  addressZh?: unknown;
+  postcode?: unknown;
   photo?: unknown;
   photos?: unknown;
   notes?: unknown;
@@ -19,6 +22,9 @@ export type ValidatedVenueInput = {
   nameZh: string;
   area: string;
   areaZh: string;
+  address: string;
+  addressZh: string;
+  postcode: string;
   photo: string;
   photos: string[];
   notes: string;
@@ -92,6 +98,9 @@ export function validateVenueInput(input: VenueInput): ValidatedVenueInput | nul
   const photos = rawPhotos.length ? rawPhotos : rawPhoto ? [rawPhoto] : [];
   const primaryPhoto = photos[0] ?? '';
   const notes = cleanString(input.notes, 1000);
+  const address = cleanString(input.address, 300);
+  const addressZh = cleanString(input.addressZh, 300);
+  const postcode = cleanString(input.postcode, 20).toUpperCase();
   const peakPriceValue = typeof input.peakPricePence === 'string'
     ? input.peakPricePence.trim()
     : typeof input.peakPricePence === 'number' ? String(input.peakPricePence) : '';
@@ -107,7 +116,7 @@ export function validateVenueInput(input: VenueInput): ValidatedVenueInput | nul
     !Number.isInteger(offPeakPricePence) || offPeakPricePence < 0 || offPeakPricePence > 100_000 ||
     peakPricePence < offPeakPricePence
   ) return null;
-  return { name, nameZh, area, areaZh, photo: primaryPhoto, photos, notes, peakPricePence, offPeakPricePence };
+  return { name, nameZh, area, areaZh, address, addressZh, postcode, photo: primaryPhoto, photos, notes, peakPricePence, offPeakPricePence };
 }
 
 export function validateSessionInput(

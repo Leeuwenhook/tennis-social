@@ -111,6 +111,41 @@ export type LoyaltyStatus = {
 export const PERMANENT_LOYALTY_DISCOUNT_AFTER = 10;
 export const PERMANENT_LOYALTY_DISCOUNT_PERCENT = 10;
 
+export const RACKET_RENTAL_SETTING_KEY = 'racket_rental_enabled';
+
+/**
+ * Read the global racket rental switch. The migration seeds this setting to
+ * enabled, and the insert below keeps older databases safe during rollout.
+ */
+export async function racketRentalEnabled(db = database()) {
+  const rows = await db`
+    SELECT value
+    FROM app_settings
+    WHERE key = ${RACKET_RENTAL_SETTING_KEY}
+  ` as Array<{ value: string }>;
+  if (!rows[0]) {
+    await db`
+      INSERT INTO app_settings (key, value, updated_at)
+      VALUES (${RACKET_RENTAL_SETTING_KEY}, 'false', ${new Date().toISOString()})
+      ON CONFLICT (key) DO NOTHING
+    `;
+    return false;
+  }
+  return rows[0].value === 'true';
+}
+
+export async function setRacketRentalEnabled(enabled: boolean, db = database()) {
+  const now = new Date().toISOString();
+  const rows = await db`
+    INSERT INTO app_settings (key, value, updated_at)
+    VALUES (${RACKET_RENTAL_SETTING_KEY}, ${enabled ? 'true' : 'false'}, ${now})
+    ON CONFLICT (key) DO UPDATE
+      SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at
+    RETURNING value
+  ` as Array<{ value: string }>;
+  return rows[0]?.value !== 'false';
+}
+
 /**
  * The half-price coupon policy is retained in the schema and award function
  * for a possible future rollout, but is disabled until this flag is enabled.

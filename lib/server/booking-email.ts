@@ -28,7 +28,7 @@ export async function sendConfirmedBookingEmail(
 ): Promise<BookingEmailDelivery> {
   if (!isEmailConfigured()) {
     console.warn(
-      `Confirmation email skipped for ${bookingId}: RESEND_API_KEY or EMAIL_FROM is not configured.`,
+      `Confirmation email skipped for ${bookingId}: SMTP_USER, SMTP_PASSWORD, or EMAIL_FROM is not configured.`,
     );
     return { status: 'skipped' };
   }

@@ -94,8 +94,12 @@ DATABASE_URL=postgresql://user:password@host.neon.tech/database?sslmode=require
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
 
-# Resend Email
-RESEND_API_KEY=re_...
+# Hostinger SMTP Email
+SMTP_HOST=smtp.hostinger.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=bookings@yourdomain.com
+SMTP_PASSWORD=your_hostinger_mailbox_password
 EMAIL_FROM=Tennis Match <bookings@your-verified-domain.com>
 
 # Optional booking assistant (server-side only)

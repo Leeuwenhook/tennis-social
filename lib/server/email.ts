@@ -94,7 +94,7 @@ function formatMoney(pence: number) {
 }
 
 function formatFormat(format: BookingRow['format']) {
-  return format === 'doubles' ? 'Doubles / 双打' : 'Singles / 单打';
+  return format === 'doubles' ? 'Doubles' : 'Singles';
 }
 
 function parseParticipants(value: string) {
@@ -116,11 +116,11 @@ export function createBookingCalendar(
   const { booking, session, venue } = input;
   const participants = parseParticipants(booking.participants_json);
   const description = [
-    `Booking reference / 订票编号: ${booking.id}`,
-    `Format / 比赛形式: ${formatFormat(booking.format)}`,
-    `Participants / 参与人数: ${participants.length}`,
-    `Rackets / 球拍: ${booking.racket_count}`,
-    `Activity / 活动: ${session.description}`,
+    `Booking reference: ${booking.id}`,
+    `Format: ${formatFormat(booking.format)}`,
+    `Participants: ${participants.length}`,
+    `Rackets: ${booking.racket_count}`,
+    `Activity: ${session.description || 'Tennis session'}`,
   ].join('\n');
   const lines = [
     'BEGIN:VCALENDAR',
@@ -151,56 +151,54 @@ export function renderBookingConfirmationEmail(input: BookingEmailInput): Render
   const date = formatLongDate(session.date);
   const time = `${session.start_time}–${session.end_time} (${LONDON_TIME_ZONE})`;
   const format = formatFormat(booking.format);
-  const activityDescription = session.description || session.description_zh;
+  const activityDescription = session.description || 'Tennis session';
   const discountRows = [
     booking.loyalty_discount_pence > 0
-      ? `<tr><td style="padding:8px 0;color:#557064">Permanent 10% member discount / 会员永久九折优惠</td><td style="padding:8px 0;font-weight:700;color:#2f7b52">−${formatMoney(booking.loyalty_discount_pence)}</td></tr>`
+      ? `<tr><td style="padding:8px 0;color:#557064">Permanent 10% member discount</td><td style="padding:8px 0;font-weight:700;color:#2f7b52">−${formatMoney(booking.loyalty_discount_pence)}</td></tr>`
       : '',
     booking.coupon_discount_pence > 0
-      ? `<tr><td style="padding:8px 0;color:#557064">Half-price voucher / 半价券</td><td style="padding:8px 0;font-weight:700;color:#2f7b52">−${formatMoney(booking.coupon_discount_pence)}</td></tr>`
+      ? `<tr><td style="padding:8px 0;color:#557064">Half-price voucher</td><td style="padding:8px 0;font-weight:700;color:#2f7b52">−${formatMoney(booking.coupon_discount_pence)}</td></tr>`
       : '',
   ].join('');
   const participantRows = participants.length
     ? participants
         .map(
           (level, index) =>
-            `<li>Participant ${index + 1} / 参与者 ${index + 1}: ${escapeHtml(level)}</li>`,
+            `<li>Participant ${index + 1}: ${escapeHtml(level)}</li>`,
         )
         .join('')
-    : '<li>See your booking record / 详见订票记录</li>';
+    : '<li>See your booking record</li>';
   const html = `
     <div style="background:#f4f7f2;padding:32px 16px;font-family:Arial,Helvetica,sans-serif;color:#173b2f;line-height:1.6">
       <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #dce8dc;border-radius:16px;overflow:hidden">
         <div style="padding:28px 32px;background:#173b2f;color:#ffffff">
           <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#d5eb85">Tennis Match</div>
-          <h1 style="margin:8px 0 0;font-size:28px;line-height:1.2">Booking confirmed · 预订成功</h1>
+          <h1 style="margin:8px 0 0;font-size:28px;line-height:1.2">Booking confirmed</h1>
         </div>
         <div style="padding:28px 32px">
           <p>Hi ${escapeHtml(booking.contact_name)}, your payment was successful and your place is confirmed.</p>
-          <p>你好 ${escapeHtml(booking.contact_name)}，你的付款已成功，活动名额已经确认。</p>
           <div style="margin:24px 0;padding:18px 20px;background:#f4f7f2;border-radius:12px">
-            <div style="font-size:12px;color:#557064;text-transform:uppercase;letter-spacing:1px">Booking reference / 订票编号</div>
+            <div style="font-size:12px;color:#557064;text-transform:uppercase;letter-spacing:1px">Booking reference</div>
             <div style="font-size:22px;font-weight:700;margin-top:4px">${escapeHtml(booking.id)}</div>
           </div>
-          <h2 style="font-size:18px;margin:24px 0 10px">Activity details / 活动信息</h2>
+          <h2 style="font-size:18px;margin:24px 0 10px">Activity details</h2>
           <table role="presentation" style="width:100%;border-collapse:collapse">
-            <tr><td style="padding:8px 0;color:#557064;width:42%">Location / 地点</td><td style="padding:8px 0;font-weight:700">${escapeHtml(`${venue.name} · ${venue.area}`)}</td></tr>
-            <tr><td style="padding:8px 0;color:#557064">Date / 日期</td><td style="padding:8px 0;font-weight:700">${escapeHtml(date)}</td></tr>
-            <tr><td style="padding:8px 0;color:#557064">Time / 时间</td><td style="padding:8px 0;font-weight:700">${escapeHtml(time)}</td></tr>
-            <tr><td style="padding:8px 0;color:#557064">Format / 比赛形式</td><td style="padding:8px 0;font-weight:700">${escapeHtml(format)}</td></tr>
-            <tr><td style="padding:8px 0;color:#557064">Participants / 参与人数</td><td style="padding:8px 0;font-weight:700">${participants.length}</td></tr>
-            <tr><td style="padding:8px 0;color:#557064">Rackets / 球拍</td><td style="padding:8px 0;font-weight:700">${booking.racket_count}</td></tr>
+            <tr><td style="padding:8px 0;color:#557064;width:42%">Location</td><td style="padding:8px 0;font-weight:700">${escapeHtml(`${venue.name} · ${venue.area}`)}</td></tr>
+            <tr><td style="padding:8px 0;color:#557064">Date</td><td style="padding:8px 0;font-weight:700">${escapeHtml(date)}</td></tr>
+            <tr><td style="padding:8px 0;color:#557064">Time</td><td style="padding:8px 0;font-weight:700">${escapeHtml(time)}</td></tr>
+            <tr><td style="padding:8px 0;color:#557064">Format</td><td style="padding:8px 0;font-weight:700">${escapeHtml(format)}</td></tr>
+            <tr><td style="padding:8px 0;color:#557064">Participants</td><td style="padding:8px 0;font-weight:700">${participants.length}</td></tr>
+            <tr><td style="padding:8px 0;color:#557064">Rackets</td><td style="padding:8px 0;font-weight:700">${booking.racket_count}</td></tr>
             ${discountRows}
-            <tr><td style="padding:8px 0;color:#557064">Total paid / 已付总额</td><td style="padding:8px 0;font-weight:700">${formatMoney(booking.total_pence)}</td></tr>
+            <tr><td style="padding:8px 0;color:#557064">Total paid</td><td style="padding:8px 0;font-weight:700">${formatMoney(booking.total_pence)}</td></tr>
           </table>
-          <p style="margin:20px 0 8px;font-weight:700">Activity / 活动介绍</p>
+          <p style="margin:20px 0 8px;font-weight:700">Activity</p>
           <p style="margin:0;color:#557064">${escapeHtml(activityDescription)}</p>
-          <p style="margin:20px 0 8px;font-weight:700">Levels / 参与者水平</p>
+          <p style="margin:20px 0 8px;font-weight:700">Levels</p>
           <ul style="margin:0;padding-left:22px;color:#557064">${participantRows}</ul>
           <div style="margin-top:26px;padding:16px 18px;border:1px solid #dce8dc;border-radius:12px">
-            <strong>Calendar invite attached / 日程已附上</strong>
+            <strong>Calendar invite attached</strong>
             <div style="color:#557064;margin-top:4px">Open the attached .ics file to add this activity to Google Calendar, Apple Calendar or Outlook.</div>
-            <div style="color:#557064;margin-top:4px">打开附件中的 .ics 文件，即可添加到 Google 日历、Apple 日历或 Outlook。</div>
           </div>
           <p style="margin:24px 0 0;color:#557064;font-size:13px">Please keep this email for your booking details. See you on court!</p>
         </div>
@@ -208,25 +206,24 @@ export function renderBookingConfirmationEmail(input: BookingEmailInput): Render
     </div>
   `;
   const text = [
-    'Tennis Match — Booking confirmed / 预订成功',
+    'Tennis Match — Booking confirmed',
     '',
     `Hi ${booking.contact_name}, your payment was successful and your place is confirmed.`,
-    `你好 ${booking.contact_name}，你的付款已成功，活动名额已经确认。`,
     '',
-    `Booking reference / 订票编号: ${booking.id}`,
-    `Location / 地点: ${venue.name} · ${venue.area}`,
-    `Date / 日期: ${date}`,
-    `Time / 时间: ${time}`,
-    `Format / 比赛形式: ${format}`,
-    `Participants / 参与人数: ${participants.length}`,
-    `Rackets / 球拍: ${booking.racket_count}`,
-    ...(booking.loyalty_discount_pence > 0 ? [`Permanent 10% member discount / 会员永久九折优惠: -${formatMoney(booking.loyalty_discount_pence)}`] : []),
-    ...(booking.coupon_discount_pence > 0 ? [`Half-price voucher / 半价券: -${formatMoney(booking.coupon_discount_pence)}`] : []),
-    `Total paid / 已付总额: ${formatMoney(booking.total_pence)}`,
-    `Activity / 活动介绍: ${activityDescription}`,
-    `Levels / 参与者水平: ${participants.join(', ') || '—'}`,
+    `Booking reference: ${booking.id}`,
+    `Location: ${venue.name} · ${venue.area}`,
+    `Date: ${date}`,
+    `Time: ${time}`,
+    `Format: ${format}`,
+    `Participants: ${participants.length}`,
+    `Rackets: ${booking.racket_count}`,
+    ...(booking.loyalty_discount_pence > 0 ? [`Permanent 10% member discount: -${formatMoney(booking.loyalty_discount_pence)}`] : []),
+    ...(booking.coupon_discount_pence > 0 ? [`Half-price voucher: -${formatMoney(booking.coupon_discount_pence)}`] : []),
+    `Total paid: ${formatMoney(booking.total_pence)}`,
+    `Activity: ${activityDescription}`,
+    `Levels: ${participants.join(', ') || '—'}`,
     '',
-    'A .ics calendar invite is attached. / 邮件已附 .ics 日程文件。',
+    'A .ics calendar invite is attached.',
   ].join('\n');
   return {
     html,
@@ -242,46 +239,44 @@ export function renderBookingReminderEmail(input: BookingEmailInput): RenderedBo
   const format = formatFormat(booking.format);
   const html = `
     <div style="background:#f4f7f2;padding:32px 16px;font-family:Arial,Helvetica,sans-serif;color:#173b2f;line-height:1.6">
-      <span style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden">Your Tennis Match session is tomorrow. / 提醒：你预订的网球活动将在明天举行。</span>
+      <span style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden">Your Tennis Match session is tomorrow.</span>
       <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #dce8dc;border-radius:16px;overflow:hidden">
         <div style="padding:28px 32px;background:#173b2f;color:#ffffff">
           <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#d5eb85">Tennis Match</div>
-          <h1 style="margin:8px 0 0;font-size:28px;line-height:1.2">Your session is tomorrow · 明日有约</h1>
+          <h1 style="margin:8px 0 0;font-size:28px;line-height:1.2">Your session is tomorrow</h1>
         </div>
         <div style="padding:28px 32px">
           <p>Hi ${escapeHtml(booking.contact_name)}, a quick reminder that your tennis session is tomorrow.</p>
-          <p>你好 ${escapeHtml(booking.contact_name)}，温馨提醒：你预订的网球活动将在明天举行。</p>
           <div style="margin:24px 0;padding:18px 20px;background:#f4f7f2;border-radius:12px">
-            <div style="font-size:12px;color:#557064;text-transform:uppercase;letter-spacing:1px">Tomorrow / 明天</div>
+            <div style="font-size:12px;color:#557064;text-transform:uppercase;letter-spacing:1px">Tomorrow</div>
             <div style="font-size:22px;font-weight:700;margin-top:4px">${escapeHtml(date)}</div>
             <div style="font-size:18px;font-weight:700;margin-top:2px">${escapeHtml(time)}</div>
           </div>
-          <h2 style="font-size:18px;margin:24px 0 10px">Session details / 活动信息</h2>
+          <h2 style="font-size:18px;margin:24px 0 10px">Session details</h2>
           <table role="presentation" style="width:100%;border-collapse:collapse">
-            <tr><td style="padding:8px 0;color:#557064;width:42%">Location / 地点</td><td style="padding:8px 0;font-weight:700">${escapeHtml(`${venue.name} · ${venue.area}`)}</td></tr>
-            <tr><td style="padding:8px 0;color:#557064">Format / 比赛形式</td><td style="padding:8px 0;font-weight:700">${escapeHtml(format)}</td></tr>
-            <tr><td style="padding:8px 0;color:#557064">Participants / 参与人数</td><td style="padding:8px 0;font-weight:700">${booking.participant_count}</td></tr>
-            <tr><td style="padding:8px 0;color:#557064">Booking reference / 预订编号</td><td style="padding:8px 0;font-weight:700">${escapeHtml(booking.id)}</td></tr>
+            <tr><td style="padding:8px 0;color:#557064;width:42%">Location</td><td style="padding:8px 0;font-weight:700">${escapeHtml(`${venue.name} · ${venue.area}`)}</td></tr>
+            <tr><td style="padding:8px 0;color:#557064">Format</td><td style="padding:8px 0;font-weight:700">${escapeHtml(format)}</td></tr>
+            <tr><td style="padding:8px 0;color:#557064">Participants</td><td style="padding:8px 0;font-weight:700">${booking.participant_count}</td></tr>
+            <tr><td style="padding:8px 0;color:#557064">Booking reference</td><td style="padding:8px 0;font-weight:700">${escapeHtml(booking.id)}</td></tr>
           </table>
-          <p style="margin:24px 0 0;color:#557064">We look forward to seeing you on court. / 明天球场见！</p>
+          <p style="margin:24px 0 0;color:#557064">We look forward to seeing you on court.</p>
         </div>
       </div>
     </div>
   `;
   const text = [
-    'Tennis Match — Your session is tomorrow / 明日有约',
+    'Tennis Match — Your session is tomorrow',
     '',
     `Hi ${booking.contact_name}, a quick reminder that your tennis session is tomorrow.`,
-    `你好 ${booking.contact_name}，温馨提醒：你预订的网球活动将在明天举行。`,
     '',
-    `Date / 日期: ${date}`,
-    `Time / 时间: ${time}`,
-    `Location / 地点: ${venue.name} · ${venue.area}`,
-    `Format / 比赛形式: ${format}`,
-    `Participants / 参与人数: ${booking.participant_count}`,
-    `Booking reference / 预订编号: ${booking.id}`,
+    `Date: ${date}`,
+    `Time: ${time}`,
+    `Location: ${venue.name} · ${venue.area}`,
+    `Format: ${format}`,
+    `Participants: ${booking.participant_count}`,
+    `Booking reference: ${booking.id}`,
     '',
-    'We look forward to seeing you on court. / 明天球场见！',
+    'We look forward to seeing you on court.',
   ].join('\n');
   return {
     subject: `Reminder: your tennis session is tomorrow · ${venue.name}`,

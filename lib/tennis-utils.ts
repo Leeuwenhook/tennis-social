@@ -35,6 +35,13 @@ export function routeStateFromLocation(): { view: View; sessionId: string | null
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
   if (path === '/admin') return { view: 'admin', sessionId: null, bookingStage: 'details' };
   const query = new URLSearchParams(window.location.search);
+  if (query.get('checkout') === 'success') {
+    return {
+      view: 'confirmation',
+      sessionId: query.get('session') || null,
+      bookingStage: 'details',
+    };
+  }
   const candidate = query.get('view');
   const view = candidate && ROUTE_VIEWS.includes(candidate as View) ? (candidate as View) : 'home';
   return {

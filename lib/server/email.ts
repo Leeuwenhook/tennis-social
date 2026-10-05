@@ -115,8 +115,12 @@ export function createBookingCalendar(
 ) {
   const { booking, session, venue } = input;
   const participants = parseParticipants(booking.participants_json);
+  const venueAddress = [venue.name, venue.address || venue.area, venue.postcode]
+    .filter(Boolean)
+    .join(', ');
   const description = [
     `Booking reference: ${booking.id}`,
+    `Location: ${venueAddress}`,
     `Format: ${formatFormat(booking.format)}`,
     `Participants: ${participants.length}`,
     `Rackets: ${booking.racket_count}`,
@@ -134,7 +138,7 @@ export function createBookingCalendar(
     `DTSTART;TZID=${LONDON_TIME_ZONE}:${localIcsDate(session.date, session.start_time)}`,
     `DTEND;TZID=${LONDON_TIME_ZONE}:${localIcsDate(session.date, session.end_time)}`,
     `SUMMARY:${escapeIcs(`Tennis Match: ${venue.name}`)}`,
-    `LOCATION:${escapeIcs(`${venue.name}, ${venue.area}, London`)}`,
+    `LOCATION:${escapeIcs(venueAddress)}`,
     `DESCRIPTION:${escapeIcs(description)}`,
     'STATUS:CONFIRMED',
     'TRANSP:OPAQUE',

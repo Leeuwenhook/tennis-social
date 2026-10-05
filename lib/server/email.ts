@@ -1,5 +1,6 @@
 import type { BookingRow, SessionRow } from './database';
 import { getRuntimeEnv } from './runtime';
+import nodemailer from 'nodemailer';
 import type { Venue } from '../demo-data';
 
 const LONDON_TIME_ZONE = 'Europe/London';
@@ -290,91 +291,56 @@ export function renderBookingReminderEmail(input: BookingEmailInput): RenderedBo
 }
 
 export function isEmailConfigured() {
-  const { RESEND_API_KEY, EMAIL_FROM } = getRuntimeEnv();
-  return Boolean(RESEND_API_KEY && EMAIL_FROM);
+  const { SMTP_USER, SMTP_PASSWORD, EMAIL_FROM } = getRuntimeEnv();
+  return Boolean(SMTP_USER && SMTP_PASSWORD && EMAIL_FROM);
+}
+
+function smtpTransport() {
+  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, SMTP_SECURE } = getRuntimeEnv();
+  if (!SMTP_USER || !SMTP_PASSWORD) return null;
+  const port = Number(SMTP_PORT || 465);
+  return nodemailer.createTransport({
+    host: SMTP_HOST || 'smtp.hostinger.com',
+    port,
+    secure: SMTP_SECURE ? SMTP_SECURE === 'true' : port === 465,
+    auth: { user: SMTP_USER, pass: SMTP_PASSWORD },
+  });
 }
 
 export async function sendBookingConfirmationEmail(
   input: BookingEmailInput,
 ): Promise<EmailSendResult> {
-  const { RESEND_API_KEY, EMAIL_FROM } = getRuntimeEnv();
-  if (!RESEND_API_KEY || !EMAIL_FROM) return { status: 'skipped' };
+  const { EMAIL_FROM } = getRuntimeEnv();
+  const transport = smtpTransport();
+  if (!transport || !EMAIL_FROM) return { status: 'skipped' };
 
   const email = renderBookingConfirmationEmail(input);
   const calendar = createBookingCalendar(input);
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-      'Idempotency-Key': `booking-confirmation-${input.booking.id}`,
-    },
-    body: JSON.stringify({
-      from: EMAIL_FROM,
-      to: [input.booking.email],
-      subject: email.subject,
-      html: email.html,
-      text: email.text,
-      attachments: [
-        {
-          filename: 'tennis-social-booking.ics',
-          content: Buffer.from(calendar, 'utf8').toString('base64'),
-        },
-      ],
-    }),
+  const result = await transport.sendMail({
+    from: EMAIL_FROM,
+    to: input.booking.email,
+    subject: email.subject,
+    html: email.html,
+    text: email.text,
+    attachments: [{ filename: 'tennis-social-booking.ics', content: calendar }],
   });
-  const rawBody = await response.text();
-  let body: { id?: unknown; message?: unknown } = {};
-  try {
-    body = JSON.parse(rawBody) as { id?: unknown; message?: unknown };
-  } catch {
-    // The provider can return a non-JSON error body during an upstream outage.
-  }
-  if (!response.ok) {
-    const detail =
-      typeof body.message === 'string'
-        ? body.message
-        : `HTTP ${response.status}`;
-    throw new Error(`email_provider_error: ${detail}`);
-  }
-  if (typeof body.id !== 'string' || !body.id)
-    throw new Error('email_provider_missing_id');
-  return { status: 'sent', messageId: body.id };
+  return { status: 'sent', messageId: result.messageId };
 }
 
 export async function sendBookingReminderEmail(
   input: BookingEmailInput,
 ): Promise<EmailSendResult> {
-  const { RESEND_API_KEY, EMAIL_FROM } = getRuntimeEnv();
-  if (!RESEND_API_KEY || !EMAIL_FROM) return { status: 'skipped' };
+  const { EMAIL_FROM } = getRuntimeEnv();
+  const transport = smtpTransport();
+  if (!transport || !EMAIL_FROM) return { status: 'skipped' };
 
   const email = renderBookingReminderEmail(input);
-  const response = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      'Content-Type': 'application/json',
-      'Idempotency-Key': `booking-reminder-${input.booking.id}`,
-    },
-    body: JSON.stringify({
-      from: EMAIL_FROM,
-      to: [input.booking.email],
-      subject: email.subject,
-      html: email.html,
-      text: email.text,
-    }),
+  const result = await transport.sendMail({
+    from: EMAIL_FROM,
+    to: input.booking.email,
+    subject: email.subject,
+    html: email.html,
+    text: email.text,
   });
-  const rawBody = await response.text();
-  let body: { id?: unknown; message?: unknown } = {};
-  try {
-    body = JSON.parse(rawBody) as { id?: unknown; message?: unknown };
-  } catch {
-    // The provider can return a non-JSON error body during an upstream outage.
-  }
-  if (!response.ok) {
-    const detail = typeof body.message === 'string' ? body.message : `HTTP ${response.status}`;
-    throw new Error(`email_provider_error: ${detail}`);
-  }
-  if (typeof body.id !== 'string' || !body.id) throw new Error('email_provider_missing_id');
-  return { status: 'sent', messageId: body.id };
+  return { status: 'sent', messageId: result.messageId };
 }

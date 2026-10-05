@@ -345,7 +345,10 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       if (checkoutState !== 'success') return;
       const bookingId = query.get('booking_id');
       const checkoutSessionId = query.get('checkout_session_id');
-      if (!bookingId || !checkoutSessionId) return;
+      if (!bookingId || !checkoutSessionId) {
+        if (!cancelled) setView('home');
+        return;
+      }
       try {
         const response = await fetch(
           `/api/bookings/${encodeURIComponent(bookingId)}?checkout_session_id=${encodeURIComponent(checkoutSessionId)}`,
@@ -364,7 +367,10 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
           window.scrollTo({ top: 0 });
         }
       } catch {
-        if (!cancelled) setPaymentFailed(true);
+        if (!cancelled) {
+          setPaymentFailed(true);
+          setView('home');
+        }
       }
     };
 
@@ -1996,6 +2002,11 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             onNavigateHome={() => navigate("home")}
             onOpenSignup={openSignup}
           />
+        ) : null}
+        {view === "confirmation" && !confirmation ? (
+          <section className="page-width loading-state" aria-live="polite">
+            <p>{t.loadingSessions}</p>
+          </section>
         ) : null}
         {view === "account" ? (
           <AccountView

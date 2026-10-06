@@ -2142,7 +2142,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
         <small>{t.demoNotice}</small>
         {view === 'home' ? <button type="button" className="admin-footer-link" onClick={() => navigate('admin')}>{t.adminPortal ?? (language === 'zh' ? '管理平台' : 'Admin portal')}</button> : null}
       </footer>
-      {view === 'home' ? <BookingChat /> : null}
+      {view === 'home' ? <BookingChat language={language} /> : null}
     </div>
   );
 }

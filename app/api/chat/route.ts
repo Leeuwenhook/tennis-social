@@ -1,5 +1,6 @@
 import { getRuntimeEnv } from '@/lib/server/runtime';
 import { venues } from '@/lib/demo-data';
+import { generateChatResponse } from '@/lib/server/gemini-chat';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,13 +26,16 @@ const requestShape = `{
 }`;
 
 export async function POST(request: Request) {
-  const { GEMINI_API_KEY, GEMINI_MODEL } = getRuntimeEnv();
+  const { GEMINI_API_KEY, GEMINI_MODEL, GEMINI_FALLBACK_MODEL } = getRuntimeEnv();
   if (!GEMINI_API_KEY) return Response.json({ error: 'chat_not_configured' }, { status: 503 });
 
-  let body: { messages?: unknown };
+  let body: { messages?: unknown; language?: unknown };
   try {
-    body = await request.json() as { messages?: unknown };
+    body = await request.json() as { messages?: unknown; language?: unknown };
   } catch {
+    return Response.json({ error: 'invalid_request' }, { status: 400 });
+  }
+  if (!body || typeof body !== 'object' || (body.language !== undefined && body.language !== 'en' && body.language !== 'zh')) {
     return Response.json({ error: 'invalid_request' }, { status: 400 });
   }
 
@@ -50,7 +54,12 @@ export async function POST(request: Request) {
   const systemInstruction = [
     'You are the Tennis Social London booking assistant.',
     'Help the user request a tennis court/session. Be warm, concise, and ask one or two missing questions at a time.',
-    'Understand English and Chinese and reply in the language the user uses.',
+    body.language === 'zh'
+      ? 'Understand English and Chinese. Always reply in Simplified Chinese, matching the website language, even if the user writes in English.'
+      : body.language === 'en'
+        ? 'Understand English and Chinese. Always reply in English, matching the website language, even if the user writes in Chinese.'
+        : 'Understand English and Chinese and reply in the language the user uses.',
+    `Today's date in London is ${new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())}. Use this to resolve relative dates.`,
     'Collect: venue or area/postcode, date (YYYY-MM-DD if possible), start and end time, player count or level, contact name, email, and optional phone/message.',
     'Never claim a court is booked or guaranteed. Explain that this is a request for the team to review.',
     'When enough details are present, summarize them and ask the user to confirm. Set complete=true only after the user explicitly confirms the summary.',
@@ -67,34 +76,30 @@ export async function POST(request: Request) {
     role: message.role === 'assistant' ? 'model' : 'user',
     parts: [{ text: message.content }],
   }));
-  const model = GEMINI_MODEL || 'gemini-2.5-flash';
+  const model = GEMINI_MODEL?.trim() || 'gemini-3.5-flash-lite';
+  const fallbackModel = GEMINI_FALLBACK_MODEL?.trim() || (model === 'gemini-3.5-flash-lite' ? 'gemini-3.8-flash' : 'gemini-3.5-flash-lite');
   let response: Response;
   try {
-    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      signal: AbortSignal.timeout(15_000),
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        contents,
-        generationConfig: { temperature: 0.35, responseMimeType: 'application/json' },
-      }),
+    response = await generateChatResponse(GEMINI_API_KEY, model, fallbackModel, {
+      systemInstruction: { parts: [{ text: systemInstruction }] },
+      contents,
+      generationConfig: { responseMimeType: 'application/json' },
     });
-  } catch (error) {
-    console.error('Gemini chat request failed', error);
+  } catch {
+    console.error('Gemini chat request failed after bounded retries');
     return Response.json({ error: 'chat_unavailable' }, { status: 502 });
   }
   if (!response.ok) {
-    console.error('Gemini chat request failed', response.status, await response.text());
+    console.error('Gemini chat request failed', { status: response.status });
     return Response.json({ error: 'chat_unavailable' }, { status: 502 });
   }
 
   try {
-    const result = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-    const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+    const result = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string; thought?: boolean }> } }> };
+    const text = result.candidates?.[0]?.content?.parts?.filter((part) => !part.thought).map((part) => part.text ?? '').join('');
     if (!text) throw new Error('Empty Gemini response');
     const parsed = JSON.parse(text) as { reply?: unknown; request?: Record<string, unknown> };
-    if (typeof parsed.reply !== 'string' || !parsed.request || typeof parsed.request !== 'object') throw new Error('Invalid Gemini response');
+    if (typeof parsed.reply !== 'string' || !parsed.reply.trim() || !parsed.request || typeof parsed.request !== 'object' || Array.isArray(parsed.request)) throw new Error('Invalid Gemini response');
     const source = parsed.request;
     const textField = (key: string) => typeof source[key] === 'string' ? source[key].trim().slice(0, MAX_REQUEST_FIELD_LENGTH) : null;
     const normalizedRequest = {
@@ -110,8 +115,8 @@ export async function POST(request: Request) {
       complete: source.complete === true,
     };
     return Response.json({ reply: parsed.reply.trim().slice(0, MAX_MESSAGE_LENGTH), request: normalizedRequest }, { headers: { 'Cache-Control': 'no-store' } });
-  } catch (error) {
-    console.error('Unable to parse Gemini chat response', error);
+  } catch {
+    console.error('Unable to parse Gemini chat response');
     return Response.json({ error: 'chat_unavailable' }, { status: 502 });
   }
 }

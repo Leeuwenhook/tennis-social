@@ -9,7 +9,7 @@ import { AdminView } from "@/components/views/admin-view";
 import { BookingView } from "@/components/views/booking-view";
 import { ConfirmationView } from "@/components/views/confirmation-view";
 import { DetailView } from "@/components/views/detail-view";
-import { HomeView } from "@/components/views/home-view";
+import { CourtsideHomeView } from "@/components/views/courtside-home-view";
 import { RequestView } from "@/components/views/request-view";
 import { BookingChat } from "@/components/booking-chat";
 import {
@@ -1930,7 +1930,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       />
       <main>
         {view === "home" ? (
-          <HomeView
+          <CourtsideHomeView
             upcomingSessions={upcomingSessions}
             sessionsReady={sessionsReady}
             venueList={venueList}

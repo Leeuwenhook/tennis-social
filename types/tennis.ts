@@ -129,7 +129,7 @@ export type SessionImportIssueCode =
   | 'row'
   | 'duplicate';
 
-export type ReservationRequestStatus = 'pending' | 'reviewing' | 'completed';
+export type ReservationRequestStatus = 'pending' | 'reviewing' | 'completed' | 'cancelled';
 
 export type ReservationRequest = {
   id: string;

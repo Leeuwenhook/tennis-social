@@ -18,7 +18,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   } catch {
     return Response.json({ error: 'invalid_request' }, { status: 400 });
   }
-  if (body.status !== 'pending' && body.status !== 'reviewing' && body.status !== 'completed') {
+  if (!body || typeof body !== 'object' ||
+    (body.status !== 'pending' && body.status !== 'reviewing' && body.status !== 'completed' && body.status !== 'cancelled')) {
     return Response.json({ error: 'invalid_status' }, { status: 400 });
   }
 

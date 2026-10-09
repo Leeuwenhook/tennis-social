@@ -1,3 +1,5 @@
+import { TENNIS_LEVELS } from './user-auth';
+
 export type ReservationRequestInput = {
   requestType?: unknown;
   venueId?: unknown;
@@ -10,6 +12,9 @@ export type ReservationRequestInput = {
   email?: unknown;
   phone?: unknown;
   message?: unknown;
+  needsPartner?: unknown;
+  tennisLevel?: unknown;
+  gameFormat?: unknown;
 };
 
 function cleanString(value: unknown, maxLength: number) {
@@ -59,7 +64,14 @@ export function validateReservationRequest(
   const contactName = cleanString(input.contactName, 120);
   const email = cleanString(input.email, 254).toLowerCase();
   const phone = cleanString(input.phone, 50);
-  const message = cleanString(input.message, 1000);
+  const tennisLevel = cleanString(input.tennisLevel, 8);
+  const gameFormat = input.gameFormat;
+  if (input.needsPartner !== undefined && input.needsPartner !== true && input.needsPartner !== false) return null;
+  if (input.needsPartner === true && (!TENNIS_LEVELS.some((level) => level === tennisLevel) || (gameFormat !== 'singles' && gameFormat !== 'doubles'))) return null;
+  const partnerSummary = input.needsPartner === true
+    ? `Partner matching: Yes; Tennis level: ${tennisLevel}; Format: ${gameFormat === 'singles' ? 'Singles' : 'Doubles'}.`
+    : input.needsPartner === false ? 'Partner matching: No.' : '';
+  const message = [partnerSummary, cleanString(input.message, 1000)].filter(Boolean).join('\n').slice(0, 1000);
   const today = new Date().toISOString().slice(0, 10);
 
   if (

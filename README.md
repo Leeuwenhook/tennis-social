@@ -17,7 +17,7 @@ Built on Vinext (Next.js App Router on Vite) and Nitro, backed by Neon Serverles
   - Optional tennis racket rental (£2 per racket) automatically capped to the group size.
 - **Session Sharing**: Direct link sharing via Web Share API with clipboard fallback.
 - **Court & Partner Requests**: Visitors can request custom sessions for specific venues or request court finding near a London postcode (`find_nearby`), with guaranteed booking for requests made at least 7 days in advance.
-- **Optional Booking Assistant**: A chat assistant follows the homepage language and can collect court request details and submit them for team review when `GEMINI_API_KEY` is configured. Transient provider errors receive a bounded retry, then a fallback model attempt. It never claims a request is booked.
+- **Optional Booking Assistant**: A chat assistant has a bilingual interface and can collect court requests, partner-finding needs, tennis level, and singles/doubles preferences when `GEMINI_API_KEY` is configured. Before submission, signed-out visitors can register or sign in inside the assistant, or submit as a guest. Registration reuses collected details and asks for remaining profile fields; passwords go directly to the account API and are excluded from model messages and browser storage. Partner requirements are saved in court request notes. Transient provider errors receive a bounded retry, then a fallback model attempt. It never claims a request is booked.
 
 ### 2. Payments & Transactional Notifications
 - **Stripe Checkout Integration**:
@@ -127,6 +127,8 @@ ADMIN_SESSION_SECRET=your_random_32_character_secret
 > The booking assistant remains unavailable when `GEMINI_API_KEY` is unset. Keep this key server-side; do not expose it through a `NEXT_PUBLIC_*` variable.
 
 The assistant defaults to `gemini-3.5-flash-lite`. On transient HTTP errors or network timeouts it retries once with exponential backoff, then tries `GEMINI_FALLBACK_MODEL` (by default `gemini-3.8-flash`, or `gemini-3.5-flash-lite` when another primary model is configured). Each provider attempt has a 10-second timeout, with at most three attempts. Authentication and other non-transient errors return immediately. Failed messages remain in the input so visitors can retry without duplicating conversation turns.
+
+After the assistant summarizes a valid, complete request, the confirm-and-submit button appears immediately. Clicking it or typing `确认` / `confirm` starts the same submission and account check flow. Other input revises the draft; the previous submit action is disabled until the assistant produces a new complete summary. The chat response's `complete` flag means the summary is ready to submit, not that the request has already been confirmed or saved.
 
 ### 3. Run Database Migrations
 ```bash

@@ -150,7 +150,7 @@ export const reservationRequests = pgTable('reservation_requests', {
   email: text('email').notNull(),
   phone: text('phone').notNull().default(''),
   message: text('message').notNull().default(''),
-  status: text('status', { enum: ['pending', 'reviewing', 'completed'] }).notNull().default('pending'),
+  status: text('status', { enum: ['pending', 'reviewing', 'completed', 'cancelled'] }).notNull().default('pending'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 }, (table) => [

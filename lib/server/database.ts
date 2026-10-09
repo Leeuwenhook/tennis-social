@@ -162,7 +162,7 @@ export type ReservationRequestRow = {
   email: string;
   phone: string;
   message: string;
-  status: 'pending' | 'reviewing' | 'completed';
+  status: 'pending' | 'reviewing' | 'completed' | 'cancelled';
   created_at: string;
   updated_at: string;
 };

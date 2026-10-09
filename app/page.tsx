@@ -845,7 +845,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
   }
 
   async function updateReservationRequestStatus(id: string, status: ReservationRequestStatus) {
-    if (adminBusy) return;
+    if (adminBusyRef.current) return;
     adminBusyRef.current = true;
     ++sessionLoadVersion.current;
     setAdminBusy(true);
@@ -2142,7 +2142,16 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
         <small>{t.demoNotice}</small>
         {view === 'home' ? <button type="button" className="admin-footer-link" onClick={() => navigate('admin')}>{t.adminPortal ?? (language === 'zh' ? '管理平台' : 'Admin portal')}</button> : null}
       </footer>
-      {view === 'home' ? <BookingChat language={language} /> : null}
+      {view === 'home' ? <BookingChat language={language} onAuthenticated={(authenticatedUser) => {
+        setUser(authenticatedUser);
+        setUserAuthChecked(true);
+        setProfileForm(profileFormFromUser(authenticatedUser));
+        setProfileEditing(false);
+        setProfileError('');
+        setLoginForm({ email: authenticatedUser.email, password: '' });
+        setRegistrationForm((current) => ({ ...current, password: '' }));
+        void loadLoyaltyStatus();
+      }} /> : null}
     </div>
   );
 }

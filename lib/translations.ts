@@ -319,6 +319,7 @@ export const translations = {
     completedRequest: 'Completed',
     markReviewing: 'Start review',
     markCompleted: 'Mark completed',
+    cancelRequest: 'Cancel request',
   },
   zh: {
     sessions: '场次',
@@ -639,6 +640,7 @@ export const translations = {
     completedRequest: '已完成',
     markReviewing: '开始处理',
     markCompleted: '标记完成',
+    cancelRequest: '取消请求',
   },
 } as const;
 

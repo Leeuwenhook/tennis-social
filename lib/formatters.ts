@@ -148,9 +148,11 @@ export function requestStatusLabel(
     pendingRequest: string;
     reviewingRequest: string;
     completedRequest: string;
+    cancelled: string;
   },
 ) {
   if (status === 'reviewing') return labels.reviewingRequest;
   if (status === 'completed') return labels.completedRequest;
+  if (status === 'cancelled') return labels.cancelled;
   return labels.pendingRequest;
 }

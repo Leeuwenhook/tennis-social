@@ -40,10 +40,25 @@ function chatRequest(language: string = 'en') {
   });
 }
 
-function providerReply(reply = 'Which day and time would you prefer?') {
+function providerReply(
+  reply = 'Which day and time would you prefer?',
+  request: Record<string, unknown> = {
+    venueName: 'Victoria Park',
+    complete: false,
+    needsPartner: false,
+  },
+) {
   const text = JSON.stringify({
     reply,
-    request: { venueName: 'Victoria Park', complete: false },
+    request: {
+      venueName: 'Victoria Park',
+      preferredDate: '2099-12-20',
+      startTime: '18:00',
+      endTime: '20:00',
+      contactName: 'Test Player',
+      email: 'test@example.com',
+      ...request,
+    },
   });
   return Response.json({
     candidates: [
@@ -120,17 +135,20 @@ void test('authentication errors are not retried', async () => {
 });
 
 for (const language of ['en', 'zh']) {
-  void test(`the ${language} homepage language controls replies regardless of the user message language`, async () => {
+  void test(`accepts the ${language} website language and preserves bilingual reply instructions`, async () => {
     globalThis.fetch = async (_url, init) => {
       assert.ok(typeof init?.body === 'string');
       const payload = JSON.parse(init.body);
       const instructions = payload.systemInstruction.parts[0].text;
+      assert.ok(instructions.includes('Understand English and Chinese'));
+      assert.ok(instructions.includes('language the user uses'));
       assert.ok(
         instructions.includes(
-          language === 'zh'
-            ? 'Always reply in Simplified Chinese'
-            : 'Always reply in English',
+          'Always establish whether the user needs help finding tennis partners',
         ),
+      );
+      assert.ok(
+        instructions.includes('Never ask for a password in conversation'),
       );
       assert.equal(payload.contents[0].role, 'user');
       assert.equal(
@@ -183,4 +201,73 @@ void test('missing credentials return a distinct configuration error', async () 
 void test('an empty provider reply is rejected', async () => {
   globalThis.fetch = async () => providerReply('   ');
   assert.equal((await POST(chatRequest())).status, 502);
+});
+
+void test('partner matching must be answered before a request can be complete', async () => {
+  globalThis.fetch = async () =>
+    providerReply('Please confirm.', { complete: true });
+  const data = await (await POST(chatRequest())).json();
+  assert.equal(data.request.needsPartner, null);
+  assert.equal(data.request.complete, false);
+});
+
+void test('partner matching requires a valid tennis level and singles/doubles preference', async () => {
+  for (const details of [
+    { needsPartner: true },
+    { needsPartner: true, tennisLevel: '3.0' },
+    { needsPartner: true, tennisLevel: 'expert', gameFormat: 'doubles' },
+    { needsPartner: true, tennisLevel: '3.0', gameFormat: 'both' },
+  ]) {
+    globalThis.fetch = async () =>
+      providerReply('Please confirm.', { ...details, complete: true });
+    assert.equal(
+      (await (await POST(chatRequest())).json()).request.complete,
+      false,
+    );
+  }
+});
+
+void test('summarized partner requirements are ready without a separate confirmation message', async () => {
+  globalThis.fetch = async () =>
+    providerReply('Please submit.', {
+      complete: true,
+      needsPartner: true,
+      tennisLevel: '3.0',
+      gameFormat: 'doubles',
+    });
+  const data = await (await POST(chatRequest())).json();
+  assert.equal(data.request.complete, true);
+  assert.equal(data.request.needsPartner, true);
+  assert.equal(data.request.tennisLevel, '3.0');
+  assert.equal(data.request.gameFormat, 'doubles');
+});
+
+void test('invalid or incomplete court details do not enable submission after a summary', async () => {
+  for (const changes of [
+    { preferredDate: null },
+    { startTime: '20:00', endTime: '18:00' },
+    { contactName: null },
+    { email: 'invalid-email' },
+    { venueName: null },
+  ]) {
+    globalThis.fetch = async () =>
+      providerReply('Please confirm.', {
+        ...changes,
+        complete: true,
+        needsPartner: false,
+      });
+    assert.equal(
+      (await (await POST(chatRequest())).json()).request.complete,
+      false,
+    );
+  }
+});
+
+void test('requests without partner matching do not require level or format', async () => {
+  globalThis.fetch = async () =>
+    providerReply('Please submit.', { complete: true, needsPartner: false });
+  assert.equal(
+    (await (await POST(chatRequest())).json()).request.complete,
+    true,
+  );
 });

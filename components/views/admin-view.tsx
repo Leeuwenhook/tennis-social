@@ -1206,23 +1206,29 @@ export function AdminView({
                           </small>
                         </div>
                         <div className="request-admin-actions">
-                          {request.status === 'pending' ? (
+                          <div className="request-admin-status">
+                            <Label htmlFor={`request-status-${request.id}`}>{t.status}</Label>
+                            <select
+                              id={`request-status-${request.id}`}
+                              className="native-select"
+                              value={request.status}
+                              disabled={adminBusy}
+                              onChange={(event) => onUpdateReservationRequestStatus(request.id, event.target.value as ReservationRequestStatus)}
+                            >
+                              <option value="pending">{t.pendingRequest}</option>
+                              <option value="reviewing">{t.reviewingRequest}</option>
+                              <option value="completed">{t.completedRequest}</option>
+                              <option value="cancelled">{t.cancelled}</option>
+                            </select>
+                          </div>
+                          {request.status !== 'cancelled' ? (
                             <Button
-                              variant="outline"
+                              variant="destructive"
                               size="sm"
                               disabled={adminBusy}
-                              onClick={() => onUpdateReservationRequestStatus(request.id, 'reviewing')}
+                              onClick={() => onUpdateReservationRequestStatus(request.id, 'cancelled')}
                             >
-                              {t.markReviewing}
-                            </Button>
-                          ) : null}
-                          {request.status !== 'completed' ? (
-                            <Button
-                              size="sm"
-                              disabled={adminBusy}
-                              onClick={() => onUpdateReservationRequestStatus(request.id, 'completed')}
-                            >
-                              <Check size={14} /> {t.markCompleted}
+                              {t.cancelRequest}
                             </Button>
                           ) : null}
                         </div>

@@ -19,6 +19,8 @@ Built on Vinext (Next.js App Router on Vite) and Nitro, backed by Neon Serverles
 - **Court & Partner Requests**: Visitors can request custom sessions for specific venues or request court finding near a London postcode (`find_nearby`), with guaranteed booking for requests made at least 7 days in advance.
 - **Optional Booking Assistant**: A chat assistant has a bilingual interface and can collect court requests, partner-finding needs, tennis level, and singles/doubles preferences when `GEMINI_API_KEY` is configured. Before submission, signed-out visitors can register or sign in inside the assistant, or submit as a guest. Registration reuses collected details and asks for remaining profile fields; passwords go directly to the account API and are excluded from model messages and browser storage. Partner requirements are saved in court request notes. Transient provider errors receive a bounded retry, then a fallback model attempt. It never claims a request is booked.
 
+See [Booking assistant flow and example wording](docs/booking-assistant-flow.md) for the request submission and inline registration flowcharts.
+
 ### 2. Payments & Transactional Notifications
 - **Stripe Checkout Integration**:
   - Server-side price calculation in integer pence.

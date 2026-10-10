@@ -1,20 +1,18 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.mjs';
 import ArrowUpRight from 'lucide-react/dist/esm/icons/arrow-up-right.mjs';
 import CalendarPlus from 'lucide-react/dist/esm/icons/calendar-plus.mjs';
+import Check from 'lucide-react/dist/esm/icons/check.mjs';
 import MapPin from 'lucide-react/dist/esm/icons/map-pin.mjs';
+import Timer from 'lucide-react/dist/esm/icons/timer.mjs';
+import Users from 'lucide-react/dist/esm/icons/users.mjs';
 
 import { VenuePhoto } from '@/components/venue-photo';
 import type { GameFormat, Venue } from '@/lib/demo-data';
-import { formatMoney, formatNames } from '@/lib/formatters';
-import {
-  bookingPreferencesFromBookings,
-  getVenue,
-  summarizeBookingPreferences,
-  venueLocationSummary,
-} from '@/lib/tennis-utils';
+import { formatMoney, formatNames, sessionDurationBadge } from '@/lib/formatters';
+import { getVenue, sessionMatchPreferences, venueLocationSummary } from '@/lib/tennis-utils';
 import type { Translations } from '@/lib/translations';
 import type { Booking, Language, Session } from '@/types/tennis';
 
@@ -97,6 +95,35 @@ function CourtLines() {
   );
 }
 
+/**
+ * A tennis ball with its two curved seams. The seams spin inside a fixed
+ * highlight, so the ball reads as rotating under a steady light.
+ */
+function TennisBall({ className }: { className: string }) {
+  const clipId = `cs-ball-clip-${useId().replace(/:/g, '')}`;
+  return (
+    <span className={`cs-tennis-ball ${className}`} aria-hidden="true">
+      <svg viewBox="0 0 40 40">
+        <defs>
+          <clipPath id={clipId}>
+            <circle cx="20" cy="20" r="19" />
+          </clipPath>
+        </defs>
+        <circle cx="20" cy="20" r="19" className="cs-ball-felt" />
+        <g clipPath={`url(#${clipId})`}>
+          <g className="cs-ball-seams">
+            <path d="M6 3 C 17 12, 17 28, 6 37" className="cs-ball-groove" />
+            <path d="M34 3 C 23 12, 23 28, 34 37" className="cs-ball-groove" />
+            <path d="M6 3 C 17 12, 17 28, 6 37" className="cs-ball-seam" />
+            <path d="M34 3 C 23 12, 23 28, 34 37" className="cs-ball-seam" />
+          </g>
+        </g>
+        <circle cx="20" cy="20" r="19" className="cs-ball-shade" />
+      </svg>
+    </span>
+  );
+}
+
 function SpotMeter({ capacity, booked }: { capacity: number; booked: number }) {
   const total = Math.min(capacity, 12);
   const filled = Math.round((Math.min(booked, capacity) / Math.max(capacity, 1)) * total);
@@ -163,10 +190,8 @@ export function CourtsideHomeView({
     const venue = getVenue(session.venueId, venueList);
     const spots = Math.max(0, session.capacity - session.bookedSpots);
     const isFull = spots === 0;
-    const preferences = summarizeBookingPreferences(
-      session.bookingPreferences ?? bookingPreferencesFromBookings(session.id, bookings),
-    );
-    const levels = [...new Set([...(session.seekingLevels ?? []), ...preferences.map((item) => item.level)])];
+    const matchPreferences = sessionMatchPreferences(session, bookings);
+    const durationBadge = sessionDurationBadge(session.startTime, session.endTime, language);
 
     return (
       <article
@@ -195,17 +220,36 @@ export function CourtsideHomeView({
             <span>{venueLocationSummary(venue, language)}</span>
           </p>
           <div className="cs-row-tags">
+            {durationBadge ? (
+              <span className="cs-tag duration">
+                <Timer size={12} aria-hidden="true" />
+                {durationBadge}
+              </span>
+            ) : null}
             {session.formats.map((format) => (
               <span key={format} className="cs-tag">
                 {formatNames([format], t)}
               </span>
             ))}
-            {levels.slice(0, 3).map((level) => (
-              <span key={level} className="cs-tag level" title={t.lookingFor}>
-                {level}
-              </span>
-            ))}
           </div>
+          {matchPreferences.length ? (
+            <div className="cs-match" aria-label={t.lookingFor}>
+              <span className="cs-match-label">
+                <Users size={13} aria-hidden="true" />
+                {t.lookingFor}
+              </span>
+              <ul>
+                {matchPreferences.map((preference) => (
+                  <li key={`${preference.level}-${preference.format}`}>
+                    {t.lookingForLevel
+                      .replace('{level}', preference.level)
+                      .replace('{format}', formatNames([preference.format], t))}
+                    {preference.count > 1 ? <b> ×{preference.count}</b> : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
         <div className="cs-row-spots">
           <SpotMeter capacity={session.capacity} booked={session.bookedSpots} />
@@ -218,7 +262,8 @@ export function CourtsideHomeView({
           <small>{c.perPerson}</small>
         </div>
         <span className="cs-row-cta" aria-hidden="true">
-          <ArrowUpRight size={18} />
+          <span>{isFull ? t.viewDetails : t.bookNow}</span>
+          <ArrowUpRight size={16} />
         </span>
       </article>
     );
@@ -229,7 +274,9 @@ export function CourtsideHomeView({
       <section className="cs-hero">
         <div className="cs-hero-court">
           <CourtLines />
-          <span className="cs-ball" aria-hidden="true" />
+          <span className="cs-ball">
+            <TennisBall className="spinning" />
+          </span>
         </div>
         <div className="cs-hero-inner page-width">
           <div className="cs-hero-copy">
@@ -238,14 +285,28 @@ export function CourtsideHomeView({
             </p>
             <h1>{t.headline}</h1>
             <p className="cs-hero-text">{t.intro}</p>
+            <ul className="cs-hero-points">
+              <li>
+                <Check size={15} aria-hidden="true" /> {t.allLevels}
+              </li>
+              <li>
+                <Check size={15} aria-hidden="true" /> {t.courtReady}
+              </li>
+            </ul>
             <div className="cs-hero-actions">
-              <button type="button" className="cs-btn primary" onClick={onScrollToSessions}>
-                {t.exploreSessions}
+              <button type="button" className="cs-btn primary request" onClick={onOpenReservationRequest}>
+                <span className="cs-btn-icon">
+                  <CalendarPlus size={19} />
+                </span>
+                <span className="cs-btn-copy">
+                  <strong>{t.requestCta}</strong>
+                  <small>{t.requestCtaHint}</small>
+                </span>
                 <ArrowRight size={18} />
               </button>
-              <button type="button" className="cs-btn ghost" onClick={onOpenReservationRequest}>
-                <CalendarPlus size={17} />
-                {t.requestCtaHint}
+              <button type="button" className="cs-btn ghost" onClick={onScrollToSessions}>
+                {t.exploreSessions}
+                <ArrowRight size={18} />
               </button>
             </div>
           </div>
@@ -272,6 +333,11 @@ export function CourtsideHomeView({
                     <small>{t.time}</small>
                     <strong className="cs-digits">{nextSession.startTime}</strong>
                     <small>→ {nextSession.endTime}</small>
+                    {sessionDurationBadge(nextSession.startTime, nextSession.endTime, language) ? (
+                      <em className="cs-board-duration">
+                        {sessionDurationBadge(nextSession.startTime, nextSession.endTime, language)}
+                      </em>
+                    ) : null}
                   </div>
                   <div>
                     <small>{c.openSpots}</small>
@@ -287,7 +353,8 @@ export function CourtsideHomeView({
                     <small>{language === 'zh' ? nextVenue.areaZh || nextVenue.area : nextVenue.area}</small>
                   </span>
                   <span className="cs-board-go">
-                    {t.bookNow} <ArrowRight size={15} />
+                    {nextSession.capacity > nextSession.bookedSpots ? t.bookNow : t.viewDetails}{' '}
+                    <ArrowRight size={15} />
                   </span>
                 </div>
               </button>
@@ -328,7 +395,8 @@ export function CourtsideHomeView({
             <h2>{t.upcoming}</h2>
             <p>{t.upcomingIntro}</p>
           </div>
-          <div className="cs-filter" role="group" aria-label={t.formats}>
+          <fieldset className="cs-filter">
+            <legend className="sr-only">{t.formats}</legend>
             {(['all', 'singles', 'doubles'] as const).map((value) => (
               <button
                 type="button"
@@ -339,7 +407,7 @@ export function CourtsideHomeView({
                 {value === 'all' ? c.all : formatNames([value], t)}
               </button>
             ))}
-          </div>
+          </fieldset>
         </div>
 
         {!sessionsReady ? (
@@ -372,7 +440,7 @@ export function CourtsideHomeView({
         )}
 
         <button type="button" className="cs-serve" onClick={onOpenReservationRequest}>
-          <span className="cs-serve-ball" aria-hidden="true" />
+          <TennisBall className="cs-serve-ball" />
           <span className="cs-serve-copy">
             <strong>{c.serveTitle}</strong>
             <span>{c.serveText}</span>

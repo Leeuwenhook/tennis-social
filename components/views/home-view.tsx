@@ -12,24 +12,10 @@ import Users from 'lucide-react/dist/esm/icons/users.mjs';
 import { Button } from '@/components/ui/button';
 import { VenuePhoto } from '@/components/venue-photo';
 import type { Venue } from '@/lib/demo-data';
-import { formatDate, formatMoney, formatNames } from '@/lib/formatters';
-import {
-  bookingPreferencesFromBookings,
-  getVenue,
-  summarizeBookingPreferences,
-  venueLocationSummary,
-} from '@/lib/tennis-utils';
+import { formatDate, formatMoney, formatNames, sessionDurationBadge } from '@/lib/formatters';
+import { getVenue, sessionMatchPreferences, venueLocationSummary } from '@/lib/tennis-utils';
 import type { Translations } from '@/lib/translations';
 import type { Booking, Language, Session } from '@/types/tennis';
-
-function sessionDurationBadge(session: Session, language: Language) {
-  const [startHours, startMinutes] = session.startTime.split(':').map(Number);
-  const [endHours, endMinutes] = session.endTime.split(':').map(Number);
-  const durationMinutes = Math.max(0, (endHours * 60 + endMinutes) - (startHours * 60 + startMinutes));
-  if (durationMinutes < 120) return null;
-  const hours = String(Number((durationMinutes / 60).toFixed(2)));
-  return language === 'zh' ? `${hours}小时场` : `${hours}h session`;
-}
 
 export function HomeView({
   upcomingSessions,
@@ -56,17 +42,8 @@ export function HomeView({
     const venue = getVenue(session.venueId, venueList);
     const spots = Math.max(0, session.capacity - session.bookedSpots);
     const isFull = spots === 0;
-    const preferences = summarizeBookingPreferences(
-      session.bookingPreferences ?? bookingPreferencesFromBookings(session.id, bookings),
-    );
-    const manualPreferences = (session.seekingLevels ?? []).flatMap((level) =>
-      session.formats.map((format) => ({ level, format, count: 1 })),
-    );
-    const displayedPreferences = [...manualPreferences, ...preferences].filter(
-      (preference, index, list) =>
-        list.findIndex((item) => item.level === preference.level && item.format === preference.format) === index,
-    );
-    const durationBadge = sessionDurationBadge(session, language);
+    const displayedPreferences = sessionMatchPreferences(session, bookings);
+    const durationBadge = sessionDurationBadge(session.startTime, session.endTime, language);
 
     return (
       <article className="session-card" key={session.id}>

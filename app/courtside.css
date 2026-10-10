@@ -67,24 +67,82 @@
   position: absolute;
   top: 18%;
   left: 46%;
-  width: 22px;
-  height: 22px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  background:
-    radial-gradient(circle at 30% 30%, rgb(255 255 255 / 55%), transparent 40%),
-    var(--cs-ball);
-  box-shadow: 0 0 40px rgb(217 242 67 / 55%);
+  box-shadow: 0 0 44px rgb(217 242 67 / 50%);
   animation: cs-rally 7s cubic-bezier(0.45, 0, 0.55, 1) infinite;
 }
 
-.cs-ball::after {
+.cs-ball .cs-tennis-ball {
+  width: 100%;
+  height: 100%;
+}
+
+/* Tennis ball: felt, a dark groove under each white seam, and a fixed
+   highlight/shadow layer on top so only the seams appear to rotate. */
+.cs-tennis-ball {
+  position: relative;
+  display: block;
+  flex: none;
+  border-radius: 50%;
+}
+
+.cs-tennis-ball svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.cs-tennis-ball::after {
   content: '';
   position: absolute;
-  inset: 2px;
-  border: 1.5px solid rgb(255 255 255 / 70%);
-  border-color: rgb(255 255 255 / 70%) transparent;
+  inset: 0;
   border-radius: 50%;
-  transform: rotate(35deg);
+  background:
+    radial-gradient(circle at 32% 28%, rgb(255 255 255 / 55%), transparent 38%),
+    radial-gradient(circle at 70% 75%, transparent 45%, rgb(40 60 0 / 32%) 100%);
+  pointer-events: none;
+}
+
+.cs-ball-felt {
+  fill: var(--cs-ball);
+}
+
+.cs-ball-groove {
+  fill: none;
+  stroke: rgb(70 92 8 / 55%);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.cs-ball-seam {
+  fill: none;
+  stroke: #fbfde9;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+}
+
+.cs-ball-shade {
+  fill: none;
+  stroke: rgb(40 60 0 / 18%);
+  stroke-width: 1;
+}
+
+.cs-ball-seams {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.cs-tennis-ball.spinning .cs-ball-seams {
+  animation: cs-spin 1.1s linear infinite;
+}
+
+@keyframes cs-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes cs-rally {
@@ -153,6 +211,27 @@
   line-height: 1.6;
 }
 
+.cs-hero-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cs-hero-points li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.cs-hero-points svg {
+  color: var(--cs-ball);
+}
+
 .cs-hero-actions {
   display: flex;
   flex-wrap: wrap;
@@ -188,6 +267,50 @@
 
 .cs-btn.primary:hover {
   background: #e6fb63;
+}
+
+.cs-btn.request {
+  gap: 14px;
+  min-height: 64px;
+  padding: 8px 22px 8px 8px;
+  border-radius: 20px;
+  text-align: left;
+}
+
+.cs-btn-icon {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  color: var(--cs-ball);
+  background: var(--cs-court-deep);
+}
+
+.cs-btn-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.cs-btn-copy strong {
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.cs-btn-copy small {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.72;
+}
+
+.cs-btn > svg {
+  flex: none;
+  transition: transform 200ms ease;
+}
+
+.cs-btn:hover > svg {
+  transform: translateX(3px);
 }
 
 .cs-btn.ghost {
@@ -454,6 +577,8 @@
 .cs-filter {
   display: inline-flex;
   flex: none;
+  min-width: 0;
+  margin: 0;
   padding: 4px;
   border: 1px solid var(--cs-line);
   border-radius: 999px;
@@ -537,7 +662,7 @@
 .cs-row {
   position: relative;
   display: grid;
-  grid-template-columns: 78px 96px minmax(0, 1fr) 150px 84px 40px;
+  grid-template-columns: 78px 96px minmax(0, 1fr) 132px 72px auto;
   align-items: center;
   gap: 20px;
   padding: 18px 14px 18px 4px;
@@ -662,11 +787,67 @@
   font-weight: 700;
 }
 
-.cs-tag.level {
+.cs-tag.duration {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   border-color: transparent;
+  color: #fff8ef;
+  background: var(--cs-clay);
+}
+
+.cs-match {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 10px;
+}
+
+.cs-match-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   color: var(--cs-court);
-  background: rgb(217 242 67 / 42%);
   font-family: var(--cs-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cs-match ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cs-match li {
+  padding: 3px 10px;
+  border-radius: 999px;
+  color: var(--cs-court-deep);
+  background: rgb(217 242 67 / 38%);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cs-match b {
+  font-family: var(--cs-mono);
+}
+
+.cs-board-duration {
+  margin-top: 2px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #fff8ef;
+  background: var(--cs-clay);
+  font-family: var(--cs-mono);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 600;
 }
 
 .cs-row-spots {
@@ -718,22 +899,32 @@
 }
 
 .cs-row-cta {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px 0 16px;
+  border-radius: 999px;
   color: var(--cs-chalk);
   background: var(--cs-court);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
   transition:
-    transform 220ms ease,
     background-color 220ms ease,
     color 220ms ease;
+}
+
+.cs-row-cta svg {
+  transition: transform 220ms ease;
 }
 
 .cs-row:hover .cs-row-cta {
   color: var(--cs-court-deep);
   background: var(--cs-ball);
+}
+
+.cs-row:hover .cs-row-cta svg {
   transform: rotate(45deg);
 }
 
@@ -796,16 +987,20 @@
 .cs-serve-ball {
   width: 58px;
   height: 58px;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 30% 30%, rgb(255 255 255 / 55%), transparent 40%),
-    var(--cs-ball);
   box-shadow: 0 10px 24px rgb(0 0 0 / 18%);
   transition: transform 500ms cubic-bezier(0.3, 1.6, 0.5, 1);
 }
 
+.cs-serve-ball .cs-ball-seams {
+  transition: transform 700ms cubic-bezier(0.3, 1.2, 0.5, 1);
+}
+
 .cs-serve:hover .cs-serve-ball {
-  transform: translateY(-6px) rotate(140deg);
+  transform: translateY(-6px);
+}
+
+.cs-serve:hover .cs-serve-ball .cs-ball-seams {
+  transform: rotate(200deg);
 }
 
 .cs-serve-copy {
@@ -865,7 +1060,7 @@
   }
 
   .cs-row {
-    grid-template-columns: 70px 88px minmax(0, 1fr) 120px 72px 40px;
+    grid-template-columns: 70px 88px minmax(0, 1fr) 112px 64px auto;
     gap: 16px;
   }
 }
@@ -940,8 +1135,9 @@
   .cs-row-cta {
     grid-area: cta;
     justify-self: end;
-    width: 34px;
-    height: 34px;
+    min-height: 34px;
+    padding: 0 12px 0 14px;
+    font-size: 12px;
   }
 
   .cs-serve {
@@ -982,6 +1178,14 @@
     justify-content: center;
   }
 
+  .cs-btn.request {
+    justify-content: flex-start;
+  }
+
+  .cs-btn.request > svg {
+    margin-left: auto;
+  }
+
   .cs-stats > div + div {
     padding-left: 16px;
   }
@@ -1019,7 +1223,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .cs-ball,
-  .cs-live i {
+  .cs-live i,
+  .cs-tennis-ball.spinning .cs-ball-seams {
     animation: none;
   }
 
@@ -1032,7 +1237,9 @@
   .cs-row:hover .cs-row-cta,
   .cs-serve:hover,
   .cs-serve:hover .cs-serve-ball,
-  .cs-btn:hover {
+  .cs-serve:hover .cs-serve-ball .cs-ball-seams,
+  .cs-btn:hover,
+  .cs-btn:hover > svg {
     transform: none;
   }
 }

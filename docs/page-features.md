@@ -1,6 +1,6 @@
 # Tennis Match 页面功能与操作流程
 
-> 基于 `main` 分支当前工作区（含未提交的聊天助手/后台改动）整理，供页面改版时对照，避免丢失功能。
+> 基于 `main` 分支 `c0bb416`（Add bilingual booking assistant account and partner flows）整理，供页面改版时对照，避免丢失功能。
 
 整站是一个单页应用（`app/page.tsx` 的 `TennisSocialApp`），通过 URL 参数切换视图：
 

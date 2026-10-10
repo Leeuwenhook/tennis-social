@@ -49,6 +49,14 @@ export function formatDuration(startTime: string, endTime: string, language: Lan
   return hours ? `${hours}h${remainder ? ` ${remainder}m` : ''}` : `${remainder}m`;
 }
 
+/** Label for sessions of two hours or more, which the session list calls out. */
+export function sessionDurationBadge(startTime: string, endTime: string, language: Language) {
+  const durationMinutes = Math.max(0, parseMinutes(endTime) - parseMinutes(startTime));
+  if (durationMinutes < 120) return null;
+  const hours = String(Number((durationMinutes / 60).toFixed(2)));
+  return language === 'zh' ? `${hours}小时场` : `${hours}h session`;
+}
+
 export function formatNames(
   formats: GameFormat[],
   labels: { singles: string; doubles: string },

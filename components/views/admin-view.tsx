@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { ChangeEvent, FormEvent, RefObject } from 'react';
 import ArrowLeft from 'lucide-react/dist/esm/icons/arrow-left.mjs';
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.mjs';
@@ -44,6 +45,101 @@ import type {
   SessionStatus,
   VenueDraft,
 } from '@/types/tennis';
+
+type AdminApplication = {
+  id: string;
+  name?: string;
+  contact_name?: string;
+  email: string;
+  phone?: string | null;
+  tennis_level?: string;
+  preferred_format?: string;
+  can_attend_full_duration?: boolean;
+  message?: string | null;
+  status: 'pending' | 'accepted' | 'rejected';
+};
+
+function AdminRequestApplications({ request, language, t }: { request: ReservationRequest; language: Language; t: Translations }) {
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [applications, setApplications] = useState<AdminApplication[]>([]);
+  const [updating, setUpdating] = useState<string | null>(null);
+
+  async function loadApplications() {
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+    if (applications.length || loading) return;
+    setLoading(true); setError('');
+    try {
+      const response = await fetch(`/api/admin/reservation-requests/${encodeURIComponent(request.id)}/applications`, { cache: 'no-store' });
+      const data = await response.json() as { applications?: AdminApplication[]; error?: string };
+      if (!response.ok) throw new Error(data.error || 'applications_unavailable');
+      setApplications(data.applications ?? []);
+    } catch { setError(t.requestApplicationsLoadFailed); }
+    finally { setLoading(false); }
+  }
+
+  async function updateApplication(application: AdminApplication, status: AdminApplication['status']) {
+    if (application.status === status || updating) return;
+    if (status === 'accepted' && application.status !== 'accepted' && request.seekingPlayerCount) {
+      const acceptedCount = applications.filter((item) => item.status === 'accepted').length;
+      if (acceptedCount + 1 >= request.seekingPlayerCount && !window.confirm(t.acceptLastApplicationConfirm)) return;
+    }
+    setUpdating(application.id); setError('');
+    try {
+      const response = await fetch(`/api/admin/reservation-requests/${encodeURIComponent(request.id)}/applications/${encodeURIComponent(application.id)}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+      });
+      const data = await response.json() as { application?: AdminApplication; error?: string };
+      if (!response.ok || !data.application) throw new Error(data.error || 'application_unavailable');
+      setApplications((current) => current.map((item) => item.id === application.id ? data.application as AdminApplication : item));
+    } catch { setError(t.requestApplicationUpdateFailed); }
+    finally { setUpdating(null); }
+  }
+
+  const kindLabel = request.requestKind === 'find_partners' ? t.requestKindFindPartners : request.requestKind === 'find_both' ? t.requestKindFindBoth : t.requestKindFindCourt;
+  const formatLabel = request.preferredFormat === 'singles' ? t.singles : request.preferredFormat === 'doubles' ? t.doubles : request.preferredFormat === 'practice' ? t.practice : t.flexible;
+
+  return (
+    <div className="request-admin-details">
+      <div className="request-admin-structured">
+        <span><strong>{t.requestKind}:</strong> {kindLabel}</span>
+        <span><strong>{t.existingPlayers}:</strong> {request.existingPlayerLevels?.length ? request.existingPlayerLevels.join(' · ') : t.none}</span>
+        <span><strong>{t.seekingPlayers}:</strong> {request.seekingPlayerCount ?? 0}</span>
+        <span><strong>{t.seekingLevels}:</strong> {request.seekingLevels?.length ? request.seekingLevels.join(' · ') : t.none}</span>
+        <span><strong>{t.format}:</strong> {formatLabel}</span>
+        <span><strong>{t.fullDuration}:</strong> {request.fullDurationRequired ? t.yes : t.no}</span>
+        <span><strong>{t.venueBookingStatus}:</strong> {request.venueBookingStatus === 'booked' ? t.booked : request.venueBookingStatus === 'not_booked' ? t.notBooked : t.unknown}</span>
+      </div>
+      <Button type="button" variant="outline" size="sm" onClick={() => void loadApplications()} disabled={loading}>
+        {loading ? t.loadingApplications : open ? t.hideApplications : t.viewApplications}
+      </Button>
+      {open ? (
+        <div className="request-admin-applications">
+          {error ? <div className="inline-error">{error}</div> : null}
+          {loading ? <p className="admin-muted">{t.loadingApplications}</p> : applications.length ? applications.map((application) => (
+            <div className="request-admin-application" key={application.id}>
+              <div>
+                <strong>{application.name ?? application.contact_name ?? t.unknown}</strong>
+                <span><a href={`mailto:${application.email}`}>{application.email}</a>{application.phone ? ` · ${application.phone}` : ''}</span>
+                <span>{application.tennis_level || t.unknown} · {application.preferred_format || t.flexible} · {application.can_attend_full_duration ? t.fullDuration : t.partialDuration}</span>
+                {application.message ? <small>{application.message}</small> : null}
+              </div>
+              <div className="request-admin-application-actions">
+                {(['pending', 'accepted', 'rejected'] as const).map((status) => (
+                  <Button key={status} type="button" size="sm" variant={application.status === status ? 'default' : 'outline'} disabled={updating !== null} onClick={() => void updateApplication(application, status)}>
+                    {status === 'pending' ? t.pendingApplication : status === 'accepted' ? t.acceptedApplication : t.rejectedApplication}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )) : !loading ? <p className="admin-muted">{t.noApplications}</p> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export function AdminView({
   adminAuthChecked,
@@ -1197,6 +1293,7 @@ export function AdminView({
                             {request.phone ? ` · ${request.phone}` : ''}
                           </span>
                           {request.message ? <p>{request.message}</p> : null}
+                          <AdminRequestApplications request={request} language={language} t={t} />
                           <small>
                             {t.requestedOn}:{' '}
                             {new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-GB', {

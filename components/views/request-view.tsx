@@ -1,6 +1,6 @@
 'use client';
 
-import type { FormEvent, KeyboardEvent } from 'react';
+import { useState, type FormEvent, type KeyboardEvent } from 'react';
 import ArrowLeft from 'lucide-react/dist/esm/icons/arrow-left.mjs';
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.mjs';
 import CalendarPlus from 'lucide-react/dist/esm/icons/calendar-plus.mjs';
@@ -13,9 +13,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Venue } from '@/lib/demo-data';
 import { formatLongDate } from '@/lib/formatters';
+import { parsePartnerRequestDraft } from '@/lib/partner-request-parser';
 import { dateFromToday, getVenue, venueLabel } from '@/lib/tennis-utils';
 import type { Translations } from '@/lib/translations';
 import type { Language, ReservationRequest, ReservationRequestForm, UserProfile } from '@/types/tennis';
+
+const TENNIS_LEVELS = ['1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0'];
 
 export function RequestView({
   submittedRequest,
@@ -58,6 +61,36 @@ export function RequestView({
   onSelectVenue: (venue: Venue) => void;
   onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
 }) {
+  const [pasteText, setPasteText] = useState('');
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteMissing, setPasteMissing] = useState<string[]>([]);
+  const structured = requestForm.requestKind !== undefined;
+  const setField = <K extends keyof ReservationRequestForm>(key: K, value: ReservationRequestForm[K]) =>
+    setRequestForm((current) => ({ ...current, [key]: value }));
+  const toggleLevel = (key: 'existingPlayerLevels' | 'seekingLevels', level: string) => {
+    setRequestForm((current) => {
+      const values = current[key] ?? [];
+      return { ...current, [key]: values.includes(level) ? values.filter((item) => item !== level) : [...values, level] };
+    });
+  };
+  const applyPasteDraft = () => {
+    const draft = parsePartnerRequestDraft(pasteText);
+    setPasteMissing(draft.missing);
+    setRequestForm((current) => ({
+      ...current,
+      ...(draft.venueName ? { venueName: draft.venueName, venueId: null, requestType: 'known_venue' as const } : {}),
+      ...(draft.preferredDate ? { preferredDate: draft.preferredDate } : {}),
+      ...(draft.startTime ? { startTime: draft.startTime } : {}),
+      ...(draft.endTime ? { endTime: draft.endTime } : {}),
+      ...(draft.existingPlayerLevels ? { existingPlayerLevels: draft.existingPlayerLevels } : {}),
+      ...(draft.seekingLevels ? { seekingLevels: draft.seekingLevels } : {}),
+      ...(draft.seekingPlayerCount !== undefined ? { seekingPlayerCount: draft.seekingPlayerCount } : {}),
+      ...(draft.preferredFormat ? { preferredFormat: draft.preferredFormat } : {}),
+      ...(draft.fullDurationRequired !== undefined ? { fullDurationRequired: draft.fullDurationRequired } : {}),
+      ...(draft.venueBookingStatus ? { venueBookingStatus: draft.venueBookingStatus } : {}),
+      ...(draft.requestKind ? { requestKind: draft.requestKind } : {}),
+    }));
+  };
   if (submittedRequest) {
     const venue = submittedRequest.venueId ? getVenue(submittedRequest.venueId, venueList) : null;
     const requestLocation =
@@ -95,6 +128,11 @@ export function RequestView({
                 {submittedRequest.startTime}–{submittedRequest.endTime}
               </strong>
             </div>
+            {submittedRequest.requestKind ? <>
+              <div><small>{t.requestKind}</small><strong>{t[submittedRequest.requestKind]}</strong></div>
+              <div><small>{t.seekingPlayers}</small><strong>{submittedRequest.seekingPlayerCount ?? 0}</strong></div>
+              <div><small>{t.requestFormat}</small><strong>{submittedRequest.preferredFormat ?? 'flexible'}</strong></div>
+            </> : null}
             <div>
               <small>{t.contact}</small>
               <strong>{submittedRequest.contactName}</strong>
@@ -151,7 +189,26 @@ export function RequestView({
           </div>
         </div>
         <form onSubmit={onSubmit}>
+          <div className="paste-draft-box">
+            <button type="button" className="paste-draft-toggle" onClick={() => setPasteOpen((open) => !open)}>
+              {pasteOpen ? '−' : '+'} {t.pasteRequest}
+            </button>
+            {pasteOpen ? <div className="paste-draft-content">
+              <textarea className="native-textarea" rows={4} value={pasteText} onChange={(event) => setPasteText(event.target.value)} placeholder={t.pasteRequestHint} />
+              <Button type="button" size="sm" variant="outline" onClick={applyPasteDraft}>{t.createDraft}</Button>
+              <small className="field-hint">{t.pasteRequestNote}</small>
+              {pasteMissing.length ? <small className="field-hint paste-missing">{t.missingFields}: {pasteMissing.map((field) => field === 'preferredDate' ? t.preferredDate : field === 'time' ? t.preferredTimeRange : t.seekingPlayers).join(', ')}</small> : null}
+            </div> : null}
+          </div>
           <div className="form-grid two-col">
+            <div className="field request-kind-field">
+              <Label htmlFor="request-kind">{t.requestKind} <em>*</em></Label>
+              <select id="request-kind" className="native-select" value={requestForm.requestKind ?? 'find_court'} onChange={(event) => { const kind = event.target.value as ReservationRequestForm['requestKind']; setRequestForm((current) => ({ ...current, requestKind: kind, requestType: kind === 'find_partners' ? 'known_venue' : kind === 'find_court' ? 'find_nearby' : current.requestType, venueId: kind === 'find_partners' ? current.venueId : null, venueName: kind === 'find_partners' ? current.venueName : '', postcode: kind === 'find_court' ? (user?.postcode ?? current.postcode) : current.postcode })); }}>
+                <option value="find_partners">{t.find_partners}</option>
+                <option value="find_court">{t.find_court}</option>
+                <option value="find_both">{t.find_both}</option>
+              </select>
+            </div>
             <div className="field">
               <Label htmlFor="request-type">
                 {t.specifiedVenue} <em>*</em>
@@ -253,6 +310,20 @@ export function RequestView({
                 <small className="field-hint">{t.postcodeHint}</small>
               </div>
             )}
+            {structured ? <>
+              <div className="field">
+                <Label>{t.venueBookingStatus} <em>*</em></Label>
+                <select className="native-select" value={requestForm.venueBookingStatus ?? 'unknown'} onChange={(event) => setField('venueBookingStatus', event.target.value as ReservationRequestForm['venueBookingStatus'])}>
+                  <option value="booked">{t.booked}</option><option value="not_booked">{t.not_booked}</option><option value="unknown">{t.unknown}</option>
+                </select>
+              </div>
+              <div className="field request-level-field"><Label>{t.existingLevels}</Label><div className="level-picker">{TENNIS_LEVELS.map((level) => <button type="button" key={`existing-${level}`} className={(requestForm.existingPlayerLevels ?? []).includes(level) ? 'level-chip selected' : 'level-chip'} onClick={() => toggleLevel('existingPlayerLevels', level)}>{level}</button>)}</div></div>
+              <div className="field"><Label htmlFor="seeking-count">{t.seekingPlayers} <em>*</em></Label><Input id="seeking-count" type="number" min={0} max={100} value={requestForm.seekingPlayerCount ?? 0} onChange={(event) => setField('seekingPlayerCount', Number(event.target.value))} /></div>
+              <div className="field request-level-field"><Label>{t.seekingLevels}</Label><div className="level-picker">{TENNIS_LEVELS.map((level) => <button type="button" key={`seeking-${level}`} className={(requestForm.seekingLevels ?? []).includes(level) ? 'level-chip selected' : 'level-chip'} onClick={() => toggleLevel('seekingLevels', level)}>{level}</button>)}</div></div>
+              <div className="field"><Label htmlFor="request-format">{t.requestFormat}</Label><select id="request-format" className="native-select" value={requestForm.preferredFormat ?? 'flexible'} onChange={(event) => setField('preferredFormat', event.target.value as ReservationRequestForm['preferredFormat'])}><option value="singles">{t.singles}</option><option value="doubles">{t.doubles}</option><option value="practice">{t.practice}</option><option value="flexible">{t.flexible}</option></select></div>
+              <div className="field"><Label htmlFor="request-budget">{t.budget} <small>({t.optional})</small></Label><Input id="request-budget" type="number" min={0} step={0.01} value={requestForm.budgetPence == null ? '' : (requestForm.budgetPence / 100).toFixed(2)} onChange={(event) => setField('budgetPence', event.target.value === '' ? null : Math.round(Number(event.target.value) * 100))} /></div>
+              <label className="checkbox-field"><input type="checkbox" checked={requestForm.fullDurationRequired ?? false} onChange={(event) => setField('fullDurationRequired', event.target.checked)} /> {t.fullDuration}</label>
+            </> : null}
             <div className="field">
               <Label htmlFor="request-date">
                 {t.preferredDate} <em>*</em>

@@ -1,4 +1,4 @@
-import { index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
+import { boolean, index, integer, pgTable, text, uniqueIndex } from 'drizzle-orm/pg-core';
 
 export const appSettings = pgTable('app_settings', {
   key: text('key').primaryKey(),
@@ -150,9 +150,36 @@ export const reservationRequests = pgTable('reservation_requests', {
   email: text('email').notNull(),
   phone: text('phone').notNull().default(''),
   message: text('message').notNull().default(''),
+  requestKind: text('request_kind', { enum: ['find_partners', 'find_court', 'find_both'] }).notNull().default('find_court'),
+  venueBookingStatus: text('venue_booking_status', { enum: ['booked', 'not_booked', 'unknown'] }).notNull().default('unknown'),
+  existingPlayerLevelsJson: text('existing_player_levels_json').notNull().default('[]'),
+  seekingPlayerCount: integer('seeking_player_count').notNull().default(0),
+  seekingLevelsJson: text('seeking_levels_json').notNull().default('[]'),
+  preferredFormat: text('preferred_format', { enum: ['singles', 'doubles', 'practice', 'flexible'] }).notNull().default('flexible'),
+  fullDurationRequired: boolean('full_duration_required').notNull().default(false),
+  budgetPence: integer('budget_pence'),
   status: text('status', { enum: ['pending', 'reviewing', 'completed', 'cancelled'] }).notNull().default('pending'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 }, (table) => [
   index('idx_reservation_requests_status_date').on(table.status, table.preferredDate),
+]);
+
+export const partnerRequestApplications = pgTable('partner_request_applications', {
+  id: text('id').primaryKey(),
+  requestId: text('request_id').notNull().references(() => reservationRequests.id, { onDelete: 'cascade' }),
+  userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+  phone: text('phone').notNull().default(''),
+  tennisLevel: text('tennis_level').notNull(),
+  preferredFormat: text('preferred_format').notNull(),
+  canAttendFullDuration: boolean('can_attend_full_duration').notNull().default(false),
+  message: text('message').notNull().default(''),
+  status: text('status', { enum: ['pending', 'accepted', 'rejected'] }).notNull().default('pending'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  uniqueIndex('partner_request_applications_request_email_unique').on(table.requestId, table.email),
+  index('idx_partner_request_applications_request_status').on(table.requestId, table.status),
 ]);

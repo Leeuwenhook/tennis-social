@@ -2,7 +2,7 @@ import {
   database,
   DatabaseNotConfiguredError,
   ensureSeeded,
-  serializeReservationRequest,
+  serializePublicReservationRequest,
   type ReservationRequestRow,
 } from '@/lib/server/database';
 import {
@@ -12,6 +12,29 @@ import {
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+export async function GET(request: Request) {
+  try {
+    const db = database(); await ensureSeeded(db);
+    const params = new URL(request.url).searchParams;
+    const rows = await db`
+      SELECT requests.*, venues.area
+      FROM reservation_requests AS requests LEFT JOIN venues ON venues.id = requests.venue_id
+      WHERE requests.status IN ('pending', 'reviewing')
+        AND (${params.get('postcode') || null} IS NULL OR requests.postcode ILIKE ${`%${params.get('postcode') || ''}%`})
+        AND (${params.get('area') || null} IS NULL OR venues.area ILIKE ${`%${params.get('area') || ''}%`})
+        AND (${params.get('date') || null} IS NULL OR requests.preferred_date = ${params.get('date') || ''})
+        AND (${params.get('format') || null} IS NULL OR requests.preferred_format = ${params.get('format') || ''})
+        AND (${params.get('level') || null} IS NULL OR requests.existing_player_levels_json LIKE ${`%${params.get('level') || ''}%`} OR requests.seeking_levels_json LIKE ${`%${params.get('level') || ''}%`})
+      ORDER BY requests.preferred_date, requests.start_time
+    ` as Array<ReservationRequestRow & { area: string | null }>;
+    return Response.json({ requests: rows.map(serializePublicReservationRequest) });
+  } catch (error) {
+    if (error instanceof DatabaseNotConfiguredError) return Response.json({ error: 'database_not_configured' }, { status: 503 });
+    console.error('Unable to load public reservation requests', error);
+    return Response.json({ error: 'requests_unavailable' }, { status: 503 });
+  }
+}
 
 export async function POST(request: Request) {
   let input: ReservationRequestInput;
@@ -43,13 +66,14 @@ export async function POST(request: Request) {
       INSERT INTO reservation_requests (
         id, request_type, venue_id, venue_name, postcode, preferred_date, start_time, end_time, contact_name,
         email, phone, message, status, created_at, updated_at
+        , request_kind, venue_booking_status, existing_player_levels_json, seeking_player_count, seeking_levels_json, preferred_format, full_duration_required, budget_pence
       ) VALUES (
         ${id}, ${value.requestType}, ${value.venueId}, ${value.venueName}, ${value.postcode}, ${value.preferredDate}, ${value.startTime}, ${value.endTime},
-        ${value.contactName}, ${value.email}, ${value.phone}, ${value.message}, 'pending', ${now}, ${now}
+        ${value.contactName}, ${value.email}, ${value.phone}, ${value.message}, 'pending', ${now}, ${now}, ${value.requestKind}, ${value.venueBookingStatus}, ${JSON.stringify(value.existingPlayerLevels)}, ${value.seekingPlayerCount}, ${JSON.stringify(value.seekingLevels)}, ${value.preferredFormat}, ${value.fullDurationRequired}, ${value.budgetPence}
       )
       RETURNING *
     ` as ReservationRequestRow[];
-    return Response.json({ request: serializeReservationRequest(rows[0]) }, { status: 201 });
+    return Response.json({ request: serializePublicReservationRequest(rows[0]) }, { status: 201 });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {
       return Response.json({ error: 'database_not_configured' }, { status: 503 });

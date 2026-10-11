@@ -11,6 +11,7 @@ import Users from 'lucide-react/dist/esm/icons/users.mjs';
 
 import { Button } from '@/components/ui/button';
 import { VenuePhoto } from '@/components/venue-photo';
+import { PublicPartnerRequests } from '@/components/public-partner-requests';
 import type { Venue } from '@/lib/demo-data';
 import { formatDate, formatMoney, formatNames } from '@/lib/formatters';
 import {
@@ -219,6 +220,7 @@ export function HomeView({
           )}
         </div>
       </section>
+      <PublicPartnerRequests language={language} />
     </>
   );
 }

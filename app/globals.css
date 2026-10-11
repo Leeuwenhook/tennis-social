@@ -1666,6 +1666,9 @@
 }
 
 .paste-draft-content { display: grid; gap: 10px; padding: 0 14px 14px; }
+.paste-draft-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.paste-draft-option { border: 1px solid var(--border); border-radius: 999px; background: transparent; color: inherit; cursor: pointer; padding: 5px 9px; font: inherit; font-size: 0.82rem; }
+.paste-draft-option.selected { border-color: var(--primary); background: var(--primary); color: #fff; }
 .level-picker { display: flex; flex-wrap: wrap; gap: 6px; }
 .level-chip { border: 1px solid var(--border); border-radius: 999px; background: #fff; color: var(--foreground); cursor: pointer; padding: 5px 9px; font-size: 12px; }
 .level-chip.selected { border-color: var(--primary); background: var(--primary); color: #fff; }

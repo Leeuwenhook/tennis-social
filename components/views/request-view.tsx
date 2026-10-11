@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Venue } from '@/lib/demo-data';
 import { formatLongDate } from '@/lib/formatters';
-import { parsePartnerRequestDraft } from '@/lib/partner-request-parser';
+import { parsePartnerRequestDrafts, type PartnerRequestDraft } from '@/lib/partner-request-parser';
 import { dateFromToday, getVenue, venueLabel } from '@/lib/tennis-utils';
 import type { Translations } from '@/lib/translations';
 import type { Language, ReservationRequest, ReservationRequestForm, UserProfile } from '@/types/tennis';
@@ -64,6 +64,9 @@ export function RequestView({
   const [pasteText, setPasteText] = useState('');
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteMissing, setPasteMissing] = useState<string[]>([]);
+  const [pasteDrafts, setPasteDrafts] = useState<PartnerRequestDraft[]>([]);
+  const [editedPasteDrafts, setEditedPasteDrafts] = useState<ReservationRequestForm[]>([]);
+  const [pasteDraftIndex, setPasteDraftIndex] = useState(0);
   const structured = requestForm.requestKind !== undefined;
   const setField = <K extends keyof ReservationRequestForm>(key: K, value: ReservationRequestForm[K]) =>
     setRequestForm((current) => ({ ...current, [key]: value }));
@@ -73,24 +76,36 @@ export function RequestView({
       return { ...current, [key]: values.includes(level) ? values.filter((item) => item !== level) : [...values, level] };
     });
   };
-  const applyPasteDraft = () => {
-    const draft = parsePartnerRequestDraft(pasteText);
-    setPasteMissing(draft.missing);
-    setRequestForm((current) => ({
-      ...current,
-      ...(draft.venueName ? { venueName: draft.venueName, venueId: null, requestType: 'known_venue' as const } : {}),
-      ...(draft.preferredDate ? { preferredDate: draft.preferredDate } : {}),
-      ...(draft.startTime ? { startTime: draft.startTime } : {}),
-      ...(draft.endTime ? { endTime: draft.endTime } : {}),
-      ...(draft.existingPlayerLevels ? { existingPlayerLevels: draft.existingPlayerLevels } : {}),
-      ...(draft.seekingLevels ? { seekingLevels: draft.seekingLevels } : {}),
-      ...(draft.seekingPlayerCount !== undefined ? { seekingPlayerCount: draft.seekingPlayerCount } : {}),
-      ...(draft.preferredFormat ? { preferredFormat: draft.preferredFormat } : {}),
-      ...(draft.fullDurationRequired !== undefined ? { fullDurationRequired: draft.fullDurationRequired } : {}),
-      ...(draft.venueBookingStatus ? { venueBookingStatus: draft.venueBookingStatus } : {}),
-      ...(draft.requestKind ? { requestKind: draft.requestKind } : {}),
-    }));
+  const createPasteDrafts = () => {
+    const drafts = parsePartnerRequestDrafts(pasteText);
+    const forms = drafts.map((draft) => formFromPasteDraft(draft, requestForm));
+    setPasteDrafts(drafts);
+    setEditedPasteDrafts(forms);
+    setPasteDraftIndex(0);
+    setPasteMissing(drafts[0]?.missing ?? []);
+    if (forms[0]) setRequestForm(forms[0]);
   };
+  const selectPasteDraft = (index: number) => {
+    if (index === pasteDraftIndex) return;
+    setEditedPasteDrafts((forms) => forms.map((form, savedIndex) => savedIndex === pasteDraftIndex ? requestForm : form));
+    setPasteDraftIndex(index);
+    setRequestForm(editedPasteDrafts[index]);
+    setPasteMissing(pasteDrafts[index].missing);
+  };
+  const formFromPasteDraft = (draft: PartnerRequestDraft, current: ReservationRequestForm): ReservationRequestForm => ({
+      ...current,
+      preferredDate: draft.preferredDate ?? '',
+      startTime: draft.startTime ?? '',
+      endTime: draft.endTime ?? '',
+      seekingPlayerCount: draft.seekingPlayerCount,
+      existingPlayerLevels: draft.existingPlayerLevels ?? [],
+      seekingLevels: draft.seekingLevels ?? [],
+      fullDurationRequired: draft.fullDurationRequired ?? false,
+      venueBookingStatus: draft.venueBookingStatus ?? 'unknown',
+      preferredFormat: draft.preferredFormat ?? 'flexible',
+      ...(draft.venueName ? { venueName: draft.venueName, venueId: null, requestType: 'known_venue' as const } : {}),
+      ...(draft.requestKind ? { requestKind: draft.requestKind } : {}),
+    });
   if (submittedRequest) {
     const venue = submittedRequest.venueId ? getVenue(submittedRequest.venueId, venueList) : null;
     const requestLocation =
@@ -195,7 +210,10 @@ export function RequestView({
             </button>
             {pasteOpen ? <div className="paste-draft-content">
               <textarea className="native-textarea" rows={4} value={pasteText} onChange={(event) => setPasteText(event.target.value)} placeholder={t.pasteRequestHint} />
-              <Button type="button" size="sm" variant="outline" onClick={applyPasteDraft}>{t.createDraft}</Button>
+              <Button type="button" size="sm" variant="outline" onClick={createPasteDrafts}>{t.createDraft}</Button>
+              {pasteDrafts.length > 1 ? <div className="paste-draft-list" role="group" aria-label={t.detectedDrafts}>
+                {pasteDrafts.map((draft, index) => <button type="button" aria-pressed={index === pasteDraftIndex} className={index === pasteDraftIndex ? 'paste-draft-option selected' : 'paste-draft-option'} key={`${index}-${draft.source}`} onClick={() => selectPasteDraft(index)}>{t.detectedDraft} {index + 1}{draft.venueName ? ` · ${draft.venueName}` : ''}</button>)}
+              </div> : null}
               <small className="field-hint">{t.pasteRequestNote}</small>
               {pasteMissing.length ? <small className="field-hint paste-missing">{t.missingFields}: {pasteMissing.map((field) => field === 'preferredDate' ? t.preferredDate : field === 'time' ? t.preferredTimeRange : t.seekingPlayers).join(', ')}</small> : null}
             </div> : null}
@@ -318,7 +336,7 @@ export function RequestView({
                 </select>
               </div>
               <div className="field request-level-field"><Label>{t.existingLevels}</Label><div className="level-picker">{TENNIS_LEVELS.map((level) => <button type="button" key={`existing-${level}`} className={(requestForm.existingPlayerLevels ?? []).includes(level) ? 'level-chip selected' : 'level-chip'} onClick={() => toggleLevel('existingPlayerLevels', level)}>{level}</button>)}</div></div>
-              <div className="field"><Label htmlFor="seeking-count">{t.seekingPlayers} <em>*</em></Label><Input id="seeking-count" type="number" min={0} max={100} value={requestForm.seekingPlayerCount ?? 0} onChange={(event) => setField('seekingPlayerCount', Number(event.target.value))} /></div>
+              <div className="field"><Label htmlFor="seeking-count">{t.seekingPlayers} <em>*</em></Label><Input id="seeking-count" type="number" min={0} max={100} value={requestForm.seekingPlayerCount ?? ''} onChange={(event) => setField('seekingPlayerCount', event.target.value === '' ? undefined : Number(event.target.value))} /></div>
               <div className="field request-level-field"><Label>{t.seekingLevels}</Label><div className="level-picker">{TENNIS_LEVELS.map((level) => <button type="button" key={`seeking-${level}`} className={(requestForm.seekingLevels ?? []).includes(level) ? 'level-chip selected' : 'level-chip'} onClick={() => toggleLevel('seekingLevels', level)}>{level}</button>)}</div></div>
               <div className="field"><Label htmlFor="request-format">{t.requestFormat}</Label><select id="request-format" className="native-select" value={requestForm.preferredFormat ?? 'flexible'} onChange={(event) => setField('preferredFormat', event.target.value as ReservationRequestForm['preferredFormat'])}><option value="singles">{t.singles}</option><option value="doubles">{t.doubles}</option><option value="practice">{t.practice}</option><option value="flexible">{t.flexible}</option></select></div>
               <div className="field"><Label htmlFor="request-budget">{t.budget} <small>({t.optional})</small></Label><Input id="request-budget" type="number" min={0} step={0.01} value={requestForm.budgetPence == null ? '' : (requestForm.budgetPence / 100).toFixed(2)} onChange={(event) => setField('budgetPence', event.target.value === '' ? null : Math.round(Number(event.target.value) * 100))} /></div>

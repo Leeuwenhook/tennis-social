@@ -1,4 +1,4 @@
-import type { ReservationRequestForm } from '@/types/tennis';
+import type { ReservationRequestForm } from '../types/tennis';
 
 export type PartnerRequestDraft = Partial<Pick<ReservationRequestForm,
   'venueName' | 'preferredDate' | 'startTime' | 'endTime' | 'existingPlayerLevels' |
@@ -7,6 +7,15 @@ export type PartnerRequestDraft = Partial<Pick<ReservationRequestForm,
   missing: Array<'preferredDate' | 'time' | 'seekingPlayerCount'>;
   source: string;
 };
+
+function venueFromFirstLine(text: string) {
+  const firstLine = text.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? '';
+  const candidate = firstLine.split(/\s*[\/|｜]\s*/)[0].trim();
+  if (!candidate || /\d{1,2}(?::\d{2})?\s*(?:am|pm)?\s*(?:-|–|—|to)/i.test(candidate)) return '';
+  if (candidate.length < 3 || /^(?:date|日期|time|时间|venue|场地)\s*[:：]/i.test(candidate)) return '';
+  if (!/[（(][^()（）]*[）)]$/.test(candidate) && !/\b(?:park|courts?|tennis|club|centre|center|grounds?)\b|公园|球场/i.test(candidate)) return '';
+  return candidate.replace(/\s*[（(][^()（）]*[）)]\s*$/, '').trim();
+}
 
 const MONTHS: Record<string, number> = {
   january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
@@ -41,15 +50,16 @@ function parseDate(text: string) {
 export function parsePartnerRequestDraft(source: string): PartnerRequestDraft {
   const text = source.trim();
   const result: PartnerRequestDraft = { missing: [], source };
-  const venue = text.match(/(?:at|venue|court|场地)\s*[:：-]?\s*([A-Za-z][A-Za-z0-9 &'’.-]{2,80}?)(?=\s+(?:on|at|from|\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b|$))/i);
-  if (venue) result.venueName = venue[1].trim().replace(/[,.]$/, '');
+  const venue = text.match(/(?:at|venue|court|场地)\s*[:：-]?\s*([A-Za-z][A-Za-z0-9 &'’.-]{2,80}?)(?=\s*(?:[,，]|on\b|at\b|from\b|\d{1,2}(?::\d{2})?\s*(?:am|pm)?\b|$))/i);
+  result.venueName = (venue?.[1] ?? venueFromFirstLine(text)).trim().replace(/[,.]$/, '') || undefined;
   const date = parseDate(text);
   if (date) result.preferredDate = date;
 
-  const range = text.match(/\b(\d{1,2}(?::\d{2})?)\s*(am|pm)?\s*(?:-|–|—|to)\s*(\d{1,2}(?::\d{2})?)\s*(am|pm)?\b/i);
+  const timeText = text.replace(/\b20\d{2}-\d{2}-\d{2}\b/g, '');
+  const range = timeText.match(/\b(\d{1,2}(?::\d{2})?)\s*(am|pm)?\s*(?:-|–|—|to)\s*(\d{1,2}(?::\d{2})?)\s*(am|pm)?\b/i);
   if (range) {
-    const endMeridiem = range[5] || range[2];
-    result.startTime = toTime(range[1], range[2] || range[5]);
+    const endMeridiem = range[4] || range[2];
+    result.startTime = toTime(range[1], range[2] || range[4]);
     result.endTime = toTime(range[3], endMeridiem);
   }
   const levels = [...text.matchAll(/\b([1-5](?:\.0|\.5))\b/g)].map((match) => match[1]).filter((level) => LEVELS.has(level));
@@ -69,13 +79,18 @@ export function parsePartnerRequestDraft(source: string): PartnerRequestDraft {
   if (/singles?|单打/i.test(text)) result.preferredFormat = 'singles';
   else if (/doubles?|双打/i.test(text)) result.preferredFormat = 'doubles';
   else if (/practice|练球/i.test(text)) result.preferredFormat = 'practice';
-  if (/booked|reserved|已订|已预订/i.test(text)) result.venueBookingStatus = 'booked';
-  else if (/not\s*booked|unbooked|未订|未预订/i.test(text)) result.venueBookingStatus = 'not_booked';
-  if (result.venueName) result.requestKind = result.venueBookingStatus === 'booked' ? 'find_partners' : 'find_both';
+  if (/not\s*booked|unbooked|未订|未预订/i.test(text)) result.venueBookingStatus = 'not_booked';
+  else if (/booked|reserved|已订|已预订/i.test(text)) result.venueBookingStatus = 'booked';
+  const partnerWording = /existing\s+players?|player\s+levels?|looking\s+for\s+(?:a\s+)?partner|find(?:ing)?\s+(?:a\s+)?partner|已有球友|球友(?:水平|等级)|寻找球友|找球友/i.test(text);
+  if (result.venueName) result.requestKind = result.venueBookingStatus === 'booked' || partnerWording ? 'find_partners' : 'find_both';
   if (!result.preferredDate) result.missing.push('preferredDate');
   if (!result.startTime || !result.endTime) result.missing.push('time');
   if (result.seekingPlayerCount === undefined) result.missing.push('seekingPlayerCount');
   return result;
+}
+
+export function parsePartnerRequestDrafts(source: string) {
+  return source.split(/(?:\r?\n\s*){2,}/).map((block) => block.trim()).filter(Boolean).map(parsePartnerRequestDraft);
 }
 
 export const parsePartnerRequestText = parsePartnerRequestDraft;

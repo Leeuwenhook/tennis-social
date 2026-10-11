@@ -59,7 +59,7 @@ type AdminApplication = {
   status: 'pending' | 'accepted' | 'rejected';
 };
 
-function AdminRequestApplications({ request, language, t }: { request: ReservationRequest; language: Language; t: Translations }) {
+function AdminRequestApplications({ request, t }: { request: ReservationRequest; t: Translations }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -1293,7 +1293,7 @@ export function AdminView({
                             {request.phone ? ` · ${request.phone}` : ''}
                           </span>
                           {request.message ? <p>{request.message}</p> : null}
-                          <AdminRequestApplications request={request} language={language} t={t} />
+                          <AdminRequestApplications request={request} t={t} />
                           <small>
                             {t.requestedOn}:{' '}
                             {new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-GB', {

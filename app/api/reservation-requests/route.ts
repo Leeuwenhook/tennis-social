@@ -2,6 +2,7 @@ import {
   database,
   DatabaseNotConfiguredError,
   ensureSeeded,
+  serializeReservationRequest,
   serializePublicReservationRequest,
   type ReservationRequestRow,
 } from '@/lib/server/database';
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
       )
       RETURNING *
     ` as ReservationRequestRow[];
-    return Response.json({ request: serializePublicReservationRequest(rows[0]) }, { status: 201 });
+    return Response.json({ request: serializeReservationRequest(rows[0]) }, { status: 201 });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {
       return Response.json({ error: 'database_not_configured' }, { status: 503 });

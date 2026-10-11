@@ -10,7 +10,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (!['pending', 'accepted', 'rejected'].includes(body.status as string)) return Response.json({ error: 'invalid_status' }, { status: 400 });
   try {
     const db = database(); const { id: requestId, applicationId } = await context.params; const now = new Date().toISOString();
-    const rows = await db`UPDATE partner_request_applications SET status = ${body.status}, updated_at = ${now} WHERE id = ${applicationId} AND request_id = ${requestId} RETURNING *`;
+    const rows = await db`UPDATE partner_request_applications SET status = ${body.status}, updated_at = ${now} WHERE id = ${applicationId} AND request_id = ${requestId} RETURNING *` as Array<Record<string, unknown>>;
     if (!rows[0]) return Response.json({ error: 'not_found' }, { status: 404 });
     return Response.json({ application: rows[0] });
   } catch (error) {

@@ -120,6 +120,24 @@ export function summarizeBookingPreferences(preferences: SessionBookingPreferenc
   return [...counts.values()];
 }
 
+/**
+ * Levels a session is matching players for: admin-set seeking levels (for each
+ * offered format) first, then confirmed participants, de-duplicated by level
+ * and format.
+ */
+export function sessionMatchPreferences(session: Session, bookings: Booking[]) {
+  const preferences = summarizeBookingPreferences(
+    session.bookingPreferences ?? bookingPreferencesFromBookings(session.id, bookings),
+  );
+  const manualPreferences = (session.seekingLevels ?? []).flatMap((level) =>
+    session.formats.map((format) => ({ level, format, count: 1 })),
+  );
+  return [...manualPreferences, ...preferences].filter(
+    (preference, index, list) =>
+      list.findIndex((item) => item.level === preference.level && item.format === preference.format) === index,
+  );
+}
+
 export function profileFormFromUser(user: UserProfile): ProfileForm {
   return {
     name: user.name,

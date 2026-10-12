@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent, type SubmitEvent, type KeyboardEvent } from "react";
 
 import { AppMark } from "@/components/app-mark";
 import { SiteHeader } from "@/components/site-header";
@@ -9,7 +9,7 @@ import { AdminView } from "@/components/views/admin-view";
 import { BookingView } from "@/components/views/booking-view";
 import { ConfirmationView } from "@/components/views/confirmation-view";
 import { DetailView } from "@/components/views/detail-view";
-import { HomeView } from "@/components/views/home-view";
+import { CourtsideHomeView } from "@/components/views/courtside-home-view";
 import { RequestView } from "@/components/views/request-view";
 import { BookingChat } from "@/components/booking-chat";
 import {
@@ -249,6 +249,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       const savedLanguage = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
       if (savedSessions) {
         const parsedSessions = JSON.parse(savedSessions) as Session[];
+        // oxlint-disable-next-line react/react-compiler -- hydrate from localStorage after mount to keep SSR markup consistent
         setSessions(parsedSessions.map(normalizeSession));
       }
       if (savedBookings) {
@@ -266,6 +267,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     } finally {
       setHydrated(true);
     }
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- runs once on mount with the initial route
   }, []);
 
   useEffect(() => {
@@ -479,6 +481,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     void loadAdminVenues();
     void loadReservationRequests();
     return () => { cancelled = true; };
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- t only affects the error text; do not refetch settings on language change
   }, [adminAuthChecked, adminAuthenticated, hydrated, view]);
 
   // One session loader owns the list: public requests must never overwrite the
@@ -522,10 +525,12 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     window.addEventListener('storage', sync);
     return () => {
       cancelled = true;
+      // oxlint-disable-next-line react-hooks/exhaustive-deps -- bump the version so in-flight loads from this effect are ignored
       ++sessionLoadVersion.current;
       document.removeEventListener('visibilitychange', refresh);
       window.removeEventListener('storage', sync);
     };
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- language only affects the error text; do not reload sessions on language change
   }, [adminAuthChecked, adminAuthenticated, hydrated, isAdminView]);
 
   useEffect(() => {
@@ -688,8 +693,10 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     navigate('request');
   }
 
-  sessionsRef.current = sessions;
-  openSessionRef.current = openSession;
+  useLayoutEffect(() => {
+    sessionsRef.current = sessions;
+    openSessionRef.current = openSession;
+  });
 
   useEffect(() => {
     const context = (typeof document === 'undefined'
@@ -790,7 +797,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     navigate('booking');
   }
 
-  async function submitReservationRequest(event: FormEvent<HTMLFormElement>) {
+  async function submitReservationRequest(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (requestBusy) return;
     const validLocation = requestForm.requestType === 'known_venue' ? requestForm.venueName.trim() : /^[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}$/.test(requestForm.postcode.trim());
@@ -899,7 +906,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     }
   }
 
-  async function submitUserAuth(event: FormEvent<HTMLFormElement>) {
+  async function submitUserAuth(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (authBusy) return;
     setAuthBusy(true);
@@ -948,7 +955,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     setProfileEditing(false);
   }
 
-  async function submitProfileUpdate(event: FormEvent<HTMLFormElement>) {
+  async function submitProfileUpdate(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (profileBusy) return;
     setProfileBusy(true);
@@ -1067,7 +1074,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     return Object.keys(errors).length === 0;
   }
 
-  function continueToPayment(event: FormEvent<HTMLFormElement>) {
+  function continueToPayment(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (validateBooking()) {
       setPaymentFailed(false);
@@ -1153,7 +1160,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     }
   }
 
-  async function submitAdminLogin(event: FormEvent<HTMLFormElement>) {
+  async function submitAdminLogin(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (adminAuthBusy) return;
     setAdminAuthBusy(true);
@@ -1253,7 +1260,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     setDraft((current) => ({ ...current, price: String(pricePence / 100) }));
   }
 
-  async function saveVenue(event: FormEvent<HTMLFormElement>) {
+  async function saveVenue(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const peakPricePence = Math.round(Number(venueDraft.peakPrice) * 100);
     const offPeakPricePence = Math.round(Number(venueDraft.offPeakPrice) * 100);
@@ -1510,7 +1517,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     };
   }
 
-  async function saveDraft(event: FormEvent<HTMLFormElement>) {
+  async function saveDraft(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const pricePence = Math.round(Number(draft.price) * 100);
     const capacity = Number(draft.capacity);
@@ -1957,7 +1964,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       />
       <main>
         {view === "home" ? (
-          <HomeView
+          <CourtsideHomeView
             upcomingSessions={upcomingSessions}
             sessionsReady={sessionsReady}
             venueList={venueList}

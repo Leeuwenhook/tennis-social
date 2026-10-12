@@ -1,6 +1,6 @@
 'use client';
 
-import type { FormEvent } from 'react';
+import type { SubmitEvent } from 'react';
 import ArrowLeft from 'lucide-react/dist/esm/icons/arrow-left.mjs';
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.mjs';
 import Check from 'lucide-react/dist/esm/icons/check.mjs';
@@ -52,7 +52,7 @@ export function AccountView({
   profileError: string;
   profileForm: ProfileForm;
   setProfileForm: React.Dispatch<React.SetStateAction<ProfileForm>>;
-  onSubmitProfileUpdate: (e: FormEvent<HTMLFormElement>) => void;
+  onSubmitProfileUpdate: (e: SubmitEvent<HTMLFormElement>) => void;
   onBeginProfileEdit: () => void;
   onCancelProfileEdit: () => void;
   onLogout: () => void;
@@ -86,7 +86,7 @@ export function AccountView({
       preferredFormat: PreferredFormat;
     }>
   >;
-  onSubmitUserAuth: (e: FormEvent<HTMLFormElement>) => void;
+  onSubmitUserAuth: (e: SubmitEvent<HTMLFormElement>) => void;
   language: Language;
   t: Translations;
   onNavigateHome: () => void;

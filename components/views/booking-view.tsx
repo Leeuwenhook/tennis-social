@@ -1,6 +1,6 @@
 'use client';
 
-import type { FormEvent } from 'react';
+import type { SubmitEvent } from 'react';
 import ArrowLeft from 'lucide-react/dist/esm/icons/arrow-left.mjs';
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.mjs';
 import CalendarDays from 'lucide-react/dist/esm/icons/calendar-days.mjs';
@@ -102,7 +102,7 @@ export function BookingView({
   onToggleFriends: (enabled: boolean) => void;
   onUpdateGroupSize: (size: number) => void;
   onUpdateParticipant: (index: number, level: string) => void;
-  onContinueToPayment: (e: FormEvent<HTMLFormElement>) => void;
+  onContinueToPayment: (e: SubmitEvent<HTMLFormElement>) => void;
   onCompletePayment: () => void;
 }) {
   function renderProgress() {

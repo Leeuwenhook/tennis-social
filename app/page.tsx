@@ -34,6 +34,7 @@ import {
   getVenue,
   isPast,
   LANGUAGE_STORAGE_KEY,
+  LEVELS,
   normalizeBooking,
   normalizeFormats,
   normalizeLocation,
@@ -668,24 +669,28 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
   }
 
   function openReservationRequest() {
-    setRequestForm((current) => ({
+    setRequestForm((current) => {
+      const requestKind = current.requestKind ?? 'find_both';
+      const findCourtOnly = requestKind === 'find_court';
+      return {
       ...current,
-      requestType: 'known_venue',
+      requestType: findCourtOnly ? 'find_nearby' : 'known_venue',
       venueId: null,
       venueName: '',
-      postcode: '',
+      postcode: findCourtOnly ? (user?.postcode ?? '') : '',
       contactName: current.contactName || user?.name || '',
       email: current.email || user?.email || '',
       phone: current.phone || user?.phone || '',
-      requestKind: current.requestKind ?? 'find_both',
+      requestKind,
       venueBookingStatus: current.venueBookingStatus ?? 'unknown',
       existingPlayerLevels: current.existingPlayerLevels ?? [],
-      seekingPlayerCount: current.seekingPlayerCount ?? 1,
+      seekingPlayerCount: findCourtOnly ? 0 : Math.max(1, current.seekingPlayerCount ?? 1),
       seekingLevels: current.seekingLevels ?? [],
       preferredFormat: current.preferredFormat ?? 'flexible',
       fullDurationRequired: current.fullDurationRequired ?? false,
       budgetPence: current.budgetPence ?? null,
-    }));
+      };
+    });
     setRequestError('');
     setRequestVenueOpen(false);
     setRequestVenueActiveIndex(-1);
@@ -807,12 +812,20 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       ['booked', 'not_booked', 'unknown'].includes(requestForm.venueBookingStatus ?? '') &&
       ['singles', 'doubles', 'practice', 'flexible'].includes(requestForm.preferredFormat ?? '') &&
       Number.isInteger(requestForm.seekingPlayerCount) && (requestForm.seekingPlayerCount ?? -1) >= 0 &&
-      (requestForm.existingPlayerLevels ?? []).every((level) => ['1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0'].includes(level)) &&
-      (requestForm.seekingLevels ?? []).every((level) => ['1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0'].includes(level)) &&
+      (requestForm.existingPlayerLevels ?? []).every((level) => LEVELS.includes(level as never)) &&
+      (requestForm.seekingLevels ?? []).every((level) => LEVELS.includes(level as never)) &&
       (requestForm.budgetPence == null || (Number.isInteger(requestForm.budgetPence) && requestForm.budgetPence >= 0))
     );
-    const kindLocationValid = !structured || requestForm.requestKind !== 'find_partners' || requestForm.requestType === 'known_venue';
-    const valid = validLocation && kindLocationValid && validStructured && requestForm.preferredDate >= dateFromToday(0) &&
+    if (structured && requestForm.requestKind === 'find_partners' && requestForm.requestType !== 'known_venue') {
+      setRequestError(t.requestKindNeedsVenue);
+      return;
+    }
+    const seekingCount = requestForm.seekingPlayerCount ?? -1;
+    if (structured && Number.isInteger(seekingCount) && (requestForm.requestKind === 'find_court' ? seekingCount !== 0 : seekingCount < 1)) {
+      setRequestError(t.requestSeekingCountInvalid);
+      return;
+    }
+    const valid = validLocation && validStructured && requestForm.preferredDate >= dateFromToday(0) &&
       requestForm.startTime && requestForm.endTime &&
       parseMinutes(requestForm.endTime) > parseMinutes(requestForm.startTime) &&
       requestForm.contactName.trim() && /^\S+@\S+\.\S+$/.test(requestForm.email);
@@ -2092,6 +2105,11 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             onUpdateVenueName={updateRequestVenueName}
             onSelectVenue={selectRequestVenue}
             onKeyDown={handleRequestVenueKeyDown}
+            onContinueNextDraft={() => {
+              setSubmittedRequest(null);
+              setRequestError('');
+              scrollTop();
+            }}
           />
         ) : null}
         {view === "admin" ? (

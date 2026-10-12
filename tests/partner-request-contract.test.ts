@@ -26,3 +26,18 @@ void test('applications require a known level, format, and attendance flag', () 
   assert.ok(validatePartnerRequestApplication({ name: 'A', email: 'a@example.com', tennisLevel: '3.0', preferredFormat: 'doubles', canAttendFullDuration: true }));
   assert.equal(validatePartnerRequestApplication({ name: 'A', email: 'a@example.com', tennisLevel: 'pro', preferredFormat: 'doubles', canAttendFullDuration: true }), null);
 });
+
+void test('structured fields are validated even without a request kind', () => {
+  assert.ok(validateReservationRequest(base, []));
+  assert.equal(validateReservationRequest({ ...base, venueBookingStatus: 'hacked' }, []), null);
+  assert.equal(validateReservationRequest({ ...base, budgetPence: 'abc' }, []), null);
+  assert.equal(validateReservationRequest({ ...base, fullDurationRequired: 'maybe' }, []), null);
+});
+
+void test('partner searches need players and court-only requests need none', () => {
+  assert.equal(validateReservationRequest({ ...base, requestKind: 'find_partners', seekingPlayerCount: 0 }, []), null);
+  assert.equal(validateReservationRequest({ ...base, requestKind: 'find_both', seekingPlayerCount: 0 }, []), null);
+  assert.ok(validateReservationRequest({ ...base, requestKind: 'find_both', seekingPlayerCount: 1 }, []));
+  assert.equal(validateReservationRequest({ ...base, requestKind: 'find_court', seekingPlayerCount: 1 }, []), null);
+  assert.equal(validateReservationRequest({ ...base, requestType: 'find_nearby', venueName: '', postcode: 'E3 5TB', requestKind: 'find_court', seekingPlayerCount: 2 }, []), null);
+});

@@ -1039,6 +1039,378 @@
   line-height: 1.35;
 }
 
+/* ---------- Partner request board ---------- */
+
+.courtside .cs-pr {
+  padding: 0 0 clamp(72px, 8vw, 112px);
+}
+
+.courtside .cs-pr .cs-schedule-head {
+  margin-bottom: 28px;
+}
+
+.courtside .cs-pr-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 14px;
+  min-width: 0;
+  margin: 0 0 28px;
+  padding: 16px;
+  border: 1px solid var(--cs-line);
+  border-radius: 18px;
+  background: var(--card);
+}
+
+.courtside .cs-pr-field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.courtside .cs-pr-field > span {
+  color: var(--muted-foreground);
+  font-family: var(--cs-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.courtside .cs-pr-field input,
+.courtside .cs-pr-field select,
+.courtside .cs-pr-field textarea {
+  width: 100%;
+  min-width: 140px;
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--cs-line);
+  border-radius: 10px;
+  color: var(--cs-ink);
+  background: var(--background);
+  font: inherit;
+  font-size: 14px;
+  transition: border-color 160ms ease;
+}
+
+.courtside .cs-pr-field textarea {
+  min-height: 88px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+
+.courtside .cs-pr-field input:focus-visible,
+.courtside .cs-pr-field select:focus-visible,
+.courtside .cs-pr-field textarea:focus-visible,
+.courtside .cs-pr-check input:focus-visible,
+.courtside .cs-pr-btn:focus-visible {
+  outline: 2px solid var(--cs-court);
+  outline-offset: 2px;
+}
+
+.courtside .cs-pr-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.courtside .cs-pr-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--cs-court);
+}
+
+.courtside .cs-pr-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease;
+}
+
+.courtside .cs-pr-btn.primary {
+  color: var(--cs-chalk);
+  background: var(--cs-court);
+}
+
+.courtside .cs-pr-btn.primary:hover:not(:disabled) {
+  background: var(--cs-court-deep);
+}
+
+.courtside .cs-pr-btn.ghost {
+  border-color: var(--cs-line);
+  color: var(--cs-ink);
+  background: transparent;
+}
+
+.courtside .cs-pr-btn.ghost:hover:not(:disabled) {
+  border-color: var(--cs-ink);
+}
+
+.courtside .cs-pr-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.courtside .cs-pr-unavailable {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+}
+
+.courtside .cs-pr-unavailable p {
+  margin: 0;
+}
+
+.courtside .cs-pr-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.courtside .cs-pr-card {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  padding: 22px;
+  border: 1px solid var(--cs-line);
+  border-radius: 20px;
+  background: var(--card);
+  animation: rise-in 500ms both;
+}
+
+.courtside .cs-pr-card > .cs-pr-btn {
+  justify-self: start;
+  margin-top: auto;
+}
+
+.courtside .cs-pr-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.courtside .cs-pr-area {
+  margin: 0;
+  color: var(--cs-clay);
+  font-family: var(--cs-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.courtside .cs-pr-card h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 0;
+  font-family: var(--cs-display);
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.courtside .cs-pr-card h3 svg {
+  flex: none;
+  color: var(--cs-clay);
+}
+
+.courtside .cs-pr-places {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  color: var(--cs-court-deep);
+  background: var(--cs-ball);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.courtside .cs-pr-places.none {
+  color: var(--muted-foreground);
+  background: transparent;
+  border: 1px solid var(--cs-line);
+}
+
+.courtside .cs-pr-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.courtside .cs-pr-meta > span:not(.cs-tag) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.courtside .cs-pr-meta .cs-tag {
+  color: var(--cs-clay);
+  border-color: currentColor;
+}
+
+.courtside .cs-pr-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--cs-line);
+}
+
+.courtside .cs-pr-details div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.courtside .cs-pr-details dt {
+  color: var(--muted-foreground);
+  font-family: var(--cs-mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.courtside .cs-pr-details dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+/* Native <dialog> opened with showModal(); reset the UA box and style the backdrop. */
+.courtside .cs-pr-dialog {
+  box-sizing: border-box;
+  width: min(calc(100% - 32px), 540px);
+  max-width: none;
+  max-height: min(calc(100dvh - 32px), 780px);
+  margin: auto;
+  padding: 28px;
+  overflow: auto;
+  border: 0;
+  border-radius: 24px;
+  color: var(--cs-ink);
+  background: var(--background);
+  box-shadow: 0 30px 80px rgb(10 44 34 / 35%);
+}
+
+.courtside .cs-pr-dialog::backdrop {
+  background: rgb(10 44 34 / 62%);
+  backdrop-filter: blur(3px);
+}
+
+.courtside .cs-pr-dialog h2 {
+  margin: 0;
+  font-family: var(--cs-display);
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.courtside .cs-pr-dialog-sub {
+  margin: 8px 0 16px;
+  color: var(--cs-clay);
+  font-family: var(--cs-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.courtside .cs-pr-dialog p {
+  line-height: 1.55;
+}
+
+.courtside .cs-pr-note {
+  margin: 0 0 8px;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.courtside .cs-pr-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.courtside .cs-pr-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.courtside .cs-pr-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--cs-clay);
+  border-radius: 6px;
+  color: var(--cs-ink);
+  background: rgb(200 100 59 / 12%);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.courtside .cs-pr-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+@media (max-width: 1040px) {
+  .courtside .cs-pr-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 780px) {
+  .courtside .cs-pr-filters > .cs-pr-field {
+    flex: 1 1 150px;
+  }
+
+  .courtside .cs-pr-filters .cs-pr-check {
+    flex-basis: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .courtside .cs-pr-grid,
+  .courtside .cs-pr-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .courtside .cs-pr-dialog {
+    padding: 22px 18px;
+  }
+
+  .courtside .cs-pr-dialog-actions .cs-pr-btn {
+    flex: 1;
+  }
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 1040px) {
@@ -1230,7 +1602,8 @@
 
   .cs-hero-copy,
   .cs-board,
-  .cs-row {
+  .cs-row,
+  .courtside .cs-pr-card {
     animation: none;
   }
 

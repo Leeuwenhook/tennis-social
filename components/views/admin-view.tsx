@@ -59,6 +59,14 @@ type AdminApplication = {
   status: 'pending' | 'accepted' | 'rejected';
 };
 
+function preferredFormatLabel(format: string | undefined, t: Translations) {
+  if (format === 'singles') return t.singles;
+  if (format === 'doubles') return t.doubles;
+  if (format === 'practice') return t.practice;
+  if (!format || format === 'flexible') return t.flexible;
+  return format;
+}
+
 function AdminRequestApplications({ request, t }: { request: ReservationRequest; t: Translations }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -66,13 +74,12 @@ function AdminRequestApplications({ request, t }: { request: ReservationRequest;
   const [applications, setApplications] = useState<AdminApplication[]>([]);
   const [updating, setUpdating] = useState<string | null>(null);
 
-  async function loadApplications() {
-    if (open) { setOpen(false); return; }
-    setOpen(true);
-    if (applications.length || loading) return;
-    setLoading(true); setError('');
+  async function fetchApplications(keepError = false) {
+    setLoading(true);
+    if (!keepError) setError('');
     try {
       const response = await fetch(`/api/admin/reservation-requests/${encodeURIComponent(request.id)}/applications`, { cache: 'no-store' });
+      if (response.status === 401) { setError(t.adminSessionExpired); return; }
       const data = await response.json() as { applications?: AdminApplication[]; error?: string };
       if (!response.ok) throw new Error(data.error || 'applications_unavailable');
       setApplications(data.applications ?? []);
@@ -80,18 +87,28 @@ function AdminRequestApplications({ request, t }: { request: ReservationRequest;
     finally { setLoading(false); }
   }
 
+  function toggleApplications() {
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+    if (!loading) void fetchApplications();
+  }
+
   async function updateApplication(application: AdminApplication, status: AdminApplication['status']) {
     if (application.status === status || updating) return;
     if (status === 'accepted' && application.status !== 'accepted' && request.seekingPlayerCount) {
       const acceptedCount = applications.filter((item) => item.status === 'accepted').length;
-      if (acceptedCount + 1 >= request.seekingPlayerCount && !window.confirm(t.acceptLastApplicationConfirm)) return;
+      if (acceptedCount >= request.seekingPlayerCount) { setError(t.requestAlreadyFull); return; }
+      if (acceptedCount + 1 === request.seekingPlayerCount && !window.confirm(t.acceptLastApplicationConfirm)) return;
     }
     setUpdating(application.id); setError('');
     try {
       const response = await fetch(`/api/admin/reservation-requests/${encodeURIComponent(request.id)}/applications/${encodeURIComponent(application.id)}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
       });
-      const data = await response.json() as { application?: AdminApplication; error?: string };
+      if (response.status === 401) { setError(t.adminSessionExpired); return; }
+      const data = await response.json().catch(() => ({})) as { application?: AdminApplication; error?: string };
+      if (response.status === 409 && data.error === 'request_full') { setError(t.requestAlreadyFull); void fetchApplications(true); return; }
+      if (response.status === 409 && data.error === 'request_closed') { setError(t.requestClosedForApplications); return; }
       if (!response.ok || !data.application) throw new Error(data.error || 'application_unavailable');
       setApplications((current) => current.map((item) => item.id === application.id ? data.application as AdminApplication : item));
     } catch { setError(t.requestApplicationUpdateFailed); }
@@ -99,7 +116,7 @@ function AdminRequestApplications({ request, t }: { request: ReservationRequest;
   }
 
   const kindLabel = request.requestKind === 'find_partners' ? t.requestKindFindPartners : request.requestKind === 'find_both' ? t.requestKindFindBoth : t.requestKindFindCourt;
-  const formatLabel = request.preferredFormat === 'singles' ? t.singles : request.preferredFormat === 'doubles' ? t.doubles : request.preferredFormat === 'practice' ? t.practice : t.flexible;
+  const formatLabel = preferredFormatLabel(request.preferredFormat, t);
 
   return (
     <div className="request-admin-details">
@@ -110,25 +127,28 @@ function AdminRequestApplications({ request, t }: { request: ReservationRequest;
         <span><strong>{t.seekingLevels}:</strong> {request.seekingLevels?.length ? request.seekingLevels.join(' · ') : t.none}</span>
         <span><strong>{t.format}:</strong> {formatLabel}</span>
         <span><strong>{t.fullDuration}:</strong> {request.fullDurationRequired ? t.yes : t.no}</span>
-        <span><strong>{t.venueBookingStatus}:</strong> {request.venueBookingStatus === 'booked' ? t.booked : request.venueBookingStatus === 'not_booked' ? t.notBooked : t.unknown}</span>
+        <span><strong>{t.venueBookingStatus}:</strong> {request.venueBookingStatus === 'booked' ? t.venueBooked : request.venueBookingStatus === 'not_booked' ? t.notBooked : t.unknown}</span>
       </div>
-      <Button type="button" variant="outline" size="sm" onClick={() => void loadApplications()} disabled={loading}>
+      <Button type="button" variant="outline" size="sm" onClick={toggleApplications} disabled={loading}>
         {loading ? t.loadingApplications : open ? t.hideApplications : t.viewApplications}
       </Button>
       {open ? (
         <div className="request-admin-applications">
+          <Button type="button" variant="ghost" size="sm" onClick={() => void fetchApplications()} disabled={loading || updating !== null}>
+            <RefreshCw size={14} /> {t.refreshApplications}
+          </Button>
           {error ? <div className="inline-error">{error}</div> : null}
           {loading ? <p className="admin-muted">{t.loadingApplications}</p> : applications.length ? applications.map((application) => (
             <div className="request-admin-application" key={application.id}>
               <div>
                 <strong>{application.name ?? application.contact_name ?? t.unknown}</strong>
                 <span><a href={`mailto:${application.email}`}>{application.email}</a>{application.phone ? ` · ${application.phone}` : ''}</span>
-                <span>{application.tennis_level || t.unknown} · {application.preferred_format || t.flexible} · {application.can_attend_full_duration ? t.fullDuration : t.partialDuration}</span>
+                <span>{application.tennis_level || t.unknown} · {preferredFormatLabel(application.preferred_format, t)} · {application.can_attend_full_duration ? t.canAttendFullDuration : t.partialDuration}</span>
                 {application.message ? <small>{application.message}</small> : null}
               </div>
-              <div className="request-admin-application-actions">
+              <div className="request-admin-application-actions" role="group" aria-label={`${t.applicationStatusGroup}: ${application.name ?? application.contact_name ?? application.email}`}>
                 {(['pending', 'accepted', 'rejected'] as const).map((status) => (
-                  <Button key={status} type="button" size="sm" variant={application.status === status ? 'default' : 'outline'} disabled={updating !== null} onClick={() => void updateApplication(application, status)}>
+                  <Button key={status} type="button" size="sm" variant={application.status === status ? 'default' : 'outline'} aria-pressed={application.status === status} disabled={updating !== null} onClick={() => void updateApplication(application, status)}>
                     {status === 'pending' ? t.pendingApplication : status === 'accepted' ? t.acceptedApplication : t.rejectedApplication}
                   </Button>
                 ))}

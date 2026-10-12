@@ -1,6 +1,6 @@
 'use client';
 
-import type { FormEvent, KeyboardEvent } from 'react';
+import type { KeyboardEvent, SubmitEvent } from 'react';
 import ArrowLeft from 'lucide-react/dist/esm/icons/arrow-left.mjs';
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.mjs';
 import CalendarPlus from 'lucide-react/dist/esm/icons/calendar-plus.mjs';
@@ -51,7 +51,7 @@ export function RequestView({
   user: UserProfile | null;
   language: Language;
   t: Translations;
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (e: SubmitEvent<HTMLFormElement>) => void;
   onNavigateHome: () => void;
   onOpenSignup: (prefill: { name: string; email: string; phone: string }) => void;
   onUpdateVenueName: (name: string) => void;

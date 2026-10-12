@@ -1,6 +1,6 @@
 'use client';
 
-import type { ChangeEvent, FormEvent, RefObject } from 'react';
+import type { ChangeEvent, RefObject, SubmitEvent } from 'react';
 import ArrowLeft from 'lucide-react/dist/esm/icons/arrow-left.mjs';
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.mjs';
 import CalendarDays from 'lucide-react/dist/esm/icons/calendar-days.mjs';
@@ -123,7 +123,7 @@ export function AdminView({
   adminAuthError: string;
   adminLogin: { username: string; password: string };
   setAdminLogin: React.Dispatch<React.SetStateAction<{ username: string; password: string }>>;
-  onSubmitAdminLogin: (e: FormEvent<HTMLFormElement>) => void;
+  onSubmitAdminLogin: (e: SubmitEvent<HTMLFormElement>) => void;
   adminTab: AdminTab;
   setAdminTab: (tab: AdminTab) => void;
   sessions: Session[];
@@ -171,8 +171,8 @@ export function AdminView({
   t: Translations;
   onResetDemo: () => void;
   onLogoutAdmin: () => void;
-  onSaveDraft: (e: FormEvent<HTMLFormElement>) => void;
-  onSaveVenue: (e: FormEvent<HTMLFormElement>) => void;
+  onSaveDraft: (e: SubmitEvent<HTMLFormElement>) => void;
+  onSaveVenue: (e: SubmitEvent<HTMLFormElement>) => void;
   onChooseVenueImage: (e: ChangeEvent<HTMLInputElement>) => void;
   onReuseVenuePhoto: () => void;
   onApplyVenueDefaultPrice: (kind: 'peak' | 'offPeak') => void;
@@ -1004,6 +1004,7 @@ export function AdminView({
                               <td>
                                 <input
                                   type="checkbox"
+                                  aria-label={t.selectSession}
                                   checked={selectedSessionIds.includes(session.id)}
                                   onChange={(event) =>
                                     setSelectedSessionIds((current) =>
@@ -1031,6 +1032,7 @@ export function AdminView({
                               <td>
                                 {session.bookedSpots}/{session.capacity} · {spots} {t.spotsLeft}
                               </td>
+                              {/* oxlint-disable-next-line jsx-a11y/control-has-associated-label -- buttons inside carry visible text */}
                               <td>
                                 <div className="admin-row-actions">
                                   <Button

@@ -231,8 +231,8 @@ export async function ensureSeeded(db = database()) {
   // Seed a fresh database once. Do not recreate records that an admin has
   // intentionally removed on a later request.
   const [venueCountRows, sessionCountRows] = await Promise.all([
-    db`SELECT COUNT(*)::integer AS count FROM venues` as unknown as Array<{ count: number }>,
-    db`SELECT COUNT(*)::integer AS count FROM sessions` as unknown as Array<{ count: number }>,
+    db`SELECT COUNT(*)::integer AS count FROM venues` as unknown as Promise<Array<{ count: number }>>,
+    db`SELECT COUNT(*)::integer AS count FROM sessions` as unknown as Promise<Array<{ count: number }>>,
   ]);
   if ((venueCountRows[0]?.count ?? 0) > 0 || (sessionCountRows[0]?.count ?? 0) > 0) return;
 

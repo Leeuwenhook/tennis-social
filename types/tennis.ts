@@ -155,7 +155,6 @@ export type ReservationRequest = {
   seekingPlayerCount?: number;
   seekingLevels?: string[];
   preferredFormat?: PartnerRequestFormat;
-  fullDurationRequired?: boolean;
   budgetPence?: number | null;
 };
 
@@ -177,7 +176,6 @@ export type ReservationRequestForm = {
   seekingPlayerCount?: number;
   seekingLevels?: string[];
   preferredFormat?: PartnerRequestFormat;
-  fullDurationRequired?: boolean;
   budgetPence?: number | null;
 };
 

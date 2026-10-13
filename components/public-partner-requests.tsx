@@ -24,7 +24,6 @@ type PublicRequest = {
   seekingPlayerCount: number;
   seekingLevels: string[];
   preferredFormat: PartnerRequestFormat;
-  fullDurationRequired: boolean;
   venueBookingStatus: 'booked' | 'not_booked' | 'unknown';
 };
 
@@ -34,7 +33,6 @@ type ApplicationForm = {
   phone: string;
   tennisLevel: string;
   preferredFormat: PartnerRequestFormat;
-  canAttendFullDuration: boolean;
   message: string;
 };
 
@@ -43,11 +41,10 @@ type Filters = {
   date: string;
   level: string;
   format: '' | PartnerRequestFormat;
-  full: boolean;
 };
 
 type ApplicationState =
-  | { kind: 'idle' | 'sending' | 'invalid' | 'duplicate' | 'closed' | 'fullDuration' | 'error' }
+  | { kind: 'idle' | 'sending' | 'invalid' | 'duplicate' | 'closed' | 'error' }
   | { kind: 'sent'; id: string };
 
 const copy = {
@@ -64,7 +61,6 @@ const copy = {
     date: 'Date',
     level: 'Level',
     format: 'Format',
-    full: 'Full duration only',
     all: 'Any',
     allLevels: 'Any level',
     allFormats: 'Any format',
@@ -74,7 +70,6 @@ const copy = {
     seeking: 'Looking for',
     placesNeeded: (count: number) => `${count} ${count === 1 ? 'place' : 'places'} needed`,
     noPlaces: 'No places left',
-    fullRequired: 'Full duration required',
     venue: 'Court status',
     booked: 'Court booked',
     notBooked: 'Court not booked',
@@ -90,7 +85,6 @@ const copy = {
     phone: 'Phone',
     yourLevel: 'Your level',
     chooseLevel: 'Choose your level',
-    canAttend: 'I can attend the full duration',
     message: 'Message',
     optional: 'optional',
     submit: 'Send application',
@@ -104,8 +98,6 @@ const copy = {
     reference: 'Application reference',
     duplicate: 'You have already applied to this request.',
     closed: 'This request is closed or full.',
-    fullDuration:
-      'This request needs players who can stay for the whole session. Please confirm you can attend the full duration.',
     error: 'We could not send your application. Please check your details and try again.',
     required: 'Please complete your name, email, level and format.',
   },
@@ -121,7 +113,6 @@ const copy = {
     date: '日期',
     level: '水平',
     format: '形式',
-    full: '只看必须全程参加',
     all: '不限',
     allLevels: '不限水平',
     allFormats: '不限形式',
@@ -131,7 +122,6 @@ const copy = {
     seeking: '希望水平',
     placesNeeded: (count: number) => `还缺 ${count} 个名额`,
     noPlaces: '名额已满',
-    fullRequired: '需全程参加',
     venue: '场地状态',
     booked: '场地已订',
     notBooked: '场地未订',
@@ -147,7 +137,6 @@ const copy = {
     phone: '电话',
     yourLevel: '你的水平',
     chooseLevel: '选择你的水平',
-    canAttend: '我可以全程参加',
     message: '留言',
     optional: '可选',
     submit: '提交申请',
@@ -161,7 +150,6 @@ const copy = {
     reference: '申请编号',
     duplicate: '你已经申请过这个需求。',
     closed: '该需求已关闭或名额已满。',
-    fullDuration: '该需求要求全程参加，请确认你可以全程参加。',
     error: '申请提交失败，请检查信息后重试。',
     required: '请填写姓名、邮箱、水平和形式。',
   },
@@ -170,14 +158,13 @@ const copy = {
 type Copy = (typeof copy)[Language];
 
 const FORMATS: PartnerRequestFormat[] = ['singles', 'doubles', 'practice', 'flexible'];
-const EMPTY_FILTERS: Filters = { area: '', date: '', level: '', format: '', full: false };
+const EMPTY_FILTERS: Filters = { area: '', date: '', level: '', format: '' };
 const EMPTY_FORM: ApplicationForm = {
   name: '',
   email: '',
   phone: '',
   tennisLevel: '',
   preferredFormat: 'flexible',
-  canAttendFullDuration: false,
   message: '',
 };
 
@@ -204,8 +191,6 @@ function errorState(code: string | undefined): ApplicationState {
     case 'request_full':
     case 'not_found':
       return { kind: 'closed' };
-    case 'full_duration_required':
-      return { kind: 'fullDuration' };
     case 'invalid_request':
       return { kind: 'invalid' };
     default:
@@ -221,8 +206,6 @@ function errorMessage(state: ApplicationState, t: Copy) {
       return t.duplicate;
     case 'closed':
       return t.closed;
-    case 'fullDuration':
-      return t.fullDuration;
     case 'error':
       return t.error;
     default:
@@ -294,14 +277,6 @@ function RequestFilters({
           ))}
         </select>
       </label>
-      <label className="cs-pr-check">
-        <input
-          type="checkbox"
-          checked={filters.full}
-          onChange={(event) => onChange({ ...filters, full: event.target.checked })}
-        />
-        <span>{t.full}</span>
-      </label>
       <button type="button" className="cs-pr-btn ghost" onClick={() => onChange(EMPTY_FILTERS)}>
         {t.clear}
       </button>
@@ -345,7 +320,6 @@ function RequestCard({
           <Clock3 size={14} aria-hidden="true" />
           {request.startTime}–{request.endTime} · {formatDuration(request.startTime, request.endTime, language)}
         </span>
-        {request.fullDurationRequired ? <span className="cs-tag">{t.fullRequired}</span> : null}
       </div>
       <dl className="cs-pr-details">
         <div>
@@ -504,14 +478,6 @@ function ApplicationDialog({
                 </select>
               </label>
             </div>
-            <label className="cs-pr-check">
-              <input
-                type="checkbox"
-                checked={form.canAttendFullDuration}
-                onChange={(event) => onChange({ ...form, canAttendFullDuration: event.target.checked })}
-              />
-              <span>{t.canAttend}</span>
-            </label>
             <label className="cs-pr-field">
               <span>
                 {t.message} ({t.optional})
@@ -605,7 +571,6 @@ export function PublicPartnerRequests({ language }: { language: Language }) {
         if (filters.level && ![...request.existingPlayerLevels, ...request.seekingLevels].includes(filters.level)) {
           return false;
         }
-        if (filters.full && !request.fullDurationRequired) return false;
         return true;
       }),
     [filters, requests],
@@ -629,7 +594,6 @@ export function PublicPartnerRequests({ language }: { language: Language }) {
           ? {
               ...current,
               message: '',
-              canAttendFullDuration: false,
               preferredFormat: user ? userFormat(user) : current.preferredFormat,
             }
           : current;
@@ -650,10 +614,6 @@ export function PublicPartnerRequests({ language }: { language: Language }) {
     if (!applicationRequest) return;
     if (!form.name.trim() || !/^\S+@\S+\.\S+$/.test(form.email) || !form.tennisLevel || !form.preferredFormat) {
       setApplicationState({ kind: 'invalid' });
-      return;
-    }
-    if (applicationRequest.fullDurationRequired && !form.canAttendFullDuration) {
-      setApplicationState({ kind: 'fullDuration' });
       return;
     }
     setApplicationState({ kind: 'sending' });

@@ -181,7 +181,6 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     seekingPlayerCount: 1,
     seekingLevels: [],
     preferredFormat: 'flexible',
-    fullDurationRequired: false,
     budgetPence: null,
   });
   const [requestBusy, setRequestBusy] = useState(false);
@@ -687,7 +686,6 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       seekingPlayerCount: findCourtOnly ? 0 : Math.max(1, current.seekingPlayerCount ?? 1),
       seekingLevels: current.seekingLevels ?? [],
       preferredFormat: current.preferredFormat ?? 'flexible',
-      fullDurationRequired: current.fullDurationRequired ?? false,
       budgetPence: current.budgetPence ?? null,
       };
     });
@@ -2105,11 +2103,6 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             onUpdateVenueName={updateRequestVenueName}
             onSelectVenue={selectRequestVenue}
             onKeyDown={handleRequestVenueKeyDown}
-            onContinueNextDraft={() => {
-              setSubmittedRequest(null);
-              setRequestError('');
-              scrollTop();
-            }}
           />
         ) : null}
         {view === "admin" ? (
@@ -2182,6 +2175,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             onImportSessions={(event) => void importSessions(event)}
             onCancelBooking={(id) => void cancelBooking(id)}
             onUpdateReservationRequestStatus={(id, status) => void updateReservationRequestStatus(id, status)}
+            onReservationRequestCreated={(request) => setReservationRequests((current) => [request, ...current])}
             onStartEditVenue={startEditVenue}
             onDeleteVenue={(venue) => void deleteVenue(venue)}
           />

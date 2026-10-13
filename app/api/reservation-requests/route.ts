@@ -79,10 +79,10 @@ export async function POST(request: Request) {
       INSERT INTO reservation_requests (
         id, request_type, venue_id, venue_name, postcode, preferred_date, start_time, end_time, contact_name,
         email, phone, message, status, created_at, updated_at
-        , request_kind, venue_booking_status, existing_player_levels_json, seeking_player_count, seeking_levels_json, preferred_format, full_duration_required, budget_pence
+        , request_kind, venue_booking_status, existing_player_levels_json, seeking_player_count, seeking_levels_json, preferred_format, budget_pence
       ) VALUES (
         ${id}, ${value.requestType}, ${value.venueId}, ${value.venueName}, ${value.postcode}, ${value.preferredDate}, ${value.startTime}, ${value.endTime},
-        ${value.contactName}, ${value.email}, ${value.phone}, ${value.message}, 'pending', ${now}, ${now}, ${value.requestKind}, ${value.venueBookingStatus}, ${JSON.stringify(value.existingPlayerLevels)}, ${value.seekingPlayerCount}, ${JSON.stringify(value.seekingLevels)}, ${value.preferredFormat}, ${value.fullDurationRequired}, ${value.budgetPence}
+        ${value.contactName}, ${value.email}, ${value.phone}, ${value.message}, 'pending', ${now}, ${now}, ${value.requestKind}, ${value.venueBookingStatus}, ${JSON.stringify(value.existingPlayerLevels)}, ${value.seekingPlayerCount}, ${JSON.stringify(value.seekingLevels)}, ${value.preferredFormat}, ${value.budgetPence}
       )
       RETURNING *
     ` as ReservationRequestRow[];

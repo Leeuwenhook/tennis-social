@@ -316,7 +316,6 @@ export function serializeReservationRequest(row: ReservationRequestRow) {
     seekingPlayerCount: row.seeking_player_count ?? 0,
     seekingLevels: parseJsonArray(row.seeking_levels_json),
     preferredFormat: row.preferred_format ?? 'flexible',
-    fullDurationRequired: row.full_duration_required ?? false,
     budgetPence: row.budget_pence ?? null,
   };
 }
@@ -331,7 +330,7 @@ export function serializePublicReservationRequest(row: ReservationRequestRow & {
     preferredDate: row.preferred_date, startTime: row.start_time, endTime: row.end_time,
     requestKind: row.request_kind ?? 'find_court', existingPlayerLevels: parseJsonArray(row.existing_player_levels_json),
     seekingPlayerCount: row.seeking_player_count ?? 0, seekingLevels: parseJsonArray(row.seeking_levels_json),
-    preferredFormat: row.preferred_format ?? 'flexible', fullDurationRequired: row.full_duration_required ?? false,
+    preferredFormat: row.preferred_format ?? 'flexible',
     venueBookingStatus: row.venue_booking_status ?? 'unknown', budgetPence: row.budget_pence ?? null,
   };
 }

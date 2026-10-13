@@ -9,6 +9,7 @@ import MapPin from 'lucide-react/dist/esm/icons/map-pin.mjs';
 import Timer from 'lucide-react/dist/esm/icons/timer.mjs';
 import Users from 'lucide-react/dist/esm/icons/users.mjs';
 
+import { PublicPartnerRequests } from '@/components/public-partner-requests';
 import { VenuePhoto } from '@/components/venue-photo';
 import type { GameFormat, Venue } from '@/lib/demo-data';
 import { formatMoney, formatNames, sessionDurationBadge } from '@/lib/formatters';
@@ -451,6 +452,8 @@ export function CourtsideHomeView({
           </span>
         </button>
       </section>
+
+      <PublicPartnerRequests language={language} />
     </div>
   );
 }

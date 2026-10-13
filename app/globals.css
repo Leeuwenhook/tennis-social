@@ -1115,6 +1115,7 @@
   text-align: center;
 }
 
+
 .detail-page,
 .booking-page,
 .confirmation-page,
@@ -1619,6 +1620,35 @@
 .request-page .field {
   align-content: start;
 }
+
+.paste-draft-box {
+  margin: 0 0 22px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--background);
+}
+
+.paste-draft-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 12px 14px;
+  text-align: left;
+  font-weight: 800;
+}
+
+.paste-draft-content { display: grid; gap: 10px; padding: 0 14px 14px; }
+.paste-draft-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.paste-draft-option { border: 1px solid var(--border); border-radius: 999px; background: transparent; color: inherit; cursor: pointer; padding: 5px 9px; font: inherit; font-size: 0.82rem; }
+.paste-draft-option.selected { border-color: var(--primary); background: var(--primary); color: #fff; }
+.paste-draft-option:disabled { cursor: default; opacity: 0.6; }
+.request-next-draft { margin-top: 12px; }
+.level-picker { display: flex; flex-wrap: wrap; gap: 6px; }
+.level-chip { border: 1px solid var(--border); border-radius: 999px; background: var(--card); color: var(--foreground); cursor: pointer; padding: 5px 9px; font-size: 12px; }
+.level-chip.selected { border-color: var(--primary); background: var(--primary); color: #fff; }
+.checkbox-field { display: flex; align-items: center; gap: 8px; align-self: end; min-height: 40px; font-size: 13px; font-weight: 700; }
 
 .request-submit {
   margin-top: 24px;
@@ -2658,6 +2688,17 @@
   color: var(--muted-foreground);
   font-size: 10px;
 }
+
+.request-admin-details { display: grid; gap: 9px; margin-top: 3px; }
+.request-admin-structured { display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted-foreground); font-size: 12px; }
+.request-admin-structured strong { color: var(--foreground); }
+.request-admin-applications { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--background); }
+.request-admin-application { display: flex; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--card); }
+.request-admin-application > div:first-child { display: grid; gap: 3px; min-width: 0; }
+.request-admin-application span, .request-admin-application small { color: var(--muted-foreground); font-size: 12px; overflow-wrap: anywhere; }
+.request-admin-application a { color: var(--primary); }
+.request-admin-application-actions { display: flex; flex-wrap: wrap; gap: 5px; align-content: start; justify-content: end; }
+.admin-muted { margin: 0; color: var(--muted-foreground); font-size: 12px; }
 
 .request-admin-actions {
   display: flex;

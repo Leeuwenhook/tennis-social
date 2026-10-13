@@ -162,6 +162,14 @@ export type ReservationRequestRow = {
   email: string;
   phone: string;
   message: string;
+  request_kind?: 'find_partners' | 'find_court' | 'find_both';
+  venue_booking_status?: 'booked' | 'not_booked' | 'unknown';
+  existing_player_levels_json?: string;
+  seeking_player_count?: number;
+  seeking_levels_json?: string;
+  preferred_format?: 'singles' | 'doubles' | 'practice' | 'flexible';
+  full_duration_required?: boolean;
+  budget_pence?: number | null;
   status: 'pending' | 'reviewing' | 'completed' | 'cancelled';
   created_at: string;
   updated_at: string;
@@ -302,6 +310,29 @@ export function serializeReservationRequest(row: ReservationRequestRow) {
     message: row.message,
     status: row.status,
     createdAt: row.created_at,
+    requestKind: row.request_kind ?? 'find_court',
+    venueBookingStatus: row.venue_booking_status ?? 'unknown',
+    existingPlayerLevels: parseJsonArray(row.existing_player_levels_json),
+    seekingPlayerCount: row.seeking_player_count ?? 0,
+    seekingLevels: parseJsonArray(row.seeking_levels_json),
+    preferredFormat: row.preferred_format ?? 'flexible',
+    fullDurationRequired: row.full_duration_required ?? false,
+    budgetPence: row.budget_pence ?? null,
+  };
+}
+
+function parseJsonArray(value: string | undefined) {
+  try { const parsed = JSON.parse(value ?? '[]'); return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []; } catch { return []; }
+}
+
+export function serializePublicReservationRequest(row: ReservationRequestRow & { area?: string | null }) {
+  return {
+    id: row.id, venueName: row.venue_name, postcode: row.postcode, area: row.area ?? '',
+    preferredDate: row.preferred_date, startTime: row.start_time, endTime: row.end_time,
+    requestKind: row.request_kind ?? 'find_court', existingPlayerLevels: parseJsonArray(row.existing_player_levels_json),
+    seekingPlayerCount: row.seeking_player_count ?? 0, seekingLevels: parseJsonArray(row.seeking_levels_json),
+    preferredFormat: row.preferred_format ?? 'flexible', fullDurationRequired: row.full_duration_required ?? false,
+    venueBookingStatus: row.venue_booking_status ?? 'unknown', budgetPence: row.budget_pence ?? null,
   };
 }
 

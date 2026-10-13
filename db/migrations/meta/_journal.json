@@ -120,6 +120,13 @@
       "when": 1791123342608,
       "tag": "0016_thin_clint_barton",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791125000000,
+      "tag": "0017_structured_partner_requests",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import type { KeyboardEvent, SubmitEvent } from 'react';
+import { useState, type KeyboardEvent, type SubmitEvent } from 'react';
 import ArrowLeft from 'lucide-react/dist/esm/icons/arrow-left.mjs';
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.mjs';
 import CalendarPlus from 'lucide-react/dist/esm/icons/calendar-plus.mjs';
@@ -13,9 +13,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { Venue } from '@/lib/demo-data';
 import { formatLongDate } from '@/lib/formatters';
-import { dateFromToday, getVenue, venueLabel } from '@/lib/tennis-utils';
+import { parsePartnerRequestDrafts, type PartnerRequestDraft } from '@/lib/partner-request-parser';
+import { dateFromToday, getVenue, LEVELS, venueLabel } from '@/lib/tennis-utils';
 import type { Translations } from '@/lib/translations';
 import type { Language, ReservationRequest, ReservationRequestForm, UserProfile } from '@/types/tennis';
+
+const budgetPenceFromText = (text: string) => {
+  if (text.trim() === '') return null;
+  const value = Number(text);
+  return Number.isFinite(value) && value >= 0 ? Math.round(value * 100) : null;
+};
 
 export function RequestView({
   submittedRequest,
@@ -37,6 +44,7 @@ export function RequestView({
   onUpdateVenueName,
   onSelectVenue,
   onKeyDown,
+  onContinueNextDraft,
 }: {
   submittedRequest: ReservationRequest | null;
   requestForm: ReservationRequestForm;
@@ -57,7 +65,96 @@ export function RequestView({
   onUpdateVenueName: (name: string) => void;
   onSelectVenue: (venue: Venue) => void;
   onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
+  onContinueNextDraft: () => void;
 }) {
+  const [pasteText, setPasteText] = useState('');
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteDrafts, setPasteDrafts] = useState<PartnerRequestDraft[]>([]);
+  const [editedPasteDrafts, setEditedPasteDrafts] = useState<ReservationRequestForm[]>([]);
+  const [pasteDraftIndex, setPasteDraftIndex] = useState(0);
+  const [submittedDraftIndexes, setSubmittedDraftIndexes] = useState<number[]>([]);
+  const [budgetText, setBudgetText] = useState(() => requestForm.budgetPence == null ? '' : (requestForm.budgetPence / 100).toFixed(2));
+  const structured = requestForm.requestKind !== undefined;
+  const findCourtOnly = requestForm.requestKind === 'find_court';
+  // Keep the typed text while it still represents the form value; reformat only when the value changed elsewhere (e.g. switching drafts).
+  const budgetValue = budgetPenceFromText(budgetText) === (requestForm.budgetPence ?? null)
+    ? budgetText
+    : requestForm.budgetPence == null ? '' : (requestForm.budgetPence / 100).toFixed(2);
+  const pasteMissing = pasteDrafts.length ? [
+    ...(!requestForm.preferredDate ? ['preferredDate'] : []),
+    ...(!requestForm.startTime || !requestForm.endTime ? ['time'] : []),
+    ...(structured && !findCourtOnly && requestForm.seekingPlayerCount === undefined ? ['seekingPlayerCount'] : []),
+  ] : [];
+  const remainingDraftIndexes = editedPasteDrafts
+    .map((_, index) => index)
+    .filter((index) => index !== pasteDraftIndex && !submittedDraftIndexes.includes(index));
+  const withContact = (form: ReservationRequestForm): ReservationRequestForm => ({
+    ...form,
+    contactName: requestForm.contactName,
+    email: requestForm.email,
+    phone: requestForm.phone,
+  });
+  const setField = <K extends keyof ReservationRequestForm>(key: K, value: ReservationRequestForm[K]) =>
+    setRequestForm((current) => ({ ...current, [key]: value }));
+  const toggleLevel = (key: 'existingPlayerLevels' | 'seekingLevels', level: string) => {
+    setRequestForm((current) => {
+      const values = current[key] ?? [];
+      return { ...current, [key]: values.includes(level) ? values.filter((item) => item !== level) : [...values, level] };
+    });
+  };
+  const createPasteDrafts = () => {
+    const drafts = parsePartnerRequestDrafts(pasteText);
+    const forms = drafts.map((draft) => formFromPasteDraft(draft, requestForm));
+    setPasteDrafts(drafts);
+    setEditedPasteDrafts(forms);
+    setPasteDraftIndex(0);
+    setSubmittedDraftIndexes([]);
+    if (forms[0]) setRequestForm(forms[0]);
+  };
+  const selectPasteDraft = (index: number) => {
+    if (index === pasteDraftIndex) return;
+    setEditedPasteDrafts((forms) => forms.map((form, savedIndex) => savedIndex === pasteDraftIndex ? requestForm : form));
+    setPasteDraftIndex(index);
+    setRequestForm(withContact(editedPasteDrafts[index]));
+  };
+  const continueNextDraft = () => {
+    const nextIndex = remainingDraftIndexes[0];
+    if (nextIndex === undefined) return;
+    setSubmittedDraftIndexes((indexes) => [...indexes, pasteDraftIndex]);
+    setPasteDraftIndex(nextIndex);
+    setRequestForm(withContact(editedPasteDrafts[nextIndex]));
+    onContinueNextDraft();
+  };
+  const changeRequestKind = (kind: ReservationRequestForm['requestKind']) => {
+    setRequestForm((current) => {
+      const requestType = kind === 'find_partners' ? 'known_venue' : kind === 'find_court' ? 'find_nearby' : current.requestType;
+      const typeChanged = requestType !== current.requestType;
+      return {
+        ...current,
+        requestKind: kind,
+        requestType,
+        venueId: typeChanged ? null : current.venueId,
+        venueName: typeChanged ? '' : current.venueName,
+        postcode: typeChanged ? (requestType === 'find_nearby' ? (user?.postcode ?? current.postcode) : '') : current.postcode,
+        seekingPlayerCount: kind === 'find_court' ? 0 : Math.max(1, current.seekingPlayerCount ?? 1),
+        seekingLevels: kind === 'find_court' ? [] : current.seekingLevels,
+      };
+    });
+  };
+  const formFromPasteDraft = (draft: PartnerRequestDraft, current: ReservationRequestForm): ReservationRequestForm => ({
+      ...current,
+      preferredDate: draft.preferredDate ?? '',
+      startTime: draft.startTime ?? '',
+      endTime: draft.endTime ?? '',
+      seekingPlayerCount: (draft.requestKind ?? current.requestKind) === 'find_court' ? 0 : draft.seekingPlayerCount,
+      existingPlayerLevels: draft.existingPlayerLevels ?? [],
+      seekingLevels: draft.seekingLevels ?? [],
+      fullDurationRequired: draft.fullDurationRequired ?? false,
+      venueBookingStatus: draft.venueBookingStatus ?? 'unknown',
+      preferredFormat: draft.preferredFormat ?? 'flexible',
+      ...(draft.venueName ? { venueName: draft.venueName, venueId: null, requestType: 'known_venue' as const } : {}),
+      ...(draft.requestKind ? { requestKind: draft.requestKind } : {}),
+    });
   if (submittedRequest) {
     const venue = submittedRequest.venueId ? getVenue(submittedRequest.venueId, venueList) : null;
     const requestLocation =
@@ -95,6 +192,11 @@ export function RequestView({
                 {submittedRequest.startTime}–{submittedRequest.endTime}
               </strong>
             </div>
+            {submittedRequest.requestKind ? <>
+              <div><small>{t.requestKind}</small><strong>{t[submittedRequest.requestKind]}</strong></div>
+              <div><small>{t.seekingPlayers}</small><strong>{submittedRequest.seekingPlayerCount ?? 0}</strong></div>
+              <div><small>{t.requestFormat}</small><strong>{t[submittedRequest.preferredFormat ?? 'flexible']}</strong></div>
+            </> : null}
             <div>
               <small>{t.contact}</small>
               <strong>{submittedRequest.contactName}</strong>
@@ -124,7 +226,13 @@ export function RequestView({
               </Button>
             </div>
           ) : null}
-          <Button size="lg" className="primary-wide" onClick={onNavigateHome}>
+          {remainingDraftIndexes.length ? (
+            <Button size="lg" className="primary-wide request-next-draft" onClick={continueNextDraft}>
+              {t.continueNextDraft} ({t.remainingDrafts}: {remainingDraftIndexes.length})
+              <ArrowRight size={17} />
+            </Button>
+          ) : null}
+          <Button size="lg" variant={remainingDraftIndexes.length ? 'outline' : 'default'} className="primary-wide request-next-draft" onClick={onNavigateHome}>
             {t.browseMore}
             <ArrowRight size={17} />
           </Button>
@@ -151,7 +259,29 @@ export function RequestView({
           </div>
         </div>
         <form onSubmit={onSubmit}>
+          <div className="paste-draft-box">
+            <button type="button" className="paste-draft-toggle" aria-expanded={pasteOpen} aria-controls="paste-draft-content" onClick={() => setPasteOpen((open) => !open)}>
+              {pasteOpen ? '−' : '+'} {t.pasteRequest}
+            </button>
+            {pasteOpen ? <div id="paste-draft-content" className="paste-draft-content">
+              <textarea className="native-textarea" rows={4} aria-label={t.pasteRequest} value={pasteText} onChange={(event) => setPasteText(event.target.value)} placeholder={t.pasteRequestHint} />
+              <Button type="button" size="sm" variant="outline" onClick={createPasteDrafts}>{t.createDraft}</Button>
+              {pasteDrafts.length > 1 ? <div className="paste-draft-list" role="group" aria-label={t.detectedDrafts}>
+                {pasteDrafts.map((draft, index) => <button type="button" disabled={submittedDraftIndexes.includes(index)} aria-pressed={index === pasteDraftIndex} className={index === pasteDraftIndex ? 'paste-draft-option selected' : 'paste-draft-option'} key={`${index}-${draft.source}`} onClick={() => selectPasteDraft(index)}>{t.detectedDraft} {index + 1}{draft.venueName ? ` · ${draft.venueName}` : ''}{submittedDraftIndexes.includes(index) ? ` · ${t.draftSubmitted}` : ''}</button>)}
+              </div> : null}
+              <small className="field-hint">{t.pasteRequestNote}</small>
+              {pasteMissing.length ? <small className="field-hint paste-missing">{t.missingFields}: {pasteMissing.map((field) => field === 'preferredDate' ? t.preferredDate : field === 'time' ? t.preferredTimeRange : t.seekingPlayers).join(', ')}</small> : null}
+            </div> : null}
+          </div>
           <div className="form-grid two-col">
+            <div className="field request-kind-field">
+              <Label htmlFor="request-kind">{t.requestKind} <em>*</em></Label>
+              <select id="request-kind" className="native-select" value={requestForm.requestKind ?? 'find_court'} onChange={(event) => changeRequestKind(event.target.value as ReservationRequestForm['requestKind'])}>
+                <option value="find_partners">{t.find_partners}</option>
+                <option value="find_court">{t.find_court}</option>
+                <option value="find_both">{t.find_both}</option>
+              </select>
+            </div>
             <div className="field">
               <Label htmlFor="request-type">
                 {t.specifiedVenue} <em>*</em>
@@ -160,6 +290,8 @@ export function RequestView({
                 id="request-type"
                 className="native-select"
                 value={requestForm.requestType}
+                disabled={requestForm.requestKind === 'find_partners'}
+                aria-describedby={requestForm.requestKind === 'find_partners' ? 'request-type-hint' : undefined}
                 onChange={(event) => {
                   const requestType = event.target.value as ReservationRequestForm['requestType'];
                   setRequestForm((current) => ({
@@ -174,6 +306,7 @@ export function RequestView({
                 <option value="known_venue">{t.specifiedVenueYes}</option>
                 <option value="find_nearby">{t.specifiedVenueNo}</option>
               </select>
+              {requestForm.requestKind === 'find_partners' ? <small id="request-type-hint" className="field-hint">{t.requestKindNeedsVenue}</small> : null}
             </div>
             {requestForm.requestType === 'known_venue' ? (
               <div className="field request-location-field">
@@ -253,6 +386,22 @@ export function RequestView({
                 <small className="field-hint">{t.postcodeHint}</small>
               </div>
             )}
+            {structured ? <>
+              <div className="field">
+                <Label htmlFor="request-booking-status">{t.venueBookingStatus} <em>*</em></Label>
+                <select id="request-booking-status" className="native-select" value={requestForm.venueBookingStatus ?? 'unknown'} onChange={(event) => setField('venueBookingStatus', event.target.value as ReservationRequestForm['venueBookingStatus'])}>
+                  <option value="booked">{t.venueBooked}</option><option value="not_booked">{t.not_booked}</option><option value="unknown">{t.unknown}</option>
+                </select>
+              </div>
+              <div className="field request-level-field"><Label>{t.existingLevels}</Label><div className="level-picker">{LEVELS.map((level) => <button type="button" key={`existing-${level}`} aria-pressed={(requestForm.existingPlayerLevels ?? []).includes(level)} className={(requestForm.existingPlayerLevels ?? []).includes(level) ? 'level-chip selected' : 'level-chip'} onClick={() => toggleLevel('existingPlayerLevels', level)}>{level}</button>)}</div></div>
+              {!findCourtOnly ? <>
+              <div className="field"><Label htmlFor="seeking-count">{t.seekingPlayers} <em>*</em></Label><Input id="seeking-count" type="number" min={1} max={100} value={requestForm.seekingPlayerCount ?? ''} onChange={(event) => setField('seekingPlayerCount', event.target.value === '' ? undefined : Number(event.target.value))} /></div>
+              <div className="field request-level-field"><Label>{t.seekingLevels}</Label><div className="level-picker">{LEVELS.map((level) => <button type="button" key={`seeking-${level}`} aria-pressed={(requestForm.seekingLevels ?? []).includes(level)} className={(requestForm.seekingLevels ?? []).includes(level) ? 'level-chip selected' : 'level-chip'} onClick={() => toggleLevel('seekingLevels', level)}>{level}</button>)}</div></div>
+              </> : null}
+              <div className="field"><Label htmlFor="request-format">{t.requestFormat}</Label><select id="request-format" className="native-select" value={requestForm.preferredFormat ?? 'flexible'} onChange={(event) => setField('preferredFormat', event.target.value as ReservationRequestForm['preferredFormat'])}><option value="singles">{t.singles}</option><option value="doubles">{t.doubles}</option><option value="practice">{t.practice}</option><option value="flexible">{t.flexible}</option></select></div>
+              <div className="field"><Label htmlFor="request-budget">{t.budget} <small>({t.optional})</small></Label><Input id="request-budget" type="number" min={0} step={0.01} value={budgetValue} onChange={(event) => { setBudgetText(event.target.value); setField('budgetPence', budgetPenceFromText(event.target.value)); }} /></div>
+              <label className="checkbox-field"><input type="checkbox" checked={requestForm.fullDurationRequired ?? false} onChange={(event) => setField('fullDurationRequired', event.target.checked)} /> {t.fullDuration}</label>
+            </> : null}
             <div className="field">
               <Label htmlFor="request-date">
                 {t.preferredDate} <em>*</em>

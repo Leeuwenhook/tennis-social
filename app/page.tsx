@@ -34,6 +34,7 @@ import {
   getVenue,
   isPast,
   LANGUAGE_STORAGE_KEY,
+  LEVELS,
   normalizeBooking,
   normalizeFormats,
   normalizeLocation,
@@ -174,6 +175,14 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     email: '',
     phone: '',
     message: '',
+    requestKind: 'find_both',
+    venueBookingStatus: 'unknown',
+    existingPlayerLevels: [],
+    seekingPlayerCount: 1,
+    seekingLevels: [],
+    preferredFormat: 'flexible',
+    fullDurationRequired: false,
+    budgetPence: null,
   });
   const [requestBusy, setRequestBusy] = useState(false);
   const [requestError, setRequestError] = useState('');
@@ -660,16 +669,28 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
   }
 
   function openReservationRequest() {
-    setRequestForm((current) => ({
+    setRequestForm((current) => {
+      const requestKind = current.requestKind ?? 'find_both';
+      const findCourtOnly = requestKind === 'find_court';
+      return {
       ...current,
-      requestType: 'known_venue',
+      requestType: findCourtOnly ? 'find_nearby' : 'known_venue',
       venueId: null,
       venueName: '',
-      postcode: '',
+      postcode: findCourtOnly ? (user?.postcode ?? '') : '',
       contactName: current.contactName || user?.name || '',
       email: current.email || user?.email || '',
       phone: current.phone || user?.phone || '',
-    }));
+      requestKind,
+      venueBookingStatus: current.venueBookingStatus ?? 'unknown',
+      existingPlayerLevels: current.existingPlayerLevels ?? [],
+      seekingPlayerCount: findCourtOnly ? 0 : Math.max(1, current.seekingPlayerCount ?? 1),
+      seekingLevels: current.seekingLevels ?? [],
+      preferredFormat: current.preferredFormat ?? 'flexible',
+      fullDurationRequired: current.fullDurationRequired ?? false,
+      budgetPence: current.budgetPence ?? null,
+      };
+    });
     setRequestError('');
     setRequestVenueOpen(false);
     setRequestVenueActiveIndex(-1);
@@ -785,7 +806,26 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     event.preventDefault();
     if (requestBusy) return;
     const validLocation = requestForm.requestType === 'known_venue' ? requestForm.venueName.trim() : /^[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}$/.test(requestForm.postcode.trim());
-    const valid = validLocation && requestForm.preferredDate >= dateFromToday(0) &&
+    const structured = requestForm.requestKind !== undefined;
+    const validStructured = !structured || (
+      ['find_partners', 'find_court', 'find_both'].includes(requestForm.requestKind ?? '') &&
+      ['booked', 'not_booked', 'unknown'].includes(requestForm.venueBookingStatus ?? '') &&
+      ['singles', 'doubles', 'practice', 'flexible'].includes(requestForm.preferredFormat ?? '') &&
+      Number.isInteger(requestForm.seekingPlayerCount) && (requestForm.seekingPlayerCount ?? -1) >= 0 &&
+      (requestForm.existingPlayerLevels ?? []).every((level) => LEVELS.includes(level as never)) &&
+      (requestForm.seekingLevels ?? []).every((level) => LEVELS.includes(level as never)) &&
+      (requestForm.budgetPence == null || (Number.isInteger(requestForm.budgetPence) && requestForm.budgetPence >= 0))
+    );
+    if (structured && requestForm.requestKind === 'find_partners' && requestForm.requestType !== 'known_venue') {
+      setRequestError(t.requestKindNeedsVenue);
+      return;
+    }
+    const seekingCount = requestForm.seekingPlayerCount ?? -1;
+    if (structured && Number.isInteger(seekingCount) && (requestForm.requestKind === 'find_court' ? seekingCount !== 0 : seekingCount < 1)) {
+      setRequestError(t.requestSeekingCountInvalid);
+      return;
+    }
+    const valid = validLocation && validStructured && requestForm.preferredDate >= dateFromToday(0) &&
       requestForm.startTime && requestForm.endTime &&
       parseMinutes(requestForm.endTime) > parseMinutes(requestForm.startTime) &&
       requestForm.contactName.trim() && /^\S+@\S+\.\S+$/.test(requestForm.email);
@@ -2065,6 +2105,11 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             onUpdateVenueName={updateRequestVenueName}
             onSelectVenue={selectRequestVenue}
             onKeyDown={handleRequestVenueKeyDown}
+            onContinueNextDraft={() => {
+              setSubmittedRequest(null);
+              setRequestError('');
+              scrollTop();
+            }}
           />
         ) : null}
         {view === "admin" ? (

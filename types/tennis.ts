@@ -130,6 +130,9 @@ export type SessionImportIssueCode =
   | 'duplicate';
 
 export type ReservationRequestStatus = 'pending' | 'reviewing' | 'completed' | 'cancelled';
+export type ReservationRequestKind = 'find_partners' | 'find_court' | 'find_both';
+export type VenueBookingStatus = 'booked' | 'not_booked' | 'unknown';
+export type PartnerRequestFormat = 'singles' | 'doubles' | 'practice' | 'flexible';
 
 export type ReservationRequest = {
   id: string;
@@ -146,6 +149,14 @@ export type ReservationRequest = {
   message: string;
   status: ReservationRequestStatus;
   createdAt: string;
+  requestKind?: ReservationRequestKind;
+  venueBookingStatus?: VenueBookingStatus;
+  existingPlayerLevels?: string[];
+  seekingPlayerCount?: number;
+  seekingLevels?: string[];
+  preferredFormat?: PartnerRequestFormat;
+  fullDurationRequired?: boolean;
+  budgetPence?: number | null;
 };
 
 export type ReservationRequestForm = {
@@ -160,6 +171,14 @@ export type ReservationRequestForm = {
   email: string;
   phone: string;
   message: string;
+  requestKind?: ReservationRequestKind;
+  venueBookingStatus?: VenueBookingStatus;
+  existingPlayerLevels?: string[];
+  seekingPlayerCount?: number;
+  seekingLevels?: string[];
+  preferredFormat?: PartnerRequestFormat;
+  fullDurationRequired?: boolean;
+  budgetPence?: number | null;
 };
 
 export type PreferredTime = 'weekends' | 'weekday_evenings' | 'anytime' | 'mornings' | 'afternoons';

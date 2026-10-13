@@ -2,7 +2,7 @@ import type { ReservationRequestForm } from '../types/tennis';
 
 export type PartnerRequestDraft = Partial<Pick<ReservationRequestForm,
   'venueName' | 'preferredDate' | 'startTime' | 'endTime' | 'existingPlayerLevels' |
-  'seekingLevels' | 'seekingPlayerCount' | 'preferredFormat' | 'fullDurationRequired' |
+  'seekingLevels' | 'seekingPlayerCount' | 'preferredFormat' |
   'venueBookingStatus' | 'requestKind'>> & {
   missing: Array<'preferredDate' | 'time' | 'seekingPlayerCount'>;
   source: string;
@@ -136,7 +136,6 @@ export function parsePartnerRequestDraft(source: string): PartnerRequestDraft {
   }
   const count = text.match(/(?:need|missing|缺|还需|找)\s*(\d{1,2})\s*(?:players?|people|人)?/i);
   if (count) result.seekingPlayerCount = Number(count[1]);
-  if (/full\s*duration|whole\s*(?:time|session)|全程|连续\s*\d+(?:\.\d+)?\s*小时/i.test(text)) result.fullDurationRequired = true;
   if (/singles?|单打/i.test(text)) result.preferredFormat = 'singles';
   else if (/doubles?|双打/i.test(text)) result.preferredFormat = 'doubles';
   else if (/practice|练球/i.test(text)) result.preferredFormat = 'practice';

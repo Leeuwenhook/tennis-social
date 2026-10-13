@@ -21,7 +21,6 @@ export type ReservationRequestInput = {
   seekingPlayerCount?: unknown;
   seekingLevels?: unknown;
   preferredFormat?: unknown;
-  fullDurationRequired?: unknown;
   budgetPence?: unknown;
 };
 
@@ -81,7 +80,6 @@ export function validateReservationRequest(
   const existingPlayerLevels = parseLevels(input.existingPlayerLevels);
   const seekingLevels = parseLevels(input.seekingLevels);
   const seekingPlayerCount = input.seekingPlayerCount === undefined ? 0 : input.seekingPlayerCount;
-  const fullDurationRequired = input.fullDurationRequired === undefined ? false : input.fullDurationRequired;
   const budgetPence = input.budgetPence === undefined || input.budgetPence === null || input.budgetPence === '' ? null : input.budgetPence;
   if (input.needsPartner !== undefined && input.needsPartner !== true && input.needsPartner !== false) return null;
   if (input.needsPartner === true && (!TENNIS_LEVELS.some((level) => level === tennisLevel) || (gameFormat !== 'singles' && gameFormat !== 'doubles'))) return null;
@@ -108,7 +106,6 @@ export function validateReservationRequest(
     !['booked', 'not_booked', 'unknown'].includes(venueBookingStatus as string) ||
     !['singles', 'doubles', 'practice', 'flexible'].includes(preferredFormat as string) ||
     typeof seekingPlayerCount !== 'number' || !Number.isInteger(seekingPlayerCount) || seekingPlayerCount < 0 || seekingPlayerCount > 100 ||
-    typeof fullDurationRequired !== 'boolean' ||
     (budgetPence !== null && (typeof budgetPence !== 'number' || !Number.isInteger(budgetPence) || budgetPence < 0)) ||
     !levelsValid(input.existingPlayerLevels, existingPlayerLevels) ||
     !levelsValid(input.seekingLevels, seekingLevels)
@@ -117,12 +114,12 @@ export function validateReservationRequest(
   // A court-only request needs nobody; a partner search must need at least one player.
   if (requestKind === 'find_court' ? seekingPlayerCount !== 0 : seekingPlayerCount < 1) return null;
 
-  return { requestType, venueId: requestType === 'known_venue' ? venueId : null, venueName: requestType === 'known_venue' ? venueName : '', postcode: requestType === 'find_nearby' ? postcode : '', preferredDate, startTime, endTime, contactName, email, phone, message, requestKind, venueBookingStatus, existingPlayerLevels, seekingPlayerCount, seekingLevels, preferredFormat, fullDurationRequired, budgetPence };
+  return { requestType, venueId: requestType === 'known_venue' ? venueId : null, venueName: requestType === 'known_venue' ? venueName : '', postcode: requestType === 'find_nearby' ? postcode : '', preferredDate, startTime, endTime, contactName, email, phone, message, requestKind, venueBookingStatus, existingPlayerLevels, seekingPlayerCount, seekingLevels, preferredFormat, budgetPence };
 }
 
 export type PartnerRequestApplicationInput = {
   name?: unknown; email?: unknown; phone?: unknown; tennisLevel?: unknown;
-  preferredFormat?: unknown; canAttendFullDuration?: unknown; message?: unknown;
+  preferredFormat?: unknown; message?: unknown;
 };
 
 export function validatePartnerRequestApplication(input: PartnerRequestApplicationInput) {
@@ -132,6 +129,6 @@ export function validatePartnerRequestApplication(input: PartnerRequestApplicati
   const tennisLevel = cleanString(input.tennisLevel, 8);
   const preferredFormat = cleanString(input.preferredFormat, 20);
   const message = cleanString(input.message, 1000);
-  if (!name || !/^\S+@\S+\.\S+$/.test(email) || !TENNIS_LEVELS.includes(tennisLevel as never) || !['singles', 'doubles', 'practice', 'flexible'].includes(preferredFormat) || typeof input.canAttendFullDuration !== 'boolean') return null;
-  return { name, email, phone, tennisLevel, preferredFormat, canAttendFullDuration: input.canAttendFullDuration, message };
+  if (!name || !/^\S+@\S+\.\S+$/.test(email) || !TENNIS_LEVELS.includes(tennisLevel as never) || !['singles', 'doubles', 'practice', 'flexible'].includes(preferredFormat)) return null;
+  return { name, email, phone, tennisLevel, preferredFormat, message };
 }

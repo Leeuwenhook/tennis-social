@@ -10,7 +10,6 @@ type OpenRequestRow = {
   status: string;
   preferred_date: string;
   seeking_player_count: number;
-  full_duration_required: boolean;
   accepted_count: number;
 };
 
@@ -24,7 +23,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id: requestId } = await context.params;
     const today = new Date().toISOString().slice(0, 10);
     const found = await db`
-      SELECT requests.id, requests.status, requests.preferred_date, requests.seeking_player_count, requests.full_duration_required,
+      SELECT requests.id, requests.status, requests.preferred_date, requests.seeking_player_count,
         (SELECT COUNT(*)::integer FROM partner_request_applications AS applications WHERE applications.request_id = requests.id AND applications.status = 'accepted') AS accepted_count
       FROM reservation_requests AS requests
       WHERE requests.id = ${requestId}
@@ -35,14 +34,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return Response.json({ error: 'request_closed' }, { status: 409 });
     }
     if (target.accepted_count >= target.seeking_player_count) return Response.json({ error: 'request_full' }, { status: 409 });
-    if (target.full_duration_required && !value.canAttendFullDuration) return Response.json({ error: 'full_duration_required' }, { status: 400 });
 
     const user = await getAuthenticatedUser(request, db);
     const id = `application-${crypto.randomUUID()}`; const now = new Date().toISOString();
     // Re-check that the request is still open in the same statement so a concurrent close or fill is respected.
     const rows = await db`
-      INSERT INTO partner_request_applications (id, request_id, user_id, name, email, phone, tennis_level, preferred_format, can_attend_full_duration, message, status, created_at, updated_at)
-      SELECT ${id}, requests.id, ${user?.id ?? null}, ${value.name}, ${value.email}, ${value.phone}, ${value.tennisLevel}, ${value.preferredFormat}, ${value.canAttendFullDuration}, ${value.message}, 'pending', ${now}, ${now}
+      INSERT INTO partner_request_applications (id, request_id, user_id, name, email, phone, tennis_level, preferred_format, message, status, created_at, updated_at)
+      SELECT ${id}, requests.id, ${user?.id ?? null}, ${value.name}, ${value.email}, ${value.phone}, ${value.tennisLevel}, ${value.preferredFormat}, ${value.message}, 'pending', ${now}, ${now}
       FROM reservation_requests AS requests
       WHERE requests.id = ${requestId}
         AND requests.status IN ('pending', 'reviewing')

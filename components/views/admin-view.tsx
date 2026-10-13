@@ -23,6 +23,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { AdminPasteRequests } from '@/components/admin-paste-requests';
 import { GAME_FORMATS, type Venue } from '@/lib/demo-data';
 import {
   bookingStatusLabel,
@@ -54,7 +55,6 @@ type AdminApplication = {
   phone?: string | null;
   tennis_level?: string;
   preferred_format?: string;
-  can_attend_full_duration?: boolean;
   message?: string | null;
   status: 'pending' | 'accepted' | 'rejected';
 };
@@ -126,7 +126,6 @@ function AdminRequestApplications({ request, t }: { request: ReservationRequest;
         <span><strong>{t.seekingPlayers}:</strong> {request.seekingPlayerCount ?? 0}</span>
         <span><strong>{t.seekingLevels}:</strong> {request.seekingLevels?.length ? request.seekingLevels.join(' · ') : t.none}</span>
         <span><strong>{t.format}:</strong> {formatLabel}</span>
-        <span><strong>{t.fullDuration}:</strong> {request.fullDurationRequired ? t.yes : t.no}</span>
         <span><strong>{t.venueBookingStatus}:</strong> {request.venueBookingStatus === 'booked' ? t.venueBooked : request.venueBookingStatus === 'not_booked' ? t.notBooked : t.unknown}</span>
       </div>
       <Button type="button" variant="outline" size="sm" onClick={toggleApplications} disabled={loading}>
@@ -143,7 +142,7 @@ function AdminRequestApplications({ request, t }: { request: ReservationRequest;
               <div>
                 <strong>{application.name ?? application.contact_name ?? t.unknown}</strong>
                 <span><a href={`mailto:${application.email}`}>{application.email}</a>{application.phone ? ` · ${application.phone}` : ''}</span>
-                <span>{application.tennis_level || t.unknown} · {preferredFormatLabel(application.preferred_format, t)} · {application.can_attend_full_duration ? t.canAttendFullDuration : t.partialDuration}</span>
+                <span>{application.tennis_level || t.unknown} · {preferredFormatLabel(application.preferred_format, t)}</span>
                 {application.message ? <small>{application.message}</small> : null}
               </div>
               <div className="request-admin-application-actions" role="group" aria-label={`${t.applicationStatusGroup}: ${application.name ?? application.contact_name ?? application.email}`}>
@@ -230,6 +229,7 @@ export function AdminView({
   onImportSessions,
   onCancelBooking,
   onUpdateReservationRequestStatus,
+  onReservationRequestCreated,
   onStartEditVenue,
   onDeleteVenue,
 }: {
@@ -301,6 +301,7 @@ export function AdminView({
   onImportSessions: (e: ChangeEvent<HTMLInputElement>) => void;
   onCancelBooking: (id: string) => void;
   onUpdateReservationRequestStatus: (id: string, status: ReservationRequestStatus) => void;
+  onReservationRequestCreated: (request: ReservationRequest) => void;
   onStartEditVenue: (venue: Venue) => void;
   onDeleteVenue: (venue: Venue) => void;
 }) {
@@ -1278,6 +1279,7 @@ export function AdminView({
                 <Badge variant="secondary">{reservationRequests.length}</Badge>
               </div>
               {adminMessage ? <div className="admin-message">{adminMessage}</div> : null}
+              <AdminPasteRequests venueList={venueList} t={t} onCreated={onReservationRequestCreated} />
               {reservationRequests.length ? (
                 <div className="request-admin-list">
                   {reservationRequests.map((request) => {

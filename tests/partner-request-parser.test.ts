@@ -20,7 +20,6 @@ void test('splits blank-line blocks and parses continuous duration', () => {
   assert.equal(drafts[1].venueName, 'Chestnuts Park');
   assert.equal(drafts[1].startTime, '18:00');
   assert.equal(drafts[1].endTime, '20:00');
-  assert.equal(drafts[1].fullDurationRequired, true);
 });
 
 void test('recognises looking-for-partner wording while retaining explicit booking status', () => {
@@ -85,7 +84,6 @@ void test('rejects invalid dates and resolves meridiems and durations sensibly',
   assert.equal(morning.endTime, '13:00');
   const continuous = parsePartnerRequestDraft('Chestnuts Park 6-8pm 连续2.5小时 球友水平3.0');
   assert.deepEqual(continuous.existingPlayerLevels, ['3.0']);
-  assert.equal(continuous.fullDurationRequired, true);
   const late = parsePartnerRequestDraft('Victoria Park 22:00 for 2 hours');
   assert.equal(late.startTime, '22:00');
   assert.equal(late.endTime, '24:00');

@@ -105,7 +105,7 @@
 
 ### 2. 生产库迁移顺序（合并前，在本地用生产 `DATABASE_URL` 执行）
 1. [ ] 备份或创建 Neon 分支快照。
-2. [ ] `npm run db:migrate`：按 journal 顺序执行 0018 → 0019 → 0020。
+2. [ ] `npm run db:migrate`：按 journal 顺序执行 0018 → 0019 → 0020 → 0021（Round 2 新增，见文末）。
 3. [ ] 抽查：
    - `SELECT admin_notification_status, followup_email_status, count(*) FROM bookings GROUP BY 1,2;`：历史订单应为 `skipped`，未来场次的订单应为 followup `pending`。
    - `SELECT count(*) FROM reservation_requests WHERE expires_on IS NULL;`：应为 0。
@@ -113,12 +113,87 @@
 
 ### 3. Preview 手动验收
 - [ ] 后台：无人报名的场次设为 capacity 0 后，首页、courtside、详情页都显示“已满”，checkout 返回 409。有报名的场次点“标记已满”后同样生效。
-- [ ] 后台：新建场次时描述留空，会自动生成中英文。点“创建后续几周”后，**每个新场次的描述日期都是它自己的日期**（B1）。把自动描述场次的日期改掉后，描述跟着变；手写的描述保持不变。
+- [ ] ~~后台：新建场次时描述留空，会自动生成中英文……（B1）~~ Round 2 已取消场次描述，改为场地描述，验收项见文末“Round 2 review”。
 - [ ] 1.5h 场次显示时长标签，1h 场次不显示。详情页不再出现重复的“活动介绍”。
 - [ ] Stripe 测试卡下单：用户收到 1 封确认邮件，两位管理员收到 1 封通知。刷新确认页 5 次，不会重复发送。
 - [ ] 提交找球友需求和加入申请后，管理员各收到 1 封通知。在 DevTools 检查 `GET /api/reservation-requests` 的响应：不能包含 email/phone/wechat/whatsapp。
 - [ ] 找球友：“未订场 + 工作日晚上”的需求能在看板上看到，按 slot 能筛选，能申请。“已订场”时必须填日期和时间。首选 WeChat 但没填 WeChat 时会被拒绝。
 - [ ] 聊天助手：只说“12 月 20 日 18:00–20:00”、不提时间段，也能完成并提交（S2）。
-- [ ] 赛后邮件：执行 `curl -H "Authorization: Bearer $CRON_SECRET" <preview>/api/cron/session-followups`。结束超过 1 小时的测试订单收到 1 封邮件，重复调用不重发。历史订单和退款订单不发。
+- [ ] 赛后邮件：执行 `curl -H "Authorization: Bearer $CRON_SECRET" "<preview>/api/cron/session-followups?force=1"`（Round 2 起，不带 `force=1` 时在伦敦 21 点以外只返回 `{"skipped":"outside_london_21h"}`）。结束超过 1 小时的测试订单收到 1 封邮件，重复调用不重发。历史订单和退款订单不发。
 - [ ] 退订：Preview 环境里把邮件链接的域名换成 Preview 域名后打开。打开链接只显示确认页，**不会直接退订**；点按钮后才退订，之后 cron 不再给该邮箱发送。Gmail 里应显示原生“退订”入口。
 - [ ] 手机端走查 request-view、公开看板申请弹窗（联系方式字段样式，N9）和后台卡片。
+
+## Round 2 review（commit b760273，`git diff 9fa1f1d..HEAD`）
+
+评审范围：owner 本轮三项决定，即管理员通知默认收件人、场地级描述取代场次描述（迁移 0021）、赛后邮件只在伦敦 21 点发送。本轮未 commit/push，未连接生产库或 Vercel，未实现 3.2，也未改动找球友需求的日期逻辑。
+
+结论：**0 个 BLOCKER、4 个 SHOULD-FIX（已修复）、6 个 NIT（未修）**。
+
+### SHOULD-FIX（已修复）
+
+- **R2-S1** `lib/server/booking-email.ts:77-83`：确认邮件查询场地时只取了固定几列，没有 `description, description_zh`。结果是场地即使写了自定义介绍，确认邮件正文和 `.ics` 的 `Activity:` 也总是自动生成的文案。已在 SELECT 中补上这两列。另外给 `sendConfirmedBookingEmail` 加了可注入的 `send` 参数（默认值不变，写法与 `sendDueBookingFollowups` 一致）。新增测试 `tests/venue-description.test.ts`「booking confirmation loads the stored venue description」：测试里的假 DB 只返回 SELECT 中列出的列；去掉修复后测试失败，加上修复后通过。提醒邮件不使用描述，无需改动。
+- **R2-S2** `db/migrations/0021_venue_descriptions.sql:9-45`：回填只排除了自动生成器的文案，没有排除 demo 种子文案。`ensureSeeded` 会给空库写入 demo 场次，`resetSeed` 也会重新写入。这些文案是场次级的，例如 “Friday evening tennis … One place left.”“A full Saturday morning group …”“目前只剩 1 个名额”。如果某场地的真实场次都是自动文案，回填就会退回到这些 demo 文案，并把它们变成长期公开的场地介绍。已用 `NOT IN` 排除历史上全部 demo 文案：英文 9 条（含 f358612 之前 `lib/server/seed.ts` 中的 “Longer Sunday session …” 变体），中文 8 条。
+- **R2-S3** `public/session-import-template.xlsx`、`lib/translations.ts:137,511`：模板里仍有 “Description (English/Chinese, optional)” 两列，说明页也写着“留空后会根据场次信息自动生成”，后台导入提示文字也是这样写的。现在这两列会被解析器静默忽略，管理员填进去的内容会直接丢失。处理如下：
+  - 已从模板删除这两列，状态列移到 H，寻找水平列移到 I，下拉校验改为 `H6:H205`。
+  - 已删除说明页的描述行。
+  - 顺带把名额说明从“1 至 1000”改为“0 至 1000；0 表示已满”，与 v1 的 capacity 0 一致。
+  - 中英文提示改为“场地介绍在场地设置中维护，不通过导入填写”。
+  - 解析器按表头名称匹配列，旧模板（带描述列）仍能导入。
+- **R2-S4** 本文档“合并前清单”有 3 处已过时：迁移顺序缺 0021；验收项仍要求测试场次描述（B1）；手动测试赛后邮件的 curl 没有带 `?force=1`，在伦敦 21 点以外只会返回 `skipped`。已在原处更正。
+
+### NIT（未修）
+
+- **R2-N1** `components/views/admin-view.tsx:621-634`：场地描述的标签和 placeholder 直接写成中英双语，没有走 `t.*`。后台场地表单原本就有类似写法，影响不大。
+- **R2-N2** `lib/server/email.ts:348`：如果 `ADMIN_NOTIFY_EMAIL` 非空但地址全部非法，通知会被跳过，只打一条 `console.info`，不会回退到默认收件人。这符合“env 覆盖默认值”的决定，已在 N1 说明。
+- **R2-N3** `lib/server/booking-followups.ts`：每次最多处理 `LIMIT 100` 条，每天实际只有 1 次通过时间门。如果一天内符合条件的订单超过 100 笔，多出的会顺延到第二天（仍在 72 小时窗口内）。按当前规模不需要处理。
+- **R2-N4** `lib/server/email.ts:128,159`：确认邮件只用英文场地介绍。这与现有确认邮件只有英文一致。
+- **R2-N5** 迁移中的 `btrim` 只去掉空格。如果有人手动编辑过自动文案并留下了首尾换行，这条文案不会被识别为自动文案。实际几乎不会发生。
+- **R2-N6** 新建场次的旧 `description` 列写入的是 `''`。如果回滚到旧代码，这些新场次的详情页简介会是空的（旧代码只在保存时生成文案）。这是回滚期可以接受的降级。
+
+### 已核对、没有问题的点
+
+- **迁移正则 vs 历史生成器**：用 `git log -G` 确认，生成器文案只在 ad6723d 引入过一次，直到 9fa1f1d 删除前都没有变过；a979fc4 只是开始调用它。我用 9fa1f1d 的原始 `generateSessionDescriptions` 生成了 240 种组合，两个正则全部命中，3 条相近的手写文案都没有误判。组合覆盖：
+  - 单打 / 双打 / 两者 / 空格式；
+  - capacity 为 0、1、8、1000、2.5；
+  - 空白场地名、带括号、引号或换行的场地名；
+  - BST 和 GMT 日期。
+
+  这次是用 JS 正则（加 `s` 标志，模拟 Postgres ARE 中 `.` 默认匹配换行）验证的。本会话没有获准启动临时 Postgres，所以没有在真实 PG 上重跑；Codex 在实现报告中已用 PG18 单用户模式验证过。
+- **生产 Postgres 安全性**：
+  - `ADD COLUMN text` 可空、无默认值，只改元数据，不重写表。
+  - 回填只更新为 NULL 的字段，重放是安全的。
+  - sessions 的列保持不动，可以回滚。
+  - journal 的 `when` 单调递增，snapshot 中已有两列。
+- **场次描述残留**：以下位置都已经不再引用场次描述：
+  - 聊天/预订助手：`app/api/chat/route.ts` 只用静态场地的名称和区域。
+  - 提醒、赛后和管理员通知邮件。
+  - email-preview、demo 数据、导入解析器。
+  - SEO：`app/layout.tsx` 是静态 metadata，没有按场次生成的 meta。
+
+  只有 `lib/translations.ts` 的导入提示和 xlsx 模板还有残留，已在 R2-S3 修复。
+- **cron 时间门**：
+  - 先校验 `CRON_SECRET`：未配置时返回 503，鉴权失败返回 401。之后才看 `?force=1`。未鉴权的 `force` 无法绕过时间门，测试已覆盖。
+  - `vercel.json` 配置为 `0 20` / `0 21` UTC。伦敦时间判断用的是 `Intl` + `Europe/London`，3/29 和 10/25 两个切换日都正确。
+  - Vercel cron 在整点内的触发抖动不影响判断，因为判断以小时为粒度。
+- **管理员收件人**：env 未设置或为空白时，默认发给两位 owner；有覆盖值时以覆盖为准。测试已覆盖。
+- 找球友需求的日期逻辑没有改动。
+
+### 检查结果（本轮修复后）
+
+| 检查 | 结果 |
+|---|---|
+| `npx tsx --test tests/*.test.ts` | ✅ 70 通过，0 失败 |
+| `npx tsc --noEmit` | ✅ |
+| `npm run lint`（oxlint） | ✅ 无告警 |
+| `npm run build` | ✅ |
+| `git diff --check` | ✅ |
+
+### Round 2 合并前补充（owner）
+
+- [ ] 在 Neon 分支或 Preview 库上先执行 0021，然后运行 `SELECT id, name, description, description_zh FROM venues ORDER BY id;`，逐条看回填出来的场地介绍。不合适的直接在后台清空，清空后会使用自动生成的场地文案。确认无误后再在生产库执行。
+- [ ] Preview 验收：
+  - 后台新建或编辑场地时，中英文介绍留空，详情页显示自动文案，且文案中不出现日期、时间、名额。
+  - 填写介绍后，详情页和确认邮件都显示填写的内容（R2-S1）。
+  - 场次表单中已没有描述字段。
+  - 从后台下载的导入模板已没有描述列。
+- [ ] 部署后在 Vercel Cron 页面确认 session-followups 的两条计划为 `0 20 * * *` 和 `0 21 * * *`。

@@ -23,6 +23,7 @@ const STALE_CLAIM_AFTER_MS = 10 * 60 * 1000;
 export async function sendConfirmedBookingEmail(
   db: Database,
   bookingId: string,
+  send: typeof sendEmail = sendEmail,
 ): Promise<BookingEmailDelivery> {
   if (!isEmailConfigured()) {
     console.warn(
@@ -76,6 +77,7 @@ export async function sendConfirmedBookingEmail(
 
   const venueRows = (await db`
     SELECT id, name, name_zh, area, area_zh, address, address_zh, postcode, photo,
+           description, description_zh,
            peak_price_pence, off_peak_price_pence, created_at, updated_at
     FROM venues
     WHERE id = ${booking.venue_id}
@@ -84,7 +86,7 @@ export async function sendConfirmedBookingEmail(
     ? serializeVenue(venueRows[0])
     : venues.find((item) => item.id === booking.venue_id) ?? venues[0];
   try {
-    const result = await sendEmail({
+    const result = await send({
       booking: claimedBooking,
       session: booking,
       venue,

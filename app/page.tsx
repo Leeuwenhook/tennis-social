@@ -168,9 +168,11 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     venueId: null,
     venueName: '',
     postcode: '',
-    preferredDate: dateFromToday(7),
-    startTime: '18:00',
-    endTime: '20:00',
+    preferredDate: '',
+    startTime: '',
+    endTime: '',
+    preferredSlots: [],
+    wechat: '', whatsapp: '', preferredContact: 'email',
     contactName: '',
     email: '',
     phone: '',
@@ -823,9 +825,9 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       setRequestError(t.requestSeekingCountInvalid);
       return;
     }
-    const valid = validLocation && validStructured && requestForm.preferredDate >= dateFromToday(0) &&
-      requestForm.startTime && requestForm.endTime &&
-      parseMinutes(requestForm.endTime) > parseMinutes(requestForm.startTime) &&
+    const valid = validLocation && validStructured && (requestForm.venueBookingStatus === 'booked'
+        ? requestForm.preferredDate >= dateFromToday(0) && requestForm.startTime && requestForm.endTime && parseMinutes(requestForm.endTime) > parseMinutes(requestForm.startTime)
+        : (requestForm.preferredSlots ?? []).length > 0) &&
       requestForm.contactName.trim() && /^\S+@\S+\.\S+$/.test(requestForm.email);
     if (!valid) {
       setRequestError(t.requestInvalid);
@@ -1218,6 +1220,8 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       postcode: venue.postcode ?? '',
       photo: venue.photo,
       photos: venue.photos?.length ? [...venue.photos] : [venue.photo],
+      description: venue.description ?? '',
+      descriptionZh: venue.descriptionZh ?? '',
       notes: venue.notes ?? '',
       peakPrice: String(venue.peakPricePence / 100),
       offPeakPrice: String(venue.offPeakPricePence / 100),
@@ -1299,6 +1303,8 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       postcode: venueDraft.postcode.trim().toUpperCase(),
       photo: venueDraft.photos[0].trim(),
       photos: venueDraft.photos.map((photo) => photo.trim()).filter(Boolean),
+      description: venueDraft.description.trim() || null,
+      descriptionZh: venueDraft.descriptionZh.trim() || null,
       notes: venueDraft.notes.trim(),
       peakPricePence,
       offPeakPricePence,
@@ -1323,6 +1329,8 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             postcode: nextVenue.postcode,
             photo: nextVenue.photo,
             photos: nextVenue.photos,
+            description: nextVenue.description,
+            descriptionZh: nextVenue.descriptionZh,
             notes: nextVenue.notes,
             peakPricePence,
             offPeakPricePence,
@@ -1501,8 +1509,6 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       capacity: String(session.capacity),
       formats: normalizeFormats(session.formats),
       seekingLevels: session.seekingLevels ?? [],
-      description: session.description,
-      descriptionZh: session.descriptionZh,
       status: session.status,
     });
     setAdminMessage('');
@@ -1522,10 +1528,21 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       capacity: session.capacity,
       formats: session.formats,
       seekingLevels: session.seekingLevels ?? [],
-      description: session.description,
-      descriptionZh: session.descriptionZh,
       status,
     };
+  }
+
+  async function markSessionFull(session: Session) {
+    try {
+      const response = await fetch(`/api/admin/sessions/${session.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sessionPayload({ ...session, capacity: session.bookedSpots })),
+      });
+      const data = await response.json();
+      if (!response.ok) { setAdminMessage(data.error === 'capacity_too_low' ? t.cannotReduceCapacity : t.saveFailed); return; }
+      setSessions((current) => current.map((item) => item.id === session.id ? data.session : item));
+      setAdminMessage(t.sessionSaved);
+    } catch { setAdminMessage(t.saveFailed); }
   }
 
   async function saveDraft(event: SubmitEvent<HTMLFormElement>) {
@@ -1541,12 +1558,10 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       !draft.date ||
       !draft.startTime ||
       !draft.endTime ||
-      !draft.description.trim() ||
-      !draft.descriptionZh.trim() ||
       !Number.isFinite(pricePence) ||
       pricePence < 0 ||
       !Number.isInteger(capacity) ||
-      capacity < 1
+      capacity < 0
     ) {
       setAdminMessage(t.saveFailed);
       return;
@@ -1580,8 +1595,6 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       formats,
       seekingLevels: draft.seekingLevels,
       status: draft.status,
-      description: draft.description.trim(),
-      descriptionZh: draft.descriptionZh.trim(),
     };
     const payload = sessionPayload(nextSession);
     adminBusyRef.current = true;
@@ -1653,8 +1666,6 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             capacity: session.capacity,
             formats: session.formats,
             seekingLevels: session.seekingLevels ?? [],
-            description: session.description,
-            descriptionZh: session.descriptionZh,
             status,
           }),
         });
@@ -2168,6 +2179,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             onApplyVenueDefaultPrice={applyVenueDefaultPrice}
             onStartEditSession={startEdit}
             onCreateRecurringSessions={(session) => void createRecurringSessions(session)}
+            onMarkSessionFull={(session) => void markSessionFull(session)}
             onDeleteSession={(session) => void deleteSession(session)}
             onBulkUpdateSessionStatus={(status) => void bulkUpdateSessionStatus(status)}
             onExportSessions={exportSessions}

@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     const db = database();
     await ensureSeeded(db);
     const rows = (await db`
-      SELECT id, name, name_zh, area, area_zh, photo, notes,
+      SELECT id, name, name_zh, area, area_zh, photo, notes, description, description_zh,
              peak_price_pence, off_peak_price_pence, photos_json, address, address_zh, postcode, created_at, updated_at
       FROM venues
       ORDER BY name, id
@@ -61,13 +61,13 @@ export async function POST(request: Request) {
     const id = `venue-${crypto.randomUUID()}`;
     const rows = (await db`
       INSERT INTO venues (
-        id, name, name_zh, area, area_zh, photo, notes, peak_price_pence,
+        id, name, name_zh, area, area_zh, photo, notes, description, description_zh, peak_price_pence,
         off_peak_price_pence, photos_json, address, address_zh, postcode, created_at, updated_at
       ) VALUES (
-        ${id}, ${venue.name}, ${venue.nameZh}, ${venue.area}, ${venue.areaZh}, ${venue.photo}, ${venue.notes},
+        ${id}, ${venue.name}, ${venue.nameZh}, ${venue.area}, ${venue.areaZh}, ${venue.photo}, ${venue.notes}, ${venue.description}, ${venue.descriptionZh},
         ${venue.peakPricePence}, ${venue.offPeakPricePence}, ${JSON.stringify(venue.photos)}, ${venue.address}, ${venue.addressZh}, ${venue.postcode}, ${now}, ${now}
       )
-      RETURNING id, name, name_zh, area, area_zh, photo, notes,
+      RETURNING id, name, name_zh, area, area_zh, photo, notes, description, description_zh,
                 peak_price_pence, off_peak_price_pence, photos_json, address, address_zh, postcode, created_at, updated_at
     `) as VenueRow[];
     return Response.json({ venue: serializeVenue(rows[0]) }, { status: 201 });

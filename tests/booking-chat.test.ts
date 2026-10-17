@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
 import { POST } from '../app/api/chat/route';
+import { slotForSchedule } from '../lib/partner-request-slots';
 
 const originalFetch = globalThis.fetch;
 const envNames = [
@@ -52,7 +53,7 @@ function providerReply(
     reply,
     request: {
       venueName: 'Victoria Park',
-      preferredDate: '2099-12-20',
+      preferredSlots: ['weekday_evening'], preferredDate: '2099-12-20',
       startTime: '18:00',
       endTime: '20:00',
       contactName: 'Test Player',
@@ -261,6 +262,14 @@ void test('invalid or incomplete court details do not enable submission after a 
       false,
     );
   }
+});
+
+void test('dated drafts without time slots derive a slot and can still be submitted', async () => {
+  globalThis.fetch = async () =>
+    providerReply('Please submit.', { complete: true, needsPartner: false, preferredSlots: null });
+  const data = await (await POST(chatRequest())).json();
+  assert.equal(data.request.complete, true);
+  assert.deepEqual(data.request.preferredSlots, [slotForSchedule('2099-12-20', '18:00')]);
 });
 
 void test('requests without partner matching do not require level or format', async () => {

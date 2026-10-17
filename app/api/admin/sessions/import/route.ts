@@ -14,8 +14,6 @@ import {
   type SessionValidationIssue,
 } from '@/lib/server/admin-validation';
 import { requireAdmin } from '@/lib/server/admin-auth';
-import { generateSessionDescriptions } from '@/lib/server/session-description';
-import { GAME_FORMATS, type GameFormat } from '@/lib/demo-data';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -132,26 +130,10 @@ export async function POST(request: Request) {
         venue = pendingVenue;
       }
 
-      const formats = Array.isArray(source.formats)
-        ? source.formats.filter((format): format is GameFormat => GAME_FORMATS.includes(format as GameFormat))
-        : [];
-      const generatedDescriptions = generateSessionDescriptions({
-        venueName: venue?.name ?? venueName,
-        venueNameZh: venue?.nameZh ?? venueName,
-        date: typeof source.date === 'string' ? source.date : '',
-        startTime: typeof source.startTime === 'string' ? source.startTime : '',
-        endTime: typeof source.endTime === 'string' ? source.endTime : '',
-        formats: formats.length ? formats : [...GAME_FORMATS],
-        capacity: Number(source.capacity),
-      });
-      const description = typeof source.description === 'string' ? source.description.trim() : '';
-      const descriptionZh = typeof source.descriptionZh === 'string' ? source.descriptionZh.trim() : '';
       const candidate = {
         ...source,
         venueId: venue?.id ?? '',
         seekingLevels: source.seekingLevels,
-        description: description || generatedDescriptions.description,
-        descriptionZh: descriptionZh || generatedDescriptions.descriptionZh,
       };
       const venueIssues: ImportIssueCode[] = !venueName || venueName.length > 120 ? ['venue'] : [];
       const validationIds = [...validVenueIds, ...[...pendingVenuesByName.values()].map((item) => item.id)];
@@ -232,10 +214,10 @@ export async function POST(request: Request) {
         ) VALUES (
           ${id}, ${session.venueId}, ${session.date}, ${session.startTime}, ${session.endTime},
           ${session.pricePence}, ${session.capacity}, 0, ${JSON.stringify(session.formats)}, ${JSON.stringify(session.seekingLevels)}, ${session.status},
-          ${session.description}, ${session.descriptionZh}, ${now}, ${now}
+          ${''}, ${''}, ${now}, ${now}
         )
         RETURNING id, venue_id, date, start_time, end_time, price_pence, capacity,
-                  booked_spots, formats_json, seeking_levels_json, status, description, description_zh
+                  booked_spots, formats_json, seeking_levels_json, status
       `;
     });
     const inserted = await db.transaction([...venueInserts, ...sessionInserts]) as unknown as Array<Array<VenueRow | SessionRow>>;

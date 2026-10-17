@@ -14,6 +14,7 @@ import Users from 'lucide-react/dist/esm/icons/users.mjs';
 
 import { Button } from '@/components/ui/button';
 import { VenuePhoto } from '@/components/venue-photo';
+import { resolveVenueDescriptions } from '@/lib/venue-description';
 import type { Venue } from '@/lib/demo-data';
 import { formatDuration, formatLongDate, formatMoney, formatNames } from '@/lib/formatters';
 import { venueFullLocation, venueMapsUrl } from '@/lib/tennis-utils';
@@ -41,6 +42,7 @@ export function DetailView({
 }) {
   const spots = Math.max(0, selectedSession.capacity - selectedSession.bookedSpots);
   const full = spots === 0;
+  const descriptions = resolveVenueDescriptions(selectedVenue);
   const fullLocation = venueFullLocation(selectedVenue, language);
 
   return (
@@ -61,7 +63,7 @@ export function DetailView({
           </p>
           <h1>{selectedVenue.name}</h1>
           <p className="detail-description">
-            {language === 'zh' ? selectedSession.descriptionZh : selectedSession.description}
+            {language === 'zh' ? descriptions.descriptionZh : descriptions.description}
           </p>
           <div className="detail-facts">
             <div>
@@ -147,17 +149,7 @@ export function DetailView({
           ) : null}
         </div>
       </div>
-      <div className="detail-about">
-        <div>
-          <p className="eyebrow muted">{t.aboutSession}</p>
-          <h2>
-            {language === 'zh'
-              ? '认识球友，把时间留给球场。'
-              : 'Meet a few players. Make time for the court.'}
-          </h2>
-        </div>
-        <p>{language === 'zh' ? selectedSession.descriptionZh : selectedSession.description}</p>
-      </div>
+
     </section>
   );
 }

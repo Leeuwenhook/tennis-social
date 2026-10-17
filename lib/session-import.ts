@@ -11,8 +11,6 @@ export type SessionImportRecord = {
     capacity: number | string;
     formats: string[];
     seekingLevels: string[];
-    description: string;
-    descriptionZh: string;
     status: string;
   };
 };
@@ -43,8 +41,6 @@ const headers = {
   capacity: ['capacity', '名额'],
   formats: ['formats', '形式'],
   seekingLevels: ['seekinglevels', '寻找水平', 'lookingforlevels', '寻找网球水平'],
-  description: ['descriptionenglish', '英文描述'],
-  descriptionZh: ['descriptionchinese', '中文描述'],
   status: ['status', '状态'],
 } as const;
 
@@ -228,8 +224,6 @@ export async function parseSessionWorkbook(file: File): Promise<SessionImportRec
             capacity: numericOrInvalid(get('capacity')),
             formats: parseFormats(get('formats')),
             seekingLevels: parseSeekingLevels(get('seekingLevels')),
-            description: get('description').trim(),
-            descriptionZh: get('descriptionZh').trim(),
             status,
           },
         };

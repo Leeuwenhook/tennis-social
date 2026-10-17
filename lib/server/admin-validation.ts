@@ -3,6 +3,8 @@ import { GAME_FORMATS, venues, type GameFormat } from '../demo-data';
 const TENNIS_LEVELS = new Set(['1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0']);
 
 export type VenueInput = {
+  description?: unknown;
+  descriptionZh?: unknown;
   name?: unknown;
   nameZh?: unknown;
   area?: unknown;
@@ -18,6 +20,8 @@ export type VenueInput = {
 };
 
 export type ValidatedVenueInput = {
+  description: string | null;
+  descriptionZh: string | null;
   name: string;
   nameZh: string;
   area: string;
@@ -41,8 +45,6 @@ export type SessionInput = {
   capacity?: unknown;
   formats?: unknown;
   seekingLevels?: unknown;
-  description?: unknown;
-  descriptionZh?: unknown;
   status?: unknown;
 };
 
@@ -55,8 +57,6 @@ export type ValidatedSessionInput = {
   capacity: number;
   formats: GameFormat[];
   seekingLevels: string[];
-  description: string;
-  descriptionZh: string;
   status: 'published' | 'draft';
 };
 
@@ -66,7 +66,6 @@ export type SessionValidationIssue =
   | 'startTime'
   | 'endTime'
   | 'timeRange'
-  | 'description'
   | 'price'
   | 'capacity'
   | 'formats'
@@ -116,7 +115,7 @@ export function validateVenueInput(input: VenueInput): ValidatedVenueInput | nul
     !Number.isInteger(offPeakPricePence) || offPeakPricePence < 0 || offPeakPricePence > 100_000 ||
     peakPricePence < offPeakPricePence
   ) return null;
-  return { name, nameZh, area, areaZh, address, addressZh, postcode, photo: primaryPhoto, photos, notes, peakPricePence, offPeakPricePence };
+  return { description: cleanString(input.description, 2000) || null, descriptionZh: cleanString(input.descriptionZh, 2000) || null, name, nameZh, area, areaZh, address, addressZh, postcode, photo: primaryPhoto, photos, notes, peakPricePence, offPeakPricePence };
 }
 
 export function validateSessionInput(
@@ -127,8 +126,6 @@ export function validateSessionInput(
   const date = cleanString(input.date, 10);
   const startTime = cleanString(input.startTime, 5);
   const endTime = cleanString(input.endTime, 5);
-  const description = cleanString(input.description, 2000);
-  const descriptionZh = cleanString(input.descriptionZh, 2000);
   const pricePence = Number(input.pricePence);
   const capacity = Number(input.capacity);
   const formatsInput = input.formats;
@@ -151,8 +148,6 @@ export function validateSessionInput(
     capacity,
     formats,
     seekingLevels,
-    description,
-    descriptionZh,
     status: status as 'draft' | 'published',
   };
 }
@@ -165,8 +160,6 @@ export function sessionInputIssues(
   const date = cleanString(input.date, 10);
   const startTime = cleanString(input.startTime, 5);
   const endTime = cleanString(input.endTime, 5);
-  const description = cleanString(input.description, 2000);
-  const descriptionZh = cleanString(input.descriptionZh, 2000);
   const pricePence = Number(input.pricePence);
   const capacity = Number(input.capacity);
   const formatsInput = input.formats;
@@ -190,9 +183,8 @@ export function sessionInputIssues(
   if (!validStartTime) issues.push('startTime');
   if (!validEndTime) issues.push('endTime');
   if (validStartTime && validEndTime && minutes(endTime) <= minutes(startTime)) issues.push('timeRange');
-  if (!description || !descriptionZh) issues.push('description');
   if (!Number.isInteger(pricePence) || pricePence < 0) issues.push('price');
-  if (!Number.isInteger(capacity) || capacity < 1 || capacity > 1000) issues.push('capacity');
+  if (!Number.isInteger(capacity) || capacity < 0 || capacity > 1000) issues.push('capacity');
   if (!formatsValid || formats.length < 1) issues.push('formats');
   if (!seekingLevelsValid) issues.push('seekingLevels');
   if (!status) issues.push('status');

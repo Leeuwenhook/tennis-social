@@ -210,6 +210,8 @@ export function normalizeVenue(value: unknown): Venue | null {
     postcode: typeof venue.postcode === 'string' ? venue.postcode : undefined,
     photo: venue.photo,
     photos,
+    description: typeof venue.description === 'string' ? venue.description : null,
+    descriptionZh: typeof venue.descriptionZh === 'string' ? venue.descriptionZh : null,
     notes: typeof venue.notes === 'string' ? venue.notes : '',
     peakPricePence,
     offPeakPricePence,
@@ -267,8 +269,6 @@ export function emptyDraft(venueList: Venue[] = venues): SessionDraft {
     capacity: '8',
     formats: [...GAME_FORMATS],
     seekingLevels: [],
-    description: 'A friendly tennis session for new and returning players.',
-    descriptionZh: '适合新朋友和熟悉球友的轻松网球活动。',
     status: 'published',
   };
 }
@@ -284,6 +284,8 @@ export function emptyVenueDraft(venueList: Venue[] = venues): VenueDraft {
     postcode: '',
     photo: '',
     photos: [],
+    description: '',
+    descriptionZh: '',
     notes: '',
     peakPrice: String((venue?.peakPricePence ?? DEFAULT_PEAK_PRICE_PENCE) / 100),
     offPeakPrice: String((venue?.offPeakPricePence ?? DEFAULT_OFF_PEAK_PRICE_PENCE) / 100),
@@ -307,8 +309,6 @@ export function sessionPayload(session: Session, status = session.status) {
     capacity: session.capacity,
     formats: session.formats,
     seekingLevels: session.seekingLevels ?? [],
-    description: session.description,
-    descriptionZh: session.descriptionZh,
     status,
   };
 }

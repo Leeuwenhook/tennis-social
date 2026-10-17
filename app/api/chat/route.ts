@@ -1,3 +1,4 @@
+import { PREFERRED_SLOTS, slotForSchedule } from '@/lib/partner-request-slots';
 import { getRuntimeEnv } from '@/lib/server/runtime';
 import { venues } from '@/lib/demo-data';
 import { generateChatResponse } from '@/lib/server/gemini-chat';
@@ -18,6 +19,7 @@ const MAX_REQUEST_FIELD_LENGTH = 500;
 const requestShape = `{
   "venueName": string | null,
   "postcode": string | null,
+  "preferredSlots": ("weekday_morning" | "weekday_afternoon" | "weekday_evening" | "weekend_any")[] | null,
   "preferredDate": string | null,
   "startTime": string | null,
   "endTime": string | null,
@@ -60,13 +62,14 @@ export async function POST(request: Request) {
   const systemInstruction = [
     'You are the Tennis Match London booking assistant.',
     'Help the user request a tennis court/session. Be warm, concise, and ask one or two missing questions at a time.',
+    'When there is no specific date, ask for preferred time slots (weekday morning/afternoon/evening or weekend).',
     body.language === 'zh'
       ? 'Understand English and Chinese. Reply with the language the user uses.'
       : body.language === 'en'
         ? 'Understand English and Chinese. Reply with the language the user uses. '
         : 'Understand English and Chinese and reply in the language the user uses.',
     `Today's date in London is ${new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())}. Use this to resolve relative dates.`,
-    'Collect: venue or area/postcode, date (YYYY-MM-DD if possible), start and end time, player count or level, contact name, email, and optional phone/message.',
+    'Collect: venue or area/postcode, preferredSlots (at least one), optional date (YYYY-MM-DD) with start and end time together, player count or level, contact name, email, and optional phone/message.',
     'Always establish whether the user needs help finding tennis partners. Ask explicitly if they have not answered; do not repeat answered questions. Record their answer in needsPartner; use null until answered.',
     'If needsPartner=true, ask their tennis level and whether they want singles or doubles. Both are required before confirmation. Use gameFormat=singles or doubles. Record tennisLevel as a string (for example "3.0") from 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0; clarify vague levels rather than inventing a rating. If needsPartner=false, these fields are optional.',
     'Include partner-finding requirements, tennis level, and singles/doubles in the confirmation summary. Never set complete=true while needsPartner is unknown or required partner details are missing.',
@@ -113,9 +116,14 @@ export async function POST(request: Request) {
     if (typeof parsed.reply !== 'string' || !parsed.reply.trim() || !parsed.request || typeof parsed.request !== 'object' || Array.isArray(parsed.request)) throw new Error('Invalid Gemini response');
     const source = parsed.request;
     const textField = (key: string) => typeof source[key] === 'string' ? source[key].trim().slice(0, MAX_REQUEST_FIELD_LENGTH) : null;
+    const preferredSlots = Array.isArray(source.preferredSlots) ? [...new Set(source.preferredSlots.filter((slot): slot is string => typeof slot === 'string' && PREFERRED_SLOTS.includes(slot as never)))] : [];
+    // A draft with a concrete date but no slots would otherwise never validate as complete.
+    const scheduleSlot = slotForSchedule(textField('preferredDate') ?? '', textField('startTime') ?? '');
+    if (!preferredSlots.length && scheduleSlot) preferredSlots.push(scheduleSlot);
     const normalizedRequest = {
       venueName: textField('venueName'),
       postcode: textField('postcode'),
+      preferredSlots,
       preferredDate: textField('preferredDate'),
       startTime: textField('startTime'),
       endTime: textField('endTime'),

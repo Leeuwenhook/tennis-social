@@ -19,7 +19,7 @@ export async function GET(request: Request) {
     const rows = await db`
       SELECT * FROM reservation_requests
       ORDER BY CASE status WHEN 'pending' THEN 0 WHEN 'reviewing' THEN 1 WHEN 'completed' THEN 2 ELSE 3 END,
-               preferred_date, start_time, created_at DESC
+               preferred_date NULLS LAST, created_at DESC
     ` as ReservationRequestRow[];
     return Response.json({ requests: rows.map(serializeReservationRequest) });
   } catch (error) {

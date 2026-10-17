@@ -7,6 +7,8 @@ import MapPin from 'lucide-react/dist/esm/icons/map-pin.mjs';
 import RotateCw from 'lucide-react/dist/esm/icons/rotate-cw.mjs';
 import Users from 'lucide-react/dist/esm/icons/users.mjs';
 
+import { PartnerContactFields } from '@/components/partner-request-fields';
+import { PREFERRED_SLOTS, SLOT_LABELS, slotLabels } from '@/lib/partner-request-slots';
 import { formatDate, formatDuration } from '@/lib/formatters';
 import { LEVELS } from '@/lib/tennis-utils';
 import type { Language, PartnerRequestFormat, UserProfile } from '@/types/tennis';
@@ -16,9 +18,11 @@ type PublicRequest = {
   venueName: string;
   postcode: string;
   area: string;
-  preferredDate: string;
-  startTime: string;
-  endTime: string;
+  preferredDate: string | null;
+  preferredSlots: string[];
+  expiresOn: string;
+  startTime: string | null;
+  endTime: string | null;
   requestKind: string;
   existingPlayerLevels: string[];
   seekingPlayerCount: number;
@@ -31,6 +35,7 @@ type ApplicationForm = {
   name: string;
   email: string;
   phone: string;
+  wechat: string; whatsapp: string; preferredContact: 'email' | 'phone' | 'wechat' | 'whatsapp';
   tennisLevel: string;
   preferredFormat: PartnerRequestFormat;
   message: string;
@@ -39,6 +44,7 @@ type ApplicationForm = {
 type Filters = {
   area: string;
   date: string;
+  slot: string;
   level: string;
   format: '' | PartnerRequestFormat;
 };
@@ -83,6 +89,7 @@ const copy = {
     name: 'Name',
     email: 'Email',
     phone: 'Phone',
+    preferredSlots: 'Preferred time slots', wechat: 'WeChat', whatsapp: 'WhatsApp', preferredContact: 'Preferred contact method', contactPrivacyNote: 'Contact details are shared with matched players only after review.',
     yourLevel: 'Your level',
     chooseLevel: 'Choose your level',
     message: 'Message',
@@ -135,6 +142,7 @@ const copy = {
     name: '姓名',
     email: '邮箱',
     phone: '电话',
+    preferredSlots: '偏好时间段', wechat: '微信', whatsapp: 'WhatsApp', preferredContact: '首选联系方式', contactPrivacyNote: '联系方式仅在审核后与匹配球友共享。',
     yourLevel: '你的水平',
     chooseLevel: '选择你的水平',
     message: '留言',
@@ -158,11 +166,11 @@ const copy = {
 type Copy = (typeof copy)[Language];
 
 const FORMATS: PartnerRequestFormat[] = ['singles', 'doubles', 'practice', 'flexible'];
-const EMPTY_FILTERS: Filters = { area: '', date: '', level: '', format: '' };
+const EMPTY_FILTERS: Filters = { area: '', date: '', slot: '', level: '', format: '' };
 const EMPTY_FORM: ApplicationForm = {
   name: '',
   email: '',
-  phone: '',
+  phone: '', wechat: '', whatsapp: '', preferredContact: 'email',
   tennisLevel: '',
   preferredFormat: 'flexible',
   message: '',
@@ -224,7 +232,9 @@ function RequestFilters({
   areas,
   t,
   onChange,
+  language,
 }: {
+  language: Language;
   filters: Filters;
   areas: string[];
   t: Copy;
@@ -233,6 +243,7 @@ function RequestFilters({
   return (
     <fieldset className="cs-pr-filters">
       <legend className="sr-only">{t.title}</legend>
+      <label><span>{t.preferredSlots}</span><select value={filters.slot} onChange={(event) => onChange({ ...filters, slot: event.target.value })}><option value="">{t.all}</option>{PREFERRED_SLOTS.map((slot) => <option key={slot} value={slot}>{SLOT_LABELS[language][slot]}</option>)}</select></label>
       <label className="cs-pr-field">
         <span>{t.area}</span>
         <select value={filters.area} onChange={(event) => onChange({ ...filters, area: event.target.value })}>
@@ -314,11 +325,11 @@ function RequestCard({
       <div className="cs-pr-meta">
         <span>
           <CalendarDays size={14} aria-hidden="true" />
-          {formatDate(request.preferredDate, language)}
+          {request.preferredDate ? formatDate(request.preferredDate, language) : slotLabels(request.preferredSlots, language)}
         </span>
         <span>
           <Clock3 size={14} aria-hidden="true" />
-          {request.startTime}–{request.endTime} · {formatDuration(request.startTime, request.endTime, language)}
+          {request.startTime && request.endTime ? `${request.startTime}–${request.endTime}` : ''} · {request.startTime && request.endTime ? formatDuration(request.startTime, request.endTime, language) : ''}
         </span>
       </div>
       <dl className="cs-pr-details">
@@ -396,7 +407,7 @@ function ApplicationDialog({
     >
       <h2 id="partner-application-title">{sent ? t.sent : t.formTitle}</h2>
       <p className="cs-pr-dialog-sub">
-        {request.venueName || request.postcode} · {request.startTime}–{request.endTime}
+        {request.venueName || request.postcode} · {request.startTime && request.endTime ? `${request.startTime}–${request.endTime}` : ''}
       </p>
       {state.kind === 'sent' ? (
         <>
@@ -441,7 +452,7 @@ function ApplicationDialog({
               </span>
               <input
                 type="tel"
-                value={form.phone}
+                required={form.preferredContact === 'phone'} value={form.phone}
                 autoComplete="tel"
                 onChange={(event) => onChange({ ...form, phone: event.target.value })}
               />
@@ -462,6 +473,7 @@ function ApplicationDialog({
                   ))}
                 </select>
               </label>
+              <PartnerContactFields value={form} labels={t} onChange={(contacts) => onChange({ ...form, ...contacts })} />
               <label className="cs-pr-field">
                 <span>{t.format}</span>
                 <select
@@ -566,6 +578,7 @@ export function PublicPartnerRequests({ language }: { language: Language }) {
     () =>
       requests.filter((request) => {
         if (filters.area && request.area !== filters.area) return false;
+        if (filters.slot && !request.preferredSlots.includes(filters.slot)) return false;
         if (filters.date && request.preferredDate !== filters.date) return false;
         if (filters.format && request.preferredFormat !== filters.format) return false;
         if (filters.level && ![...request.existingPlayerLevels, ...request.seekingLevels].includes(filters.level)) {
@@ -652,7 +665,7 @@ export function PublicPartnerRequests({ language }: { language: Language }) {
         </div>
       </div>
 
-      <RequestFilters filters={filters} areas={areas} t={t} onChange={setFilters} />
+      <RequestFilters language={language} filters={filters} areas={areas} t={t} onChange={setFilters} />
 
       {loading ? (
         <div className="cs-empty">{t.loading}</div>

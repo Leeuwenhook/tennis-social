@@ -52,7 +52,7 @@ function providerReply(
     reply,
     request: {
       venueName: 'Victoria Park',
-      preferredDate: '2099-12-20',
+      preferredSlots: ['weekday_evening'], preferredDate: '2099-12-20',
       startTime: '18:00',
       endTime: '20:00',
       contactName: 'Test Player',

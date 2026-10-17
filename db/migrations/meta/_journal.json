@@ -134,6 +134,13 @@
       "when": 1792278603065,
       "tag": "0018_admin_booking_notifications",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792278775364,
+      "tag": "0019_partner_request_slots_contacts",
+      "breakpoints": true
     }
   ]
 }

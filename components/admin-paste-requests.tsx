@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs';
 
+import { PartnerContactFields, PartnerSlotFields } from '@/components/partner-request-fields';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +29,7 @@ function formFromText(source: string, venueList: Venue[]): ReservationRequestFor
     venueName,
     postcode: '',
     preferredDate: draft?.preferredDate ?? '',
+    preferredSlots: draft?.preferredSlots ?? [],
     startTime: draft?.startTime ?? '',
     endTime: draft?.endTime ?? '',
     ...emptyContact,
@@ -65,8 +67,8 @@ export function AdminPasteRequests({
   const form = drafts[index];
   const findCourtOnly = form?.requestKind === 'find_court';
   const missing = form ? [
-    ...(!form.preferredDate ? [t.preferredDate] : []),
-    ...(!form.startTime || !form.endTime ? [t.preferredTimeRange] : []),
+    ...(!form.preferredDate && !(form.preferredSlots ?? []).length ? [t.preferredDate] : []),
+    ...((form.preferredDate || form.venueBookingStatus === 'booked') && (!form.startTime || !form.endTime) ? [t.preferredTimeRange] : []),
     ...(!findCourtOnly && form.seekingPlayerCount === undefined ? [t.seekingPlayers] : []),
   ] : [];
 
@@ -173,9 +175,10 @@ export function AdminPasteRequests({
               <option value="booked">{t.venueBooked}</option><option value="not_booked">{t.not_booked}</option><option value="unknown">{t.unknown}</option>
             </select>
           </div>
+          <PartnerSlotFields label={t.preferredSlots} language={t.email === '邮箱' ? 'zh' : 'en'} value={form.preferredSlots} onChange={(slots) => setField('preferredSlots', slots)} />
           <div className="field">
             <Label htmlFor="paste-date">{t.preferredDate} <em>*</em></Label>
-            <Input id="paste-date" type="date" min={dateFromToday(0)} value={form.preferredDate} onChange={(event) => setField('preferredDate', event.target.value)} />
+            <Input id="paste-date" type="date" min={dateFromToday(0)} required={form.venueBookingStatus === 'booked'} value={form.preferredDate} onChange={(event) => setField('preferredDate', event.target.value)} />
           </div>
           <div className="field">
             <Label htmlFor="paste-start">{t.preferredTimeRange} <em>*</em></Label>
@@ -206,8 +209,9 @@ export function AdminPasteRequests({
           </div>
           <div className="field">
             <Label htmlFor="paste-phone">{t.phone} <small>({t.optional})</small></Label>
-            <Input id="paste-phone" type="tel" value={contact.phone} onChange={(event) => setContact((current) => ({ ...current, phone: event.target.value }))} />
+            <Input id="paste-phone" type="tel" required={form.preferredContact === 'phone'} value={contact.phone} onChange={(event) => setContact((current) => ({ ...current, phone: event.target.value }))} />
           </div>
+          <PartnerContactFields labels={t} value={{ ...form, phone: contact.phone }} onChange={(contacts) => setDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...contacts } : item))} />
           <div className="field request-message-field">
             <Label htmlFor="paste-message">{t.requestMessage} <small>({t.optional})</small></Label>
             <textarea id="paste-message" className="native-textarea" rows={3} maxLength={1000} value={form.message} onChange={(event) => setField('message', event.target.value)} />

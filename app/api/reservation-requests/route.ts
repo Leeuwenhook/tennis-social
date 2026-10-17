@@ -1,3 +1,4 @@
+import { PREFERRED_SLOTS } from '@/lib/partner-request-slots';
 import { sendAdminRequestNotification } from '@/lib/server/email';
 import {
   database,
@@ -21,6 +22,8 @@ export async function GET(request: Request) {
     const db = database(); await ensureSeeded(db);
     const params = new URL(request.url).searchParams;
     const today = new Date().toISOString().slice(0, 10);
+    const slotParam = params.get('slot');
+    const slot = PREFERRED_SLOTS.includes(slotParam as never) ? JSON.stringify([slotParam]) : null;
     const postcode = params.get('postcode')?.trim() || null;
     const area = params.get('area')?.trim() || null;
     const dateParam = params.get('date') || '';
@@ -33,14 +36,15 @@ export async function GET(request: Request) {
       SELECT requests.*, venues.area
       FROM reservation_requests AS requests LEFT JOIN venues ON venues.id = requests.venue_id
       WHERE requests.status IN ('pending', 'reviewing')
-        AND requests.preferred_date >= ${today}
+        AND requests.expires_on >= ${today}
         AND requests.seeking_player_count > 0
         AND (${postcode}::text IS NULL OR requests.postcode ILIKE ${`%${postcode ?? ''}%`})
         AND (${area}::text IS NULL OR venues.area ILIKE ${`%${area ?? ''}%`})
         AND (${date}::text IS NULL OR requests.preferred_date = ${date})
         AND (${format}::text IS NULL OR requests.preferred_format = ${format})
         AND (${level}::text IS NULL OR requests.existing_player_levels_json::jsonb @> ${level}::jsonb OR requests.seeking_levels_json::jsonb @> ${level}::jsonb)
-      ORDER BY requests.preferred_date, requests.start_time
+        AND (${slot}::text IS NULL OR requests.preferred_slots_json::jsonb @> ${slot}::jsonb)
+      ORDER BY requests.preferred_date NULLS LAST, requests.created_at DESC
     ` as Array<ReservationRequestRow & { area: string | null }>;
     return Response.json({ requests: rows.map(serializePublicReservationRequest) });
   } catch (error) {
@@ -79,11 +83,11 @@ export async function POST(request: Request) {
     const rows = await db`
       INSERT INTO reservation_requests (
         id, request_type, venue_id, venue_name, postcode, preferred_date, start_time, end_time, contact_name,
-        email, phone, message, status, created_at, updated_at
+        email, phone, wechat, whatsapp, preferred_contact, preferred_slots_json, expires_on, message, status, created_at, updated_at
         , request_kind, venue_booking_status, existing_player_levels_json, seeking_player_count, seeking_levels_json, preferred_format, budget_pence
       ) VALUES (
         ${id}, ${value.requestType}, ${value.venueId}, ${value.venueName}, ${value.postcode}, ${value.preferredDate}, ${value.startTime}, ${value.endTime},
-        ${value.contactName}, ${value.email}, ${value.phone}, ${value.message}, 'pending', ${now}, ${now}, ${value.requestKind}, ${value.venueBookingStatus}, ${JSON.stringify(value.existingPlayerLevels)}, ${value.seekingPlayerCount}, ${JSON.stringify(value.seekingLevels)}, ${value.preferredFormat}, ${value.budgetPence}
+        ${value.contactName}, ${value.email}, ${value.phone}, ${value.wechat}, ${value.whatsapp}, ${value.preferredContact}, ${JSON.stringify(value.preferredSlots)}, ${value.expiresOn}, ${value.message}, 'pending', ${now}, ${now}, ${value.requestKind}, ${value.venueBookingStatus}, ${JSON.stringify(value.existingPlayerLevels)}, ${value.seekingPlayerCount}, ${JSON.stringify(value.seekingLevels)}, ${value.preferredFormat}, ${value.budgetPence}
       )
       RETURNING *
     ` as ReservationRequestRow[];

@@ -19,6 +19,7 @@ import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs';
 import Upload from 'lucide-react/dist/esm/icons/upload.mjs';
 import UserRound from 'lucide-react/dist/esm/icons/user-round.mjs';
 
+import { slotLabels } from '@/lib/partner-request-slots';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,6 +54,7 @@ type AdminApplication = {
   contact_name?: string;
   email: string;
   phone?: string | null;
+  wechat?: string; whatsapp?: string; preferred_contact?: string;
   tennis_level?: string;
   preferred_format?: string;
   message?: string | null;
@@ -141,7 +143,7 @@ function AdminRequestApplications({ request, t }: { request: ReservationRequest;
             <div className="request-admin-application" key={application.id}>
               <div>
                 <strong>{application.name ?? application.contact_name ?? t.unknown}</strong>
-                <span><a href={`mailto:${application.email}`}>{application.email}</a>{application.phone ? ` · ${application.phone}` : ''}</span>
+                <span><a href={`mailto:${application.email}`}>{application.email}</a>{application.phone ? ` · ${application.phone}` : ''} · {t.wechat}: {application.wechat || '—'} · {t.whatsapp}: {application.whatsapp || '—'} · {t.preferredContact}: <strong>{application.preferred_contact ?? 'email'}</strong></span>
                 <span>{application.tennis_level || t.unknown} · {preferredFormatLabel(application.preferred_format, t)}</span>
                 {application.message ? <small>{application.message}</small> : null}
               </div>
@@ -1296,11 +1298,11 @@ export function AdminView({
                     return (
                       <article className="request-admin-row" key={request.id}>
                         <div className="request-admin-date">
-                          <strong>{new Date(`${request.preferredDate}T12:00:00`).getDate()}</strong>
+                          <strong>{request.preferredDate ? new Date(`${request.preferredDate}T12:00:00`).getDate() : '—'}</strong>
                           <span>
-                            {new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-GB', {
+                            {request.preferredDate ? new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-GB', {
                               month: 'short',
-                            }).format(new Date(`${request.preferredDate}T12:00:00`))}
+                            }).format(new Date(`${request.preferredDate}T12:00:00`)) : ''}
                           </span>
                         </div>
                         <div className="request-admin-main">
@@ -1311,12 +1313,12 @@ export function AdminView({
                             </Badge>
                           </div>
                           <span>
-                            <CalendarDays size={14} /> {formatLongDate(request.preferredDate, language)} ·{' '}
-                            {request.startTime}–{request.endTime}
+                            <CalendarDays size={14} /> {request.preferredDate ? formatLongDate(request.preferredDate, language) : slotLabels(request.preferredSlots, language)} ·{' '}
+                            {request.startTime && request.endTime ? `${request.startTime}–${request.endTime}` : ''}
                           </span>
                           <span>
                             <UserRound size={14} /> {request.contactName} ·{' '}
-                            <a href={`mailto:${request.email}`}>{request.email}</a>
+                            <a href={`mailto:${request.email}`}>{request.email}</a> · {t.preferredContact}: <strong>{request.preferredContact ?? 'email'}</strong> · {t.wechat}: {request.wechat || '—'} · {t.whatsapp}: {request.whatsapp || '—'}
                             {request.phone ? ` · ${request.phone}` : ''}
                           </span>
                           {request.message ? <p>{request.message}</p> : null}

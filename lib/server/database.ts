@@ -158,9 +158,9 @@ export type ReservationRequestRow = {
   venue_id: string | null;
   venue_name: string;
   postcode: string;
-  preferred_date: string;
-  start_time: string;
-  end_time: string;
+  preferred_date: string | null;
+  start_time: string | null;
+  end_time: string | null;
   contact_name: string;
   email: string;
   phone: string;
@@ -176,6 +176,11 @@ export type ReservationRequestRow = {
   status: 'pending' | 'reviewing' | 'completed' | 'cancelled';
   created_at: string;
   updated_at: string;
+  preferred_slots_json?: string;
+  expires_on?: string | null;
+  wechat?: string;
+  whatsapp?: string;
+  preferred_contact?: 'email' | 'phone' | 'wechat' | 'whatsapp';
 };
 
 export type Database = ReturnType<typeof neon>;
@@ -304,12 +309,13 @@ export function serializeReservationRequest(row: ReservationRequestRow) {
     venueId: row.venue_id,
     venueName: row.venue_name,
     postcode: row.postcode,
+    preferredSlots: parseJsonArray(row.preferred_slots_json), expiresOn: row.expires_on ?? row.preferred_date,
     preferredDate: row.preferred_date,
     startTime: row.start_time,
     endTime: row.end_time,
     contactName: row.contact_name,
     email: row.email,
-    phone: row.phone,
+    phone: row.phone, wechat: row.wechat ?? '', whatsapp: row.whatsapp ?? '', preferredContact: row.preferred_contact ?? 'email',
     message: row.message,
     status: row.status,
     createdAt: row.created_at,
@@ -330,6 +336,7 @@ function parseJsonArray(value: string | undefined) {
 export function serializePublicReservationRequest(row: ReservationRequestRow & { area?: string | null }) {
   return {
     id: row.id, venueName: row.venue_name, postcode: row.postcode, area: row.area ?? '',
+    preferredSlots: parseJsonArray(row.preferred_slots_json), expiresOn: row.expires_on ?? row.preferred_date,
     preferredDate: row.preferred_date, startTime: row.start_time, endTime: row.end_time,
     requestKind: row.request_kind ?? 'find_court', existingPlayerLevels: parseJsonArray(row.existing_player_levels_json),
     seekingPlayerCount: row.seeking_player_count ?? 0, seekingLevels: parseJsonArray(row.seeking_levels_json),

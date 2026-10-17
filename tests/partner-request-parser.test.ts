@@ -107,3 +107,12 @@ void test('splits list items and consecutive one-line venue requests conservativ
   assert.equal(detailList[0].seekingPlayerCount, 2);
   assert.equal(parsePartnerRequestDrafts('Chestnuts Park（北伦敦）\n6–8PM（连续2小时）\n球友水平3.0').length, 1);
 });
+
+void test('parses bilingual slots without requiring a date or clock times', () => {
+  for (const text of ['Victoria Park 工作日晚上 周末 缺2人 未订场', 'Victoria Park weekday evening weekend need 2 players not booked']) {
+    const draft = parsePartnerRequestDraft(text);
+    assert.deepEqual(draft.preferredSlots, ['weekday_evening', 'weekend_any']);
+    assert.equal(draft.missing.includes('preferredDate'), false);
+    assert.equal(draft.missing.includes('time'), false);
+  }
+});

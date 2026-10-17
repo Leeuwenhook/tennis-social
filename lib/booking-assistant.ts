@@ -1,6 +1,7 @@
 export type BookingAssistantDraft = {
   venueName?: string | null;
   postcode?: string | null;
+  preferredSlots?: string[] | null;
   preferredDate?: string | null;
   startTime?: string | null;
   endTime?: string | null;

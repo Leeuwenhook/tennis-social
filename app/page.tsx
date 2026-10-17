@@ -168,9 +168,11 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     venueId: null,
     venueName: '',
     postcode: '',
-    preferredDate: dateFromToday(7),
-    startTime: '18:00',
-    endTime: '20:00',
+    preferredDate: '',
+    startTime: '',
+    endTime: '',
+    preferredSlots: [],
+    wechat: '', whatsapp: '', preferredContact: 'email',
     contactName: '',
     email: '',
     phone: '',
@@ -823,9 +825,9 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       setRequestError(t.requestSeekingCountInvalid);
       return;
     }
-    const valid = validLocation && validStructured && requestForm.preferredDate >= dateFromToday(0) &&
-      requestForm.startTime && requestForm.endTime &&
-      parseMinutes(requestForm.endTime) > parseMinutes(requestForm.startTime) &&
+    const valid = validLocation && validStructured && (requestForm.venueBookingStatus === 'booked'
+        ? requestForm.preferredDate >= dateFromToday(0) && requestForm.startTime && requestForm.endTime && parseMinutes(requestForm.endTime) > parseMinutes(requestForm.startTime)
+        : (requestForm.preferredSlots ?? []).length > 0) &&
       requestForm.contactName.trim() && /^\S+@\S+\.\S+$/.test(requestForm.email);
     if (!valid) {
       setRequestError(t.requestInvalid);

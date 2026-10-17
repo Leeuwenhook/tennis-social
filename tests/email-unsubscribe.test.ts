@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { GET } from '../app/api/email/unsubscribe/route';
+import { GET, POST } from '../app/api/email/unsubscribe/route';
 import { signToken } from '../lib/server/signed-token';
 void test('unsubscribe verifies the signature before accessing the database and normalizes suppression emails', async (t) => {
   const keys = ['REVIEW_TOKEN_SECRET', 'DATABASE_URL', 'POSTGRES_URL'] as const;
@@ -30,23 +30,36 @@ void test('unsubscribe verifies the signature before accessing the database and 
     },
   );
   try {
-    assert.equal(
-      (
-        await GET(
-          new Request('https://example.com/api/email/unsubscribe?t=bad'),
-        )
-      ).status,
-      400,
-    );
+    for (const handler of [GET, POST])
+      assert.equal(
+        (
+          await handler(
+            new Request('https://example.com/api/email/unsubscribe?t=bad', {
+              method: handler === POST ? 'POST' : 'GET',
+            }),
+          )
+        ).status,
+        400,
+      );
     assert.equal(calls, 0);
     const token = signToken(
       'unsubscribe',
       { email: ' Player@Example.com ', v: 1 },
       3600,
     );
+    const url = `https://example.com/api/email/unsubscribe?t=${token}`;
+    // Link scanners prefetch GET URLs: the page only offers a confirmation form.
+    const page = GET(new Request(url));
+    assert.equal(page.status, 200);
+    assert.match(await page.text(), /<form method="post"/);
+    assert.equal(calls, 0);
     for (let i = 0; i < 2; i++) {
-      const response = await GET(
-        new Request(`https://example.com/api/email/unsubscribe?t=${token}`),
+      const response = await POST(
+        new Request(url, {
+          method: 'POST',
+          body: 'List-Unsubscribe=One-Click',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        }),
       );
       assert.equal(response.status, 200);
       assert.equal(response.headers.get('cache-control'), 'no-store');

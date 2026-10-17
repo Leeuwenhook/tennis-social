@@ -28,6 +28,15 @@ export function slotLabels(
     .map((slot) => SLOT_LABELS[language][slot])
     .join(' · ');
 }
+/** Slot covering a concrete London date and start time, e.g. for assistant drafts that only captured a date. */
+export function slotForSchedule(date: string, startTime: string): PreferredSlot | null {
+  const day = new Date(`${date}T12:00:00Z`);
+  const match = /^(\d{2}):\d{2}$/.exec(startTime);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(day.getTime()) || !match) return null;
+  if (day.getUTCDay() === 0 || day.getUTCDay() === 6) return 'weekend_any';
+  const hour = Number(match[1]);
+  return hour < 12 ? 'weekday_morning' : hour < 17 ? 'weekday_afternoon' : 'weekday_evening';
+}
 export function requestExpiresOn(
   preferredDate: string | null,
   now = new Date(),

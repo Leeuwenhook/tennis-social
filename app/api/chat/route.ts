@@ -1,4 +1,4 @@
-import { PREFERRED_SLOTS } from '@/lib/partner-request-slots';
+import { PREFERRED_SLOTS, slotForSchedule } from '@/lib/partner-request-slots';
 import { getRuntimeEnv } from '@/lib/server/runtime';
 import { venues } from '@/lib/demo-data';
 import { generateChatResponse } from '@/lib/server/gemini-chat';
@@ -60,8 +60,9 @@ export async function POST(request: Request) {
 
   const venueContext = venues.map((venue) => `${venue.name} (${venue.nameZh}, ${venue.area})`).join('; ');
   const systemInstruction = [
-    'When there is no specific date, ask for preferred time slots (weekday morning/afternoon/evening or weekend). You are the Tennis Match London booking assistant.',
+    'You are the Tennis Match London booking assistant.',
     'Help the user request a tennis court/session. Be warm, concise, and ask one or two missing questions at a time.',
+    'When there is no specific date, ask for preferred time slots (weekday morning/afternoon/evening or weekend).',
     body.language === 'zh'
       ? 'Understand English and Chinese. Reply with the language the user uses.'
       : body.language === 'en'
@@ -115,11 +116,15 @@ export async function POST(request: Request) {
     if (typeof parsed.reply !== 'string' || !parsed.reply.trim() || !parsed.request || typeof parsed.request !== 'object' || Array.isArray(parsed.request)) throw new Error('Invalid Gemini response');
     const source = parsed.request;
     const textField = (key: string) => typeof source[key] === 'string' ? source[key].trim().slice(0, MAX_REQUEST_FIELD_LENGTH) : null;
+    const preferredSlots = Array.isArray(source.preferredSlots) ? [...new Set(source.preferredSlots.filter((slot): slot is string => typeof slot === 'string' && PREFERRED_SLOTS.includes(slot as never)))] : [];
+    // A draft with a concrete date but no slots would otherwise never validate as complete.
+    const scheduleSlot = slotForSchedule(textField('preferredDate') ?? '', textField('startTime') ?? '');
+    if (!preferredSlots.length && scheduleSlot) preferredSlots.push(scheduleSlot);
     const normalizedRequest = {
       venueName: textField('venueName'),
       postcode: textField('postcode'),
-      preferredSlots: Array.isArray(source.preferredSlots) ? [...new Set(source.preferredSlots.filter((slot): slot is string => typeof slot === 'string' && PREFERRED_SLOTS.includes(slot as never)))] : [],
-    preferredDate: textField('preferredDate'),
+      preferredSlots,
+      preferredDate: textField('preferredDate'),
       startTime: textField('startTime'),
       endTime: textField('endTime'),
       contactName: textField('contactName'),

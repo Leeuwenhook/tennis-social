@@ -24,6 +24,7 @@ import {
 } from "@/lib/demo-data";
 import { formatLongDate, importIssueLabel, parseMinutes } from "@/lib/formatters";
 import { parseSessionWorkbook, SessionImportError } from "@/lib/session-import";
+import { generateSessionDescriptions } from "@/lib/server/session-description";
 import {
   ADMIN_SESSION_STORAGE_KEY,
   SESSION_RECOVERY_STORAGE_KEY,
@@ -1695,8 +1696,13 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     ++sessionLoadVersion.current;
     setAdminBusy(true);
     const created: Session[] = [];
+    // Auto-generated text names the source date; clear it so each copy is regenerated for its own date.
+    const venue = getVenue(session.venueId, venueList);
+    const auto = generateSessionDescriptions({ ...session, venueName: venue.name, venueNameZh: venue.nameZh });
+    const description = session.description === auto.description ? '' : session.description;
+    const descriptionZh = session.descriptionZh === auto.descriptionZh ? '' : session.descriptionZh;
     for (let week = 1; week <= 4; week += 1) {
-      const candidate = { ...session, id: '', date: shiftDate(session.date, week * 7), bookedSpots: 0 };
+      const candidate = { ...session, id: '', date: shiftDate(session.date, week * 7), bookedSpots: 0, description, descriptionZh };
       const conflict = sessions.some((item) => item.venueId === candidate.venueId && item.date === candidate.date && sessionOverlaps(item, candidate))
         || created.some((item) => item.venueId === candidate.venueId && item.date === candidate.date && sessionOverlaps(item, candidate));
       if (conflict) continue;

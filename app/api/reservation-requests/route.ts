@@ -36,7 +36,8 @@ export async function GET(request: Request) {
       SELECT requests.*, venues.area
       FROM reservation_requests AS requests LEFT JOIN venues ON venues.id = requests.venue_id
       WHERE requests.status IN ('pending', 'reviewing')
-        AND requests.expires_on >= ${today}
+        -- Rows inserted by the previous release between migration 0019 and deploy have no expires_on.
+        AND COALESCE(requests.expires_on, requests.preferred_date) >= ${today}
         AND requests.seeking_player_count > 0
         AND (${postcode}::text IS NULL OR requests.postcode ILIKE ${`%${postcode ?? ''}%`})
         AND (${area}::text IS NULL OR venues.area ILIKE ${`%${area ?? ''}%`})

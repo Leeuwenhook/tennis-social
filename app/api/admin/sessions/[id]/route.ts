@@ -1,4 +1,4 @@
-import { generateSessionDescriptions } from '@/lib/server/session-description';
+import { resolveSessionDescriptions } from '@/lib/server/session-description';
 import {
   database,
   DatabaseNotConfiguredError,
@@ -32,10 +32,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const venueRows = await db`SELECT id, name, name_zh FROM venues` as Array<{ id: string; name: string; name_zh: string }>;
     const session = input ? validateSessionInput(input, venueRows.map((venue) => venue.id)) : null;
     if (!session) return Response.json({ error: 'invalid_session' }, { status: 400 });
-    const venue = venueRows.find((row) => row.id === session.venueId)!;
-    const generated = generateSessionDescriptions({ ...session, venueName: venue.name, venueNameZh: venue.name_zh });
-    session.description ||= generated.description;
-    session.descriptionZh ||= generated.descriptionZh;
     const existingRows = await db`
       SELECT id, venue_id, date, start_time, end_time, price_pence, capacity,
              booked_spots, formats_json, seeking_levels_json, status, description, description_zh
@@ -44,6 +40,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     ` as SessionRow[];
     const existing = existingRows[0];
     if (!existing) return Response.json({ error: 'session_not_found' }, { status: 404 });
+    const venue = venueRows.find((row) => row.id === session.venueId)!;
+    const previousVenue = venueRows.find((row) => row.id === existing.venue_id);
+    Object.assign(session, resolveSessionDescriptions(
+      { ...session, venueName: venue.name, venueNameZh: venue.name_zh },
+      {
+        venueName: previousVenue?.name ?? '', venueNameZh: previousVenue?.name_zh ?? '',
+        date: existing.date, startTime: existing.start_time, endTime: existing.end_time,
+        formats: serializeSession(existing).formats, capacity: existing.capacity,
+      },
+    ));
 
     const bookingRows = await db`
       SELECT COALESCE(SUM(participant_count), 0)::integer AS participant_count

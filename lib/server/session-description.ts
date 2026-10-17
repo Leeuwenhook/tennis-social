@@ -43,3 +43,21 @@ export function generateSessionDescriptions(input: SessionDescriptionInput) {
     descriptionZh: `${input.date}${dayLabelZh}${input.startTime}–${input.endTime}，欢迎来到${venueNameZh}参加${formats.chinese}网球活动，适合各个水平的球友${capacityTextZh}。`,
   };
 }
+
+/**
+ * Fill empty descriptions, and regenerate ones that are still the untouched
+ * auto text of `previous`, so generated dates, times and capacity follow edits.
+ */
+export function resolveSessionDescriptions(
+  current: SessionDescriptionInput & { description: string; descriptionZh: string },
+  previous?: SessionDescriptionInput,
+) {
+  const generated = generateSessionDescriptions(current);
+  const stale = previous ? generateSessionDescriptions(previous) : null;
+  return {
+    description: !current.description || current.description === stale?.description
+      ? generated.description : current.description,
+    descriptionZh: !current.descriptionZh || current.descriptionZh === stale?.descriptionZh
+      ? generated.descriptionZh : current.descriptionZh,
+  };
+}

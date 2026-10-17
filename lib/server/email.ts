@@ -407,6 +407,10 @@ export async function sendBookingFollowupEmail(input: BookingFollowupInput): Pro
   const transport = smtpTransport();
   const { EMAIL_FROM } = getRuntimeEnv();
   if (!transport || !EMAIL_FROM) return { status: 'skipped' };
-  const result = await transport.sendMail({ from: EMAIL_FROM, to: input.booking.email, ...renderBookingFollowupEmail(input) });
+  const result = await transport.sendMail({
+    from: EMAIL_FROM, to: input.booking.email, ...renderBookingFollowupEmail(input),
+    // RFC 8058 one-click unsubscribe; the endpoint accepts the POST that mail clients send.
+    headers: { 'List-Unsubscribe': `<${input.unsubscribeUrl}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
+  });
   return { status: 'sent', messageId: result.messageId };
 }

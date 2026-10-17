@@ -1528,6 +1528,19 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     };
   }
 
+  async function markSessionFull(session: Session) {
+    try {
+      const response = await fetch(`/api/admin/sessions/${session.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sessionPayload({ ...session, capacity: session.bookedSpots })),
+      });
+      const data = await response.json();
+      if (!response.ok) { setAdminMessage(data.error === 'capacity_too_low' ? t.cannotReduceCapacity : t.saveFailed); return; }
+      setSessions((current) => current.map((item) => item.id === session.id ? data.session : item));
+      setAdminMessage(t.sessionSaved);
+    } catch { setAdminMessage(t.saveFailed); }
+  }
+
   async function saveDraft(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const pricePence = Math.round(Number(draft.price) * 100);
@@ -1541,12 +1554,10 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       !draft.date ||
       !draft.startTime ||
       !draft.endTime ||
-      !draft.description.trim() ||
-      !draft.descriptionZh.trim() ||
       !Number.isFinite(pricePence) ||
       pricePence < 0 ||
       !Number.isInteger(capacity) ||
-      capacity < 1
+      capacity < 0
     ) {
       setAdminMessage(t.saveFailed);
       return;
@@ -2168,6 +2179,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             onApplyVenueDefaultPrice={applyVenueDefaultPrice}
             onStartEditSession={startEdit}
             onCreateRecurringSessions={(session) => void createRecurringSessions(session)}
+            onMarkSessionFull={(session) => void markSessionFull(session)}
             onDeleteSession={(session) => void deleteSession(session)}
             onBulkUpdateSessionStatus={(status) => void bulkUpdateSessionStatus(status)}
             onExportSessions={exportSessions}

@@ -61,6 +61,9 @@ export type BookingRow = {
   stripe_payment_intent_id: string | null;
   checkout_url: string | null;
   expires_at: string | null;
+  admin_notification_status: 'pending' | 'sending' | 'sent' | 'skipped';
+  admin_notification_claimed_at: string | null;
+  admin_notification_sent_at: string | null;
   confirmation_email_status: 'pending' | 'sending' | 'sent';
   confirmation_email_sent_at: string | null;
   confirmation_email_message_id: string | null;

@@ -343,9 +343,9 @@ export function CourtsideHomeView({
                   <div>
                     <small>{c.openSpots}</small>
                     <strong className="cs-digits accent">
-                      {Math.max(0, nextSession.capacity - nextSession.bookedSpots)}
+                      {nextSession.capacity === 0 ? t.full : Math.max(0, nextSession.capacity - nextSession.bookedSpots)}
                     </strong>
-                    <small>/ {nextSession.capacity}</small>
+                    {nextSession.capacity > 0 ? <small>/ {nextSession.capacity}</small> : null}
                   </div>
                 </div>
                 <div className="cs-board-footer">

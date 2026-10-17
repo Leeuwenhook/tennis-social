@@ -12,6 +12,7 @@ export type RuntimeEnv = {
   SMTP_PASSWORD?: string;
   SMTP_SECURE?: string;
   EMAIL_FROM?: string;
+  ADMIN_NOTIFY_EMAIL?: string;
   CRON_SECRET?: string;
   ADMIN_USERNAME?: string;
   ADMIN_PASSWORD?: string;
@@ -36,6 +37,7 @@ export function getRuntimeEnv(): RuntimeEnv {
     SMTP_PASSWORD: process.env.SMTP_PASSWORD,
     SMTP_SECURE: process.env.SMTP_SECURE,
     EMAIL_FROM: process.env.EMAIL_FROM,
+    ADMIN_NOTIFY_EMAIL: process.env.ADMIN_NOTIFY_EMAIL,
     CRON_SECRET: process.env.CRON_SECRET,
     ADMIN_USERNAME: process.env.ADMIN_USERNAME,
     ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,

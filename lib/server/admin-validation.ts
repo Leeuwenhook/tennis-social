@@ -165,8 +165,6 @@ export function sessionInputIssues(
   const date = cleanString(input.date, 10);
   const startTime = cleanString(input.startTime, 5);
   const endTime = cleanString(input.endTime, 5);
-  const description = cleanString(input.description, 2000);
-  const descriptionZh = cleanString(input.descriptionZh, 2000);
   const pricePence = Number(input.pricePence);
   const capacity = Number(input.capacity);
   const formatsInput = input.formats;
@@ -190,9 +188,8 @@ export function sessionInputIssues(
   if (!validStartTime) issues.push('startTime');
   if (!validEndTime) issues.push('endTime');
   if (validStartTime && validEndTime && minutes(endTime) <= minutes(startTime)) issues.push('timeRange');
-  if (!description || !descriptionZh) issues.push('description');
   if (!Number.isInteger(pricePence) || pricePence < 0) issues.push('price');
-  if (!Number.isInteger(capacity) || capacity < 1 || capacity > 1000) issues.push('capacity');
+  if (!Number.isInteger(capacity) || capacity < 0 || capacity > 1000) issues.push('capacity');
   if (!formatsValid || formats.length < 1) issues.push('formats');
   if (!seekingLevelsValid) issues.push('seekingLevels');
   if (!status) issues.push('status');

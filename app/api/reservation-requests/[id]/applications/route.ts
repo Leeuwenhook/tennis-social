@@ -1,3 +1,4 @@
+import { sendAdminRequestNotification } from '@/lib/server/email';
 import { database, DatabaseNotConfiguredError } from '@/lib/server/database';
 import { validatePartnerRequestApplication } from '@/lib/server/reservation-request-validation';
 import { getAuthenticatedUser } from '@/lib/server/user-auth';
@@ -49,6 +50,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       RETURNING id, request_id, status, created_at
     ` as Array<{ id: string; request_id: string; status: string; created_at: string }>;
     if (!rows[0]) return Response.json({ error: 'request_closed' }, { status: 409 });
+    await sendAdminRequestNotification('application', { id, ...value });
     return Response.json({ application: { id: rows[0].id, requestId: rows[0].request_id, status: rows[0].status, createdAt: rows[0].created_at } }, { status: 201 });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) return Response.json({ error: 'database_not_configured' }, { status: 503 });

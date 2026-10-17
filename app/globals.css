@@ -772,7 +772,6 @@
 }
 
 .section-heading h2,
-.detail-about h2,
 .form-section-heading h2,
 .admin-editor h2,
 .admin-list-heading h2 {
@@ -1343,27 +1342,8 @@
   text-align: center;
 }
 
-.detail-about {
-  display: grid;
-  grid-template-columns: 0.8fr 1.2fr;
-  gap: 40px;
-  margin-top: 74px;
-  padding: 34px 0 0;
-  border-top: 1px solid var(--border);
-}
 
-.detail-about h2 {
-  max-width: 430px;
-  font-size: clamp(28px, 3vw, 42px);
-}
 
-.detail-about > p {
-  max-width: 560px;
-  margin: 0;
-  color: var(--muted-foreground);
-  font-size: 18px;
-  line-height: 1.65;
-}
 
 .booking-progress {
   display: flex;
@@ -3554,8 +3534,7 @@
   }
 
   .detail-layout,
-  .booking-layout,
-  .detail-about {
+  .booking-layout {
     grid-template-columns: 1fr;
   }
 
@@ -3582,10 +3561,6 @@
     flex-wrap: wrap;
   }
 
-  .detail-about {
-    gap: 16px;
-    margin-top: 52px;
-  }
 
   .order-summary {
     position: static;

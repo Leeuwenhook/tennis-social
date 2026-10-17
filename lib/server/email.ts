@@ -343,3 +343,43 @@ export async function sendBookingReminderEmail(
   });
   return { status: 'sent', messageId: result.messageId };
 }
+
+export function adminNotifyRecipients(value = getRuntimeEnv().ADMIN_NOTIFY_EMAIL): string[] {
+  return [...new Set((value ?? '').split(',').map((item) => item.trim().toLowerCase()).filter((item) => /^\S+@\S+\.\S+$/.test(item)))];
+}
+
+function renderAdminDetails(subject: string, details: Record<string, unknown>): RenderedBookingEmail {
+  const text = Object.entries(details).map(([key, value]) => `${key}: ${typeof value === 'string' ? value : JSON.stringify(value ?? '')}`).join('\n');
+  return { subject, text: `${text}\nhttps://www.tennismatch.space/admin`, html: `<h1>${escapeHtml(subject)}</h1><pre>${escapeHtml(text)}</pre><a href="https://www.tennismatch.space/admin">Admin / 后台</a>` };
+}
+
+export function renderAdminBookingNotificationEmail({ booking: b, session: s, venue }: BookingEmailInput) {
+  return renderAdminDetails(`新报名：${venue.nameZh || venue.name} ${s.date} ${s.start_time}–${s.end_time} · ${b.participant_count}人`, {
+    Reference: b.id, Name: b.contact_name, Email: b.email, Phone: b.phone,
+    Format: b.format, Participants: b.participants_json, Rackets: b.racket_count,
+    Total: formatMoney(b.total_pence), Coupon: formatMoney(b.coupon_discount_pence), Loyalty: formatMoney(b.loyalty_discount_pence),
+  });
+}
+
+export function renderAdminRequestNotificationEmail(kind: 'request' | 'application', details: Record<string, unknown>) {
+  return renderAdminDetails(kind === 'request' ? '新找球友 / 订场需求 · New partner request' : '新加入申请 · New application', details);
+}
+
+async function sendAdminEmail(email: RenderedBookingEmail): Promise<EmailSendResult> {
+  const to = adminNotifyRecipients();
+  if (!to.length) { console.info('Admin notification skipped: ADMIN_NOTIFY_EMAIL not configured.'); return { status: 'skipped' }; }
+  const transport = smtpTransport();
+  const { EMAIL_FROM } = getRuntimeEnv();
+  if (!transport || !EMAIL_FROM) return { status: 'skipped' };
+  const result = await transport.sendMail({ from: EMAIL_FROM, to, ...email });
+  return { status: 'sent', messageId: result.messageId };
+}
+
+export function sendAdminBookingNotification(input: BookingEmailInput) {
+  return sendAdminEmail(renderAdminBookingNotificationEmail(input));
+}
+
+export async function sendAdminRequestNotification(kind: 'request' | 'application', details: Record<string, unknown>) {
+  try { return await sendAdminEmail(renderAdminRequestNotificationEmail(kind, details)); }
+  catch { console.error('Admin request notification failed', details.id); return { status: 'skipped' as const }; }
+}

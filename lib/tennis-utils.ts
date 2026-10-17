@@ -267,8 +267,8 @@ export function emptyDraft(venueList: Venue[] = venues): SessionDraft {
     capacity: '8',
     formats: [...GAME_FORMATS],
     seekingLevels: [],
-    description: 'A friendly tennis session for new and returning players.',
-    descriptionZh: '适合新朋友和熟悉球友的轻松网球活动。',
+    description: '',
+    descriptionZh: '',
     status: 'published',
   };
 }

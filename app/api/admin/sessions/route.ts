@@ -1,3 +1,4 @@
+import { generateSessionDescriptions } from '@/lib/server/session-description';
 import {
   database,
   DatabaseNotConfiguredError,
@@ -28,9 +29,13 @@ export async function POST(request: Request) {
   try {
     const db = database();
     await ensureSeeded(db);
-    const venueRows = await db`SELECT id FROM venues` as Array<{ id: string }>;
+    const venueRows = await db`SELECT id, name, name_zh FROM venues` as Array<{ id: string; name: string; name_zh: string }>;
     const session = input ? validateSessionInput(input, venueRows.map((venue) => venue.id)) : null;
     if (!session) return Response.json({ error: 'invalid_session' }, { status: 400 });
+    const venue = venueRows.find((row) => row.id === session.venueId)!;
+    const generated = generateSessionDescriptions({ ...session, venueName: venue.name, venueNameZh: venue.name_zh });
+    session.description ||= generated.description;
+    session.descriptionZh ||= generated.descriptionZh;
     const now = new Date().toISOString();
     const id = `session-${crypto.randomUUID()}`;
     const rows = await db`

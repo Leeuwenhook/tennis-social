@@ -1,3 +1,4 @@
+import { sendAdminBookingNotificationOnce } from '@/lib/server/booking-email';
 import {
   database,
   DatabaseNotConfiguredError,
@@ -72,6 +73,7 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     if (currentBooking.status === 'confirmed') {
       try {
         confirmationEmailStatus = (await sendConfirmedBookingEmail(db, currentBooking.id)).status;
+        await sendAdminBookingNotificationOnce(db, currentBooking.id);
       } catch (error) {
         // Payment confirmation should remain visible even if the email
         // provider is temporarily unavailable. A later checkout return or

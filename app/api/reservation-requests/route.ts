@@ -1,3 +1,4 @@
+import { sendAdminRequestNotification } from '@/lib/server/email';
 import {
   database,
   DatabaseNotConfiguredError,
@@ -86,6 +87,7 @@ export async function POST(request: Request) {
       )
       RETURNING *
     ` as ReservationRequestRow[];
+    await sendAdminRequestNotification('request', { id, ...value });
     return Response.json({ request: serializeReservationRequest(rows[0]) }, { status: 201 });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {

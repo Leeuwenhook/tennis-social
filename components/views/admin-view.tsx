@@ -223,6 +223,7 @@ export function AdminView({
   onStartEditSession,
   onCreateRecurringSessions,
   onDeleteSession,
+  onMarkSessionFull,
   onBulkUpdateSessionStatus,
   onExportSessions,
   onUndoLastOperation,
@@ -295,6 +296,7 @@ export function AdminView({
   onStartEditSession: (session: Session) => void;
   onCreateRecurringSessions: (session: Session) => void;
   onDeleteSession: (session: Session) => void;
+  onMarkSessionFull: (session: Session) => void;
   onBulkUpdateSessionStatus: (status: SessionStatus) => void;
   onExportSessions: () => void;
   onUndoLastOperation: () => void;
@@ -482,7 +484,7 @@ export function AdminView({
             <Input
               id="admin-capacity"
               type="number"
-              min="1"
+              min="0"
               value={draft.capacity}
               onChange={(event) => setDraft((current) => ({ ...current, capacity: event.target.value }))}
             />
@@ -566,7 +568,7 @@ export function AdminView({
           <div className="field">
             <Label htmlFor="admin-description">English description</Label>
             <textarea
-              id="admin-description"
+              id="admin-description" placeholder={t.autoDescription}
               value={draft.description}
               onChange={(event) =>
                 setDraft((current) => ({ ...current, description: event.target.value }))
@@ -578,7 +580,7 @@ export function AdminView({
           <div className="field">
             <Label htmlFor="admin-description-zh">中文介绍</Label>
             <textarea
-              id="admin-description-zh"
+              id="admin-description-zh" placeholder={t.autoDescription}
               value={draft.descriptionZh}
               onChange={(event) =>
                 setDraft((current) => ({ ...current, descriptionZh: event.target.value }))
@@ -1168,6 +1170,7 @@ export function AdminView({
                                   >
                                     <Repeat2 size={14} /> {t.createNextWeeks}
                                   </Button>
+                                  {session.capacity > session.bookedSpots ? <Button variant="outline" title={t.markFullHint} onClick={() => onMarkSessionFull(session)}>{t.markFull}</Button> : null}
                                   <Button
                                     variant="destructive"
                                     size="sm"

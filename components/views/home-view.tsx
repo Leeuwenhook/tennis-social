@@ -114,7 +114,6 @@ export function HomeView({
             </span>
             <Button
               variant={isFull ? 'outline' : 'default'}
-              disabled={isFull}
               onClick={() => onOpenSession(session.id)}
             >
               {isFull ? t.viewDetails : t.bookNow}

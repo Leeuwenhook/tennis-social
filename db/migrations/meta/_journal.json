@@ -127,6 +127,13 @@
       "when": 1791125000000,
       "tag": "0017_structured_partner_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792278603065,
+      "tag": "0018_admin_booking_notifications",
+      "breakpoints": true
     }
   ]
 }

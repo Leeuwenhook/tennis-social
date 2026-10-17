@@ -49,10 +49,11 @@ export function formatDuration(startTime: string, endTime: string, language: Lan
   return hours ? `${hours}h${remainder ? ` ${remainder}m` : ''}` : `${remainder}m`;
 }
 
-/** Label for sessions of two hours or more, which the session list calls out. */
+/** Label for sessions of longer than one hour, which the session list calls out. */
 export function sessionDurationBadge(startTime: string, endTime: string, language: Language) {
   const durationMinutes = Math.max(0, parseMinutes(endTime) - parseMinutes(startTime));
-  if (durationMinutes < 120) return null;
+  if (durationMinutes <= 60) return null;
+  if (durationMinutes % 30) return `${formatDuration(startTime, endTime, language)}${language === 'zh' ? '场' : ' session'}`;
   const hours = String(Number((durationMinutes / 60).toFixed(2)));
   return language === 'zh' ? `${hours}小时场` : `${hours}h session`;
 }

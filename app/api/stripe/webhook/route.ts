@@ -1,3 +1,4 @@
+import { sendAdminBookingNotificationOnce } from '@/lib/server/booking-email';
 import {
   awardLoyaltyCoupons,
   confirmBooking,
@@ -84,6 +85,7 @@ export async function POST(request: Request) {
           // so a delayed webhook or a second successful payment event can
           // recover an earlier delivery failure.
           await sendConfirmedBookingEmail(db, bookingId);
+        await sendAdminBookingNotificationOnce(db, bookingId);
         }
       } else if (bookingId && event.type === 'checkout.session.expired') {
         await releaseBooking(db, bookingId, 'expired');

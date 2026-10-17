@@ -4,6 +4,7 @@ import type { BookingRow } from '@/lib/server/database';
 import {
   renderBookingConfirmationEmail,
   renderBookingReminderEmail,
+  renderAdminBookingNotificationEmail,
 } from '@/lib/server/email';
 
 export const metadata: Metadata = {
@@ -53,6 +54,9 @@ const booking: BookingRow = {
   stripe_payment_intent_id: 'pi_preview',
   checkout_url: null,
   expires_at: null,
+  admin_notification_status: 'pending',
+  admin_notification_claimed_at: null,
+  admin_notification_sent_at: null,
   confirmation_email_status: 'sent',
   confirmation_email_sent_at: new Date().toISOString(),
   confirmation_email_message_id: 'preview-confirmation',
@@ -74,6 +78,7 @@ const session = {
 };
 const venue = venues.find((item) => item.id === 'victoria-park') ?? venues[0];
 const emails = [
+  { id: 'admin', eyebrow: 'After payment', title: '管理员新报名通知', timing: '付款后 / After payment', email: renderAdminBookingNotificationEmail({ booking, session, venue }), to: 'Configured administrators' },
   {
     id: 'confirmation',
     eyebrow: 'After successful payment',

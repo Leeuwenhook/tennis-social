@@ -147,17 +147,7 @@ export function DetailView({
           ) : null}
         </div>
       </div>
-      <div className="detail-about">
-        <div>
-          <p className="eyebrow muted">{t.aboutSession}</p>
-          <h2>
-            {language === 'zh'
-              ? '认识球友，把时间留给球场。'
-              : 'Meet a few players. Make time for the court.'}
-          </h2>
-        </div>
-        <p>{language === 'zh' ? selectedSession.descriptionZh : selectedSession.description}</p>
-      </div>
+
     </section>
   );
 }

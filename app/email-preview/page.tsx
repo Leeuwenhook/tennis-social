@@ -5,6 +5,7 @@ import {
   renderBookingConfirmationEmail,
   renderBookingReminderEmail,
   renderAdminBookingNotificationEmail,
+  renderBookingFollowupEmail,
 } from '@/lib/server/email';
 
 export const metadata: Metadata = {
@@ -54,6 +55,10 @@ const booking: BookingRow = {
   stripe_payment_intent_id: 'pi_preview',
   checkout_url: null,
   expires_at: null,
+  followup_email_status: 'pending',
+  followup_email_sent_at: null,
+  followup_email_message_id: null,
+  followup_email_claimed_at: null,
   admin_notification_status: 'pending',
   admin_notification_claimed_at: null,
   admin_notification_sent_at: null,
@@ -78,6 +83,7 @@ const session = {
 };
 const venue = venues.find((item) => item.id === 'victoria-park') ?? venues[0];
 const emails = [
+  { id: 'followup', eyebrow: 'After the session', title: '赛后感谢与推荐', timing: '结束一小时后 / At least one hour after play', email: renderBookingFollowupEmail({ booking, session, venue, unsubscribeUrl: 'https://www.tennismatch.space/api/email/unsubscribe?t=preview-only', nextSessions: [{ id: 'session-preview', date, start_time: '18:30', end_time: '20:00', name: venue.name, name_zh: venue.nameZh }] }), to: booking.email },
   { id: 'admin', eyebrow: 'After payment', title: '管理员新报名通知', timing: '付款后 / After payment', email: renderAdminBookingNotificationEmail({ booking, session, venue }), to: 'Configured administrators' },
   {
     id: 'confirmation',
@@ -102,8 +108,8 @@ export default function EmailPreviewPage() {
     <main style={{ minHeight: '100vh', padding: '40px 18px 72px', background: '#edf2eb', color: '#173b2f', fontFamily: 'Arial,Helvetica,sans-serif' }}>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
         <p style={{ margin: '0 0 8px', color: '#557064', fontSize: 12, letterSpacing: 1.5, textTransform: 'uppercase' }}>Tennis Match · Email design preview</p>
-        <h1 style={{ margin: '0 0 10px', fontSize: 32 }}>两封预订邮件预览</h1>
-        <p style={{ margin: '0 0 28px', color: '#557064', lineHeight: 1.6 }}>使用同一笔示例预订，展示付款成功确认邮件和活动前一晚提醒邮件。收件地址为演示地址，不会真的发送。</p>
+        <h1 style={{ margin: '0 0 10px', fontSize: 32 }}>Tennis Match 邮件预览</h1>
+        <p style={{ margin: '0 0 28px', color: '#557064', lineHeight: 1.6 }}>使用同一笔示例预订，展示确认、提醒、管理员通知与赛后邮件。收件地址为演示地址，不会真的发送。</p>
         <nav style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 30 }}>
           {emails.map((item) => <a key={item.id} href={`#${item.id}`} style={{ padding: '10px 14px', borderRadius: 8, background: '#173b2f', color: '#fff', textDecoration: 'none', fontWeight: 700 }}>{item.title}</a>)}
         </nav>

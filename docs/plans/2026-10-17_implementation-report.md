@@ -17,3 +17,15 @@ Partner requests support four bilingual time slots, nullable schedules, a 30-day
 Validation: 48 tests passed using the alternate sandbox-compatible runner, TypeScript/lint/build passed. Preview/mobile checks remain manual.
 
 Git limitation: the actual shared Git metadata is mounted read-only (`index.lock: Read-only file system`). Phase commits are preserved in `/tmp/tennis-feedback-commits.git` and will be exported as patches; the original branch ref cannot be updated here.
+
+## v2-b / 3.1
+
+Follow-ups use an atomic pending/sending/sent/skipped claim, a 10-minute stale timeout, a three-day lookback, confirmed-status rechecks and suppression checks before SMTP. London end times support BST/GMT, DST transitions and 24:00. Recommendations include at most three published sessions with places available at the same venue or area within seven days. Emails are bilingual; the optional review button is hidden. There is no review/media module or Blob dependency.
+
+Migration 0020 adds follow-up state, its index and `email_suppressions`; it skips historical ended sessions and restores eligibility only for sessions still in the future when the migration runs. Signed unsubscribe links use the independent `REVIEW_TOKEN_SECRET` (minimum 32 bytes). Unsubscribing does not suppress transactional confirmations or reminders.
+
+Owner setup: configure `REVIEW_TOKEN_SECRET` in Production and Preview, retain SMTP and `CRON_SECRET`, and apply 0018–0020 before merging. The new `/api/cron/session-followups` schedules are 09:00 and 20:00 UTC daily. Test authenticated cron invocation, repeated invocation, historical/refunded bookings, signed unsubscribe and subsequent suppression on Preview. No remote smoke tests were attempted and no live email was sent.
+
+Validation: 59 tests passed (19 more than baseline); TypeScript, lint and production build passed. Exact `npx tsx --test tests/*.test.ts` is blocked by sandbox IPC binding (EPERM); the same tests run via `node --import tsx --test --test-isolation=none tests/*.test.ts`.
+
+A.5 external acceptance items 5 (Vercel env setup), 15, 25 and 32 (Preview/mobile/SMTP/Stripe smoke tests) remain owner steps because this task explicitly prohibits Vercel and production access. All application and migration implementation items are included. Git commits are exported separately due to the read-only original Git metadata; no original branch switch, push, migration or deployment occurred.

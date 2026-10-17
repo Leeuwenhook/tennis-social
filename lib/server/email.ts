@@ -383,3 +383,30 @@ export async function sendAdminRequestNotification(kind: 'request' | 'applicatio
   try { return await sendAdminEmail(renderAdminRequestNotificationEmail(kind, details)); }
   catch { console.error('Admin request notification failed', details.id); return { status: 'skipped' as const }; }
 }
+
+export type BookingFollowupInput = BookingEmailInput & {
+  reviewUrl?: string;
+  unsubscribeUrl: string;
+  nextSessions: Array<{ id: string; date: string; start_time: string; end_time: string; name: string; name_zh: string }>;
+};
+export function renderBookingFollowupEmail(input: BookingFollowupInput): RenderedBookingEmail {
+  const { booking, session, venue, reviewUrl, unsubscribeUrl } = input;
+  const thanks = `Thanks for playing, ${booking.contact_name}! / 感谢参加网球活动！`;
+  const details = `${venue.name} / ${venue.nameZh} · ${session.date} ${session.start_time}–${session.end_time}`;
+  const next = input.nextSessions.slice(0, 3).map((item) => ({ ...item, url: `https://www.tennismatch.space/?view=detail&session=${encodeURIComponent(item.id)}` }));
+  const text = [thanks, details, 'We hope to see you on court again. / 期待下次在球场相见。',
+    reviewUrl ? `Leave a review / 留下评价: ${reviewUrl}` : '',
+    ...next.map((item) => `${item.name} / ${item.name_zh} · ${item.date} ${item.start_time}–${item.end_time}: ${item.url}`),
+    `Unsubscribe from post-session emails / 退订赛后邮件: ${unsubscribeUrl}`,
+    'Booking confirmations and reminders are unaffected. / 预订确认和赛前提醒不受影响。',
+  ].filter(Boolean).join('\n\n');
+  const html = `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:28px;background:#edf2eb;color:#173b2f"><h1>${escapeHtml(thanks)}</h1><p>${escapeHtml(details)}</p><p>We hope to see you on court again.<br>期待下次在球场相见。</p>${reviewUrl ? `<p><a href="${escapeHtml(reviewUrl)}">Leave a review / 留下评价</a></p>` : ''}${next.length ? `<h2>Play again / 下次约球</h2><ul>${next.map((item) => `<li><a href="${escapeHtml(item.url)}">${escapeHtml(`${item.name} / ${item.name_zh} · ${item.date} ${item.start_time}–${item.end_time}`)}</a></li>`).join('')}</ul>` : ''}<p><a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe from post-session emails / 退订赛后邮件</a></p><p>Booking confirmations and reminders are unaffected.<br>预订确认和赛前提醒不受影响。</p></div>`;
+  return { subject: `Thanks for playing / 感谢参与 · ${venue.name}`, text, html };
+}
+export async function sendBookingFollowupEmail(input: BookingFollowupInput): Promise<EmailSendResult> {
+  const transport = smtpTransport();
+  const { EMAIL_FROM } = getRuntimeEnv();
+  if (!transport || !EMAIL_FROM) return { status: 'skipped' };
+  const result = await transport.sendMail({ from: EMAIL_FROM, to: input.booking.email, ...renderBookingFollowupEmail(input) });
+  return { status: 'sent', messageId: result.messageId };
+}

@@ -112,6 +112,10 @@ export const bookings = pgTable('bookings', {
   stripePaymentIntentId: text('stripe_payment_intent_id'),
   checkoutUrl: text('checkout_url'),
   expiresAt: text('expires_at'),
+  followupEmailStatus: text('followup_email_status', { enum: ['pending', 'sending', 'sent', 'skipped'] }).notNull().default('pending'),
+  followupEmailSentAt: text('followup_email_sent_at'),
+  followupEmailMessageId: text('followup_email_message_id'),
+  followupEmailClaimedAt: text('followup_email_claimed_at'),
   adminNotificationStatus: text('admin_notification_status', { enum: ['pending', 'sending', 'sent', 'skipped'] }).notNull().default('pending'),
   adminNotificationClaimedAt: text('admin_notification_claimed_at'),
   adminNotificationSentAt: text('admin_notification_sent_at'),
@@ -129,6 +133,7 @@ export const bookings = pgTable('bookings', {
   index('idx_bookings_session_status').on(table.sessionId, table.status),
   index('idx_bookings_status_expiry').on(table.status, table.expiresAt),
   index('idx_bookings_user_status').on(table.userId, table.status),
+  index('idx_bookings_followup_status').on(table.status, table.followupEmailStatus),
   index('idx_bookings_reminder_status').on(table.status, table.reminderEmailStatus),
   uniqueIndex('bookings_stripe_checkout_session_id_unique').on(table.stripeCheckoutSessionId),
   uniqueIndex('bookings_stripe_payment_intent_id_unique').on(table.stripePaymentIntentId),
@@ -194,3 +199,8 @@ export const partnerRequestApplications = pgTable('partner_request_applications'
   uniqueIndex('partner_request_applications_request_email_unique').on(table.requestId, table.email),
   index('idx_partner_request_applications_request_status').on(table.requestId, table.status),
 ]);
+
+export const emailSuppressions = pgTable('email_suppressions', {
+  email: text('email').primaryKey(),
+  createdAt: text('created_at').notNull(),
+});

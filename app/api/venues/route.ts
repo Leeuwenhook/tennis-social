@@ -15,7 +15,7 @@ export async function GET() {
     const db = database();
     await ensureSeeded(db);
     const rows = (await db`
-      SELECT id, name, name_zh, area, area_zh, photo, notes,
+      SELECT id, name, name_zh, area, area_zh, photo, notes, description, description_zh,
              peak_price_pence, off_peak_price_pence, photos_json, address, address_zh, postcode, created_at, updated_at
       FROM venues
       ORDER BY name, id

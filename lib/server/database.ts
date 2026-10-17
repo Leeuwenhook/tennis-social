@@ -16,11 +16,14 @@ export type SessionRow = {
   formats_json: string;
   seeking_levels_json: string;
   status: 'published' | 'draft';
+  /** Legacy storage only; excluded from product serialization. Remove after rollback window. */
   description: string;
   description_zh: string;
 };
 
 export type VenueRow = {
+  description?: string | null;
+  description_zh?: string | null;
   id: string;
   name: string;
   name_zh: string;
@@ -224,7 +227,7 @@ function sessionInsert(db: Database, session: ReturnType<typeof createDemoSeed>[
     ) VALUES (
       ${session.id}, ${session.venueId}, ${session.date}, ${session.startTime}, ${session.endTime},
       ${session.pricePence}, ${session.capacity}, ${session.bookedSpots}, ${JSON.stringify(session.formats)}, ${JSON.stringify(session.seekingLevels ?? [])}, ${session.status},
-      ${session.description}, ${session.descriptionZh}, ${now}, ${now}
+      ${''}, ${''}, ${now}, ${now}
     )
     ON CONFLICT (id) DO NOTHING
   `;
@@ -300,6 +303,8 @@ export function serializeVenue(row: VenueRow) {
     postcode: row.postcode?.trim() || demoLocation?.postcode || '',
     photo: row.photo,
     photos,
+    description: row.description ?? null,
+    descriptionZh: row.description_zh ?? null,
     notes: row.notes ?? '',
     peakPricePence: row.peak_price_pence,
     offPeakPricePence: row.off_peak_price_pence,
@@ -591,8 +596,6 @@ export function serializeSession(row: SessionRow) {
     formats,
     seekingLevels,
     status: row.status,
-    description: row.description,
-    descriptionZh: row.description_zh,
   };
 }
 

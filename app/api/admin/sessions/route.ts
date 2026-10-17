@@ -1,4 +1,3 @@
-import { resolveSessionDescriptions } from '@/lib/server/session-description';
 import {
   database,
   DatabaseNotConfiguredError,
@@ -32,8 +31,6 @@ export async function POST(request: Request) {
     const venueRows = await db`SELECT id, name, name_zh FROM venues` as Array<{ id: string; name: string; name_zh: string }>;
     const session = input ? validateSessionInput(input, venueRows.map((venue) => venue.id)) : null;
     if (!session) return Response.json({ error: 'invalid_session' }, { status: 400 });
-    const venue = venueRows.find((row) => row.id === session.venueId)!;
-    Object.assign(session, resolveSessionDescriptions({ ...session, venueName: venue.name, venueNameZh: venue.name_zh }));
     const now = new Date().toISOString();
     const id = `session-${crypto.randomUUID()}`;
     const rows = await db`
@@ -43,10 +40,10 @@ export async function POST(request: Request) {
       ) VALUES (
         ${id}, ${session.venueId}, ${session.date}, ${session.startTime}, ${session.endTime},
         ${session.pricePence}, ${session.capacity}, 0, ${JSON.stringify(session.formats)}, ${JSON.stringify(session.seekingLevels)}, ${session.status},
-        ${session.description}, ${session.descriptionZh}, ${now}, ${now}
+        ${''}, ${''}, ${now}, ${now}
       )
       RETURNING id, venue_id, date, start_time, end_time, price_pence, capacity,
-                booked_spots, formats_json, seeking_levels_json, status, description, description_zh
+                booked_spots, formats_json, seeking_levels_json, status
     ` as SessionRow[];
     return Response.json({ session: serializeSession(rows[0]) }, { status: 201 });
   } catch (error) {
@@ -68,7 +65,7 @@ export async function GET(request: Request) {
     await expireStaleReservations(db);
     const rows = await db`
       SELECT id, venue_id, date, start_time, end_time, price_pence, capacity,
-             booked_spots, formats_json, seeking_levels_json, status, description, description_zh
+             booked_spots, formats_json, seeking_levels_json, status
       FROM sessions
       ORDER BY date, start_time
     ` as SessionRow[];

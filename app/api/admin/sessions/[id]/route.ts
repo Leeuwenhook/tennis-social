@@ -1,4 +1,3 @@
-import { resolveSessionDescriptions } from '@/lib/server/session-description';
 import {
   database,
   DatabaseNotConfiguredError,
@@ -34,22 +33,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (!session) return Response.json({ error: 'invalid_session' }, { status: 400 });
     const existingRows = await db`
       SELECT id, venue_id, date, start_time, end_time, price_pence, capacity,
-             booked_spots, formats_json, seeking_levels_json, status, description, description_zh
+             booked_spots, formats_json, seeking_levels_json, status
       FROM sessions
       WHERE id = ${id}
     ` as SessionRow[];
     const existing = existingRows[0];
     if (!existing) return Response.json({ error: 'session_not_found' }, { status: 404 });
-    const venue = venueRows.find((row) => row.id === session.venueId)!;
-    const previousVenue = venueRows.find((row) => row.id === existing.venue_id);
-    Object.assign(session, resolveSessionDescriptions(
-      { ...session, venueName: venue.name, venueNameZh: venue.name_zh },
-      {
-        venueName: previousVenue?.name ?? '', venueNameZh: previousVenue?.name_zh ?? '',
-        date: existing.date, startTime: existing.start_time, endTime: existing.end_time,
-        formats: serializeSession(existing).formats, capacity: existing.capacity,
-      },
-    ));
 
     const bookingRows = await db`
       SELECT COALESCE(SUM(participant_count), 0)::integer AS participant_count
@@ -74,11 +63,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       UPDATE sessions
       SET venue_id = ${session.venueId}, date = ${session.date}, start_time = ${session.startTime},
           end_time = ${session.endTime}, price_pence = ${session.pricePence}, capacity = ${session.capacity},
-          formats_json = ${JSON.stringify(session.formats)}, seeking_levels_json = ${JSON.stringify(session.seekingLevels)}, status = ${session.status}, description = ${session.description},
-          description_zh = ${session.descriptionZh}, updated_at = ${now}
+          formats_json = ${JSON.stringify(session.formats)}, seeking_levels_json = ${JSON.stringify(session.seekingLevels)}, status = ${session.status}, updated_at = ${now}
       WHERE id = ${id} AND booked_spots <= ${session.capacity}
       RETURNING id, venue_id, date, start_time, end_time, price_pence, capacity,
-                booked_spots, formats_json, seeking_levels_json, status, description, description_zh
+                booked_spots, formats_json, seeking_levels_json, status
     ` as SessionRow[];
     if (!rows[0]) return Response.json({ error: 'capacity_too_low' }, { status: 409 });
     return Response.json({ session: serializeSession(rows[0]) });

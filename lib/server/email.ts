@@ -1,6 +1,7 @@
 import type { BookingRow, SessionRow } from './database';
 import { getRuntimeEnv } from './runtime';
 import nodemailer from 'nodemailer';
+import { resolveVenueDescriptions } from '../venue-description';
 import type { Venue } from '../demo-data';
 
 const LONDON_TIME_ZONE = 'Europe/London';
@@ -9,7 +10,7 @@ export type BookingEmailInput = {
   booking: BookingRow;
   session: Pick<
     SessionRow,
-    'date' | 'start_time' | 'end_time' | 'description' | 'description_zh'
+    'date' | 'start_time' | 'end_time'
   >;
   venue: Venue;
 };
@@ -124,7 +125,7 @@ export function createBookingCalendar(
     `Format: ${formatFormat(booking.format)}`,
     `Participants: ${participants.length}`,
     `Rackets: ${booking.racket_count}`,
-    `Activity: ${session.description || 'Tennis session'}`,
+    `Activity: ${resolveVenueDescriptions(venue).description}`,
   ].join('\n');
   const lines = [
     'BEGIN:VCALENDAR',
@@ -155,7 +156,7 @@ export function renderBookingConfirmationEmail(input: BookingEmailInput): Render
   const date = formatLongDate(session.date);
   const time = `${session.start_time}–${session.end_time} (${LONDON_TIME_ZONE})`;
   const format = formatFormat(booking.format);
-  const activityDescription = session.description || 'Tennis session';
+  const activityDescription = resolveVenueDescriptions(venue).description;
   const discountRows = [
     booking.loyalty_discount_pence > 0
       ? `<tr><td style="padding:8px 0;color:#557064">Permanent 10% member discount</td><td style="padding:8px 0;font-weight:700;color:#2f7b52">−${formatMoney(booking.loyalty_discount_pence)}</td></tr>`
@@ -345,7 +346,7 @@ export async function sendBookingReminderEmail(
 }
 
 export function adminNotifyRecipients(value = getRuntimeEnv().ADMIN_NOTIFY_EMAIL): string[] {
-  return [...new Set((value ?? '').split(',').map((item) => item.trim().toLowerCase()).filter((item) => /^\S+@\S+\.\S+$/.test(item)))];
+  return [...new Set((value?.trim() || 'una.ge2502@gmail.com,leeuwenhook.sun@gmail.com').split(',').map((item) => item.trim().toLowerCase()).filter((item) => /^\S+@\S+\.\S+$/.test(item)))];
 }
 
 function renderAdminDetails(subject: string, details: Record<string, unknown>): RenderedBookingEmail {
@@ -367,7 +368,7 @@ export function renderAdminRequestNotificationEmail(kind: 'request' | 'applicati
 
 async function sendAdminEmail(email: RenderedBookingEmail): Promise<EmailSendResult> {
   const to = adminNotifyRecipients();
-  if (!to.length) { console.info('Admin notification skipped: ADMIN_NOTIFY_EMAIL not configured.'); return { status: 'skipped' }; }
+  if (!to.length) { console.info('Admin notification skipped: no valid admin recipients.'); return { status: 'skipped' }; }
   const transport = smtpTransport();
   const { EMAIL_FROM } = getRuntimeEnv();
   if (!transport || !EMAIL_FROM) return { status: 'skipped' };

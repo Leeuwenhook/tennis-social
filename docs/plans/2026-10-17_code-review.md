@@ -54,7 +54,7 @@
 
 ### NIT（未修，原因见每条）
 
-- **N1** `lib/server/booking-email.ts:128` — `ADMIN_NOTIFY_EMAIL` 未配置时，订单的 `admin_notification_status` 保持 `pending`。之后补上配置时，老订单只要再次触发确认页刷新或 webhook 重试，就可能补发通知。影响很小，生产会在合并前配置好。不修。
+- **N1 — Round 2 已解决**：未设置或留空 `ADMIN_NOTIFY_EMAIL` 时，内建收件人为 `una.ge2502@gmail.com` 和 `leeuwenhook.sun@gmail.com`；可用逗号分隔的 env 值覆盖。无需为启用通知配置此 env。非空但全为非法地址的覆盖仍会跳过发送。
 - **N2** `db/migrations/0018_admin_booking_notifications.sql:4` — 迁移把**所有**订单（包括执行迁移时正在付款的 `pending_payment`）都置为 `skipped`，这几笔付款成功后不会通知管理员。这是计划要求的保守做法，可以接受。
 - **N3** `lib/server/booking-followups.ts` — 同一个邮箱在同一场次有多笔 booking 时，会收到多封赛后邮件。目前一个 booking 对应一个联系人，实际很少出现。
 - **N4** `lib/server/booking-followup-cron.ts:7` — `CRON_SECRET` 用 `!==` 比较，不是 timing-safe。这和现有 `booking-reminder-cron.ts` 一致，而且 secret 是高熵随机值，风险可以忽略。如果要改，两处一起改。
@@ -98,7 +98,7 @@
 ## 合并前清单（owner）
 
 ### 1. Vercel 环境变量（Production + Preview）
-- [ ] `ADMIN_NOTIFY_EMAIL=una.ge2502@gmail.com,leeuwenhook.sun@gmail.com`
+- [ ] `ADMIN_NOTIFY_EMAIL` 可省略（默认两位 owner）；仅需更改收件人时设置逗号分隔的覆盖。
 - [ ] `REVIEW_TOKEN_SECRET`：新生成的 ≥32 字节随机值，例如 `openssl rand -base64 48`。**不要复用** `ADMIN_SESSION_SECRET`。Preview 和 Production 建议使用不同的值。
 - [ ] 确认已有的 `CRON_SECRET`、`SMTP_*`、`EMAIL_FROM` 在两个环境都存在。
 - [ ] 确认 Vercel 套餐接受 4 条 cron（原有 2 条 reminders，加上 2 条 session-followups）。Preview 部署成功即说明配置被接受。

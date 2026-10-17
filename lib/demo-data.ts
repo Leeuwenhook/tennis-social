@@ -1,4 +1,6 @@
 export type Venue = {
+  description?: string | null;
+  descriptionZh?: string | null;
   id: string;
   name: string;
   nameZh: string;
@@ -33,8 +35,6 @@ export type DemoSession = {
   formats: GameFormat[];
   seekingLevels?: string[];
   status: 'published';
-  description: string;
-  descriptionZh: string;
 };
 
 export type DemoBooking = {
@@ -139,8 +139,6 @@ const sessionTemplates = [
     capacity: 8,
     bookedSpots: 2,
     formats: ['singles', 'doubles'],
-    description: 'A relaxed midweek hit with rotating doubles and friendly match play.',
-    descriptionZh: '轻松的工作日晚间约球，轮换双打并穿插友谊赛。',
   },
   {
     id: 'session-vauxhall-evening',
@@ -152,8 +150,6 @@ const sessionTemplates = [
     capacity: 6,
     bookedSpots: 5,
     formats: ['singles', 'doubles'],
-    description: 'Friday evening tennis on a bright, quiet court. One place left.',
-    descriptionZh: '周五晚在安静明亮的球场打球，目前只剩 1 个名额。',
   },
   {
     id: 'session-bethnal-saturday',
@@ -165,8 +161,6 @@ const sessionTemplates = [
     capacity: 8,
     bookedSpots: 8,
     formats: ['singles', 'doubles'],
-    description: 'A full Saturday morning group with structured doubles rotations.',
-    descriptionZh: '周六上午的固定小组活动，安排双打轮换。',
   },
   {
     id: 'session-poplar-sunday',
@@ -178,8 +172,6 @@ const sessionTemplates = [
     capacity: 6,
     bookedSpots: 2,
     formats: ['singles', 'doubles'],
-    description: 'Longer Sunday tennis with plenty of time to warm up and play through.',
-    descriptionZh: '周日较长时段，留出充分热身和连续对打时间。',
   },
   {
     id: 'session-king-edward-evening',
@@ -191,8 +183,6 @@ const sessionTemplates = [
     capacity: 6,
     bookedSpots: 3,
     formats: ['singles', 'doubles'],
-    description: 'A riverside evening session with a mix of drills and open games.',
-    descriptionZh: '河边晚间活动，结合简单练习和自由对打。',
   },
   {
     id: 'session-victoria-competitive',
@@ -204,8 +194,6 @@ const sessionTemplates = [
     capacity: 4,
     bookedSpots: 3,
     formats: ['singles', 'doubles'],
-    description: 'Small-group evening tennis for focused rallies and competitive points.',
-    descriptionZh: '小组晚间约球，适合专注对拉和更有竞争感的回合。',
   },
   {
     id: 'session-vauxhall-saturday',
@@ -217,8 +205,6 @@ const sessionTemplates = [
     capacity: 8,
     bookedSpots: 0,
     formats: ['singles', 'doubles'],
-    description: 'A fresh Saturday morning start for singles, doubles and new faces.',
-    descriptionZh: '周六上午轻松开场，欢迎单打、双打和第一次来的朋友。',
   },
   {
     id: 'session-king-edward-saturday',
@@ -230,8 +216,6 @@ const sessionTemplates = [
     capacity: 6,
     bookedSpots: 6,
     formats: ['singles', 'doubles'],
-    description: 'A sociable Saturday session with easy drills and rotating doubles.',
-    descriptionZh: '适合社交的周六活动，包含简单练习和双打轮换。',
   },
 ] as const;
 
@@ -280,8 +264,6 @@ export function createDemoSessions(referenceDate = new Date()): DemoSession[] {
     bookedSpots: template.bookedSpots,
     formats: [...template.formats],
     status: 'published' as const,
-    description: template.description,
-    descriptionZh: template.descriptionZh,
   }));
 }
 

@@ -148,6 +148,13 @@
       "when": 1792278939217,
       "tag": "0020_booking_followup_emails",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792279889918,
+      "tag": "0021_venue_descriptions",
+      "breakpoints": true
     }
   ]
 }

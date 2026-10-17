@@ -13,7 +13,7 @@ import {
 } from './database';
 
 type BookingReminderCandidate = BookingRow &
-  Pick<SessionRow, 'venue_id' | 'date' | 'start_time' | 'end_time' | 'description' | 'description_zh'>;
+  Pick<SessionRow, 'venue_id' | 'date' | 'start_time' | 'end_time'>;
 
 export type BookingReminderRunResult = {
   status: 'outside_window' | 'email_not_configured' | 'sent';
@@ -43,7 +43,7 @@ export async function sendDueBookingReminders(
   const staleClaimBefore = new Date(now.getTime() - STALE_CLAIM_AFTER_MS).toISOString();
   const candidates = await db`
     SELECT bookings.*, sessions.venue_id, sessions.date, sessions.start_time,
-           sessions.end_time, sessions.description, sessions.description_zh
+           sessions.end_time
     FROM bookings
     JOIN sessions ON sessions.id = bookings.session_id
     WHERE bookings.status = 'confirmed'

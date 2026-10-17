@@ -14,7 +14,7 @@ const input = {
   capacity: 0,
   status: 'published',
 };
-void test('zero capacity and empty descriptions are valid; capacity stays bounded', () => {
+void test('zero capacity is valid; capacity stays bounded', () => {
   assert.ok(validateSessionInput(input));
   for (const capacity of [-1, 1001])
     assert.ok(sessionInputIssues({ ...input, capacity }).includes('capacity'));

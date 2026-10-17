@@ -24,9 +24,13 @@ type Candidate = BookingRow &
     | 'date'
     | 'start_time'
     | 'end_time'
-    | 'description'
-    | 'description_zh'
   >;
+export function isLondonFollowupHour(now = new Date()) {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London', hour: '2-digit', hourCycle: 'h23',
+  }).format(now) === '21';
+}
+
 export function isFollowupDue(
   sessionDate: string,
   endTime: string,
@@ -58,7 +62,7 @@ export async function sendDueBookingFollowups(
   const staleBefore = new Date(now.getTime() - 10 * 60000).toISOString();
   const candidates = (await db`
     SELECT bookings.*, sessions.venue_id, sessions.date, sessions.start_time,
-           sessions.end_time, sessions.description, sessions.description_zh
+           sessions.end_time
     FROM bookings JOIN sessions ON sessions.id = bookings.session_id
     WHERE bookings.status = 'confirmed'
       AND NOT EXISTS (SELECT 1 FROM email_suppressions WHERE email = lower(trim(bookings.email)))

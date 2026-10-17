@@ -5,7 +5,12 @@ import {
   renderAdminRequestNotificationEmail,
 } from '../lib/server/email';
 void test('admin recipient parsing trims, validates and deduplicates', () => {
-  assert.deepEqual(adminNotifyRecipients(''), []);
+  assert.deepEqual(adminNotifyRecipients(''), [
+    'una.ge2502@gmail.com',
+    'leeuwenhook.sun@gmail.com',
+  ]);
+  assert.deepEqual(adminNotifyRecipients('  '), adminNotifyRecipients(''));
+  assert.deepEqual(adminNotifyRecipients('invalid'), []);
   assert.deepEqual(
     adminNotifyRecipients(
       ' a@example.com,invalid, A@example.com, b@example.com ',
@@ -93,5 +98,21 @@ void test('admin booking notification sends nothing when another worker owns the
       if (value === undefined) delete process.env[key];
       else process.env[key] = value;
     }
+  }
+});
+
+void test('admin notifications default to both owners when the env override is unset', () => {
+  const original = process.env.ADMIN_NOTIFY_EMAIL;
+  try {
+    delete process.env.ADMIN_NOTIFY_EMAIL;
+    assert.deepEqual(adminNotifyRecipients(), [
+      'una.ge2502@gmail.com',
+      'leeuwenhook.sun@gmail.com',
+    ]);
+    process.env.ADMIN_NOTIFY_EMAIL = 'override@example.com';
+    assert.deepEqual(adminNotifyRecipients(), ['override@example.com']);
+  } finally {
+    if (original === undefined) delete process.env.ADMIN_NOTIFY_EMAIL;
+    else process.env.ADMIN_NOTIFY_EMAIL = original;
   }
 });

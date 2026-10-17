@@ -12,8 +12,6 @@ type BookingWithSession = BookingRow &
     | 'date'
     | 'start_time'
     | 'end_time'
-    | 'description'
-    | 'description_zh'
   >;
 
 export type BookingEmailDelivery =
@@ -35,7 +33,7 @@ export async function sendConfirmedBookingEmail(
 
   const rows = (await db`
     SELECT bookings.*, sessions.venue_id, sessions.date, sessions.start_time,
-           sessions.end_time, sessions.description, sessions.description_zh
+           sessions.end_time
     FROM bookings
     JOIN sessions ON sessions.id = bookings.session_id
     WHERE bookings.id = ${bookingId}
@@ -125,7 +123,7 @@ export async function sendAdminBookingNotificationOnce(db: Database, bookingId: 
   const claimedAt = new Date().toISOString();
   try {
     const { adminNotifyRecipients, sendAdminBookingNotification } = await import('./email');
-    if (!adminNotifyRecipients().length) { console.info('Admin notification skipped: ADMIN_NOTIFY_EMAIL not configured.'); return { status: 'skipped' }; }
+    if (!adminNotifyRecipients().length) { console.info('Admin notification skipped: no valid admin recipients.'); return { status: 'skipped' }; }
     if (!isEmailConfigured()) return { status: 'skipped' };
     const rows = await db`
       UPDATE bookings SET admin_notification_status = 'sending', admin_notification_claimed_at = ${claimedAt}

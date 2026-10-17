@@ -35,8 +35,6 @@ export type Session = {
   formats: GameFormat[];
   seekingLevels?: string[];
   status: SessionStatus;
-  description: string;
-  descriptionZh: string;
   bookingPreferences?: SessionBookingPreference[];
 };
 
@@ -95,12 +93,12 @@ export type SessionDraft = {
   capacity: string;
   formats: GameFormat[];
   seekingLevels: string[];
-  description: string;
-  descriptionZh: string;
   status: SessionStatus;
 };
 
 export type VenueDraft = {
+  description: string;
+  descriptionZh: string;
   address: string;
   addressZh: string;
   postcode: string;
@@ -120,7 +118,6 @@ export type SessionImportIssueCode =
   | 'startTime'
   | 'endTime'
   | 'timeRange'
-  | 'description'
   | 'price'
   | 'capacity'
   | 'formats'

@@ -78,8 +78,6 @@ const session = {
   date,
   start_time: '18:30',
   end_time: '20:30',
-  description: 'A relaxed midweek hit with rotating doubles and friendly match play.',
-  description_zh: '轻松的工作日晚间约球，轮换双打并穿插友谊赛。',
 };
 const venue = venues.find((item) => item.id === 'victoria-park') ?? venues[0];
 const emails = [

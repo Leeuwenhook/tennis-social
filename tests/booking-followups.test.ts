@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   isFollowupDue,
+  isLondonFollowupHour,
   sendDueBookingFollowups,
 } from '../lib/server/booking-followups';
 import { handleBookingFollowupCron } from '../lib/server/booking-followup-cron';
@@ -99,15 +100,11 @@ const booking = {
   date: '2026-12-01',
   start_time: '18:00',
   end_time: '20:00',
-  description: '',
-  description_zh: '',
 } as unknown as BookingRow & {
   venue_id: string;
   date: string;
   start_time: string;
   end_time: string;
-  description: string;
-  description_zh: string;
 };
 const venueRow = {
   id: venues[0].id,
@@ -351,4 +348,104 @@ void test('a session inside the wait period never acquires a delivery claim', as
   } finally {
     restore();
   }
+});
+
+void test('both daily UTC cron hours gate to the London 21h window throughout BST/GMT', async () => {
+  const { readFileSync } = await import('node:fs');
+  const config = JSON.parse(readFileSync('vercel.json', 'utf8'));
+  assert.deepEqual(
+    config.crons
+      .filter(
+        (cron: { path: string }) => cron.path === '/api/cron/session-followups',
+      )
+      .map((cron: { schedule: string }) => cron.schedule),
+    ['0 20 * * *', '0 21 * * *'],
+  );
+  for (const [date, expected20, expected21] of [
+    ['2026-07-01', true, false],
+    ['2026-12-01', false, true],
+    ['2026-03-29', true, false],
+    ['2026-10-25', false, true],
+  ] as const) {
+    for (const minute of ['00', '59']) {
+      assert.equal(
+        isLondonFollowupHour(new Date(`${date}T20:${minute}:00Z`)),
+        expected20,
+      );
+      assert.equal(
+        isLondonFollowupHour(new Date(`${date}T21:${minute}:00Z`)),
+        expected21,
+      );
+    }
+  }
+});
+
+void test('cron gates before work and force only bypasses the hour after CRON_SECRET authorization', async () => {
+  const original = process.env.CRON_SECRET;
+  let calls = 0;
+  const run = async () => {
+    calls++;
+    return {
+      status: 'sent' as const,
+      candidates: 0,
+      sent: 0,
+      skipped: 0,
+      failed: 0,
+    };
+  };
+  try {
+    process.env.CRON_SECRET = 'test-cron';
+    const request = (force: boolean, authorized = true) =>
+      new Request(
+        `https://example.com/api/cron/session-followups${force ? '?force=1' : ''}`,
+        { headers: authorized ? { authorization: 'Bearer test-cron' } : {} },
+      );
+    const outside = new Date('2026-12-01T20:30:00Z');
+    const skipped = await handleBookingFollowupCron(
+      request(false),
+      outside,
+      run,
+    );
+    assert.equal(skipped.status, 200);
+    assert.deepEqual(await skipped.json(), { skipped: 'outside_london_21h' });
+    assert.equal(calls, 0);
+    assert.equal(
+      (await handleBookingFollowupCron(request(true, false), outside, run))
+        .status,
+      401,
+    );
+    assert.equal(calls, 0);
+    assert.equal(
+      (await handleBookingFollowupCron(request(true), outside, run)).status,
+      200,
+    );
+    assert.equal(calls, 1);
+    for (const now of ['2026-07-01T20:59:00Z', '2026-12-01T21:59:00Z'])
+      assert.equal(
+        (await handleBookingFollowupCron(request(false), new Date(now), run))
+          .status,
+        200,
+      );
+    assert.equal(calls, 3);
+    delete process.env.CRON_SECRET;
+    assert.equal(
+      (await handleBookingFollowupCron(request(true), outside, run)).status,
+      503,
+    );
+    assert.equal(calls, 3);
+  } finally {
+    if (original === undefined) delete process.env.CRON_SECRET;
+    else process.env.CRON_SECRET = original;
+  }
+});
+
+void test('follow-up window includes exactly 72 hours, excludes older sessions', () => {
+  assert.equal(
+    isFollowupDue('2026-12-01', '21:00', new Date('2026-12-04T21:00:00Z')),
+    true,
+  );
+  assert.equal(
+    isFollowupDue('2026-12-01', '21:00', new Date('2026-12-04T21:00:00.001Z')),
+    false,
+  );
 });

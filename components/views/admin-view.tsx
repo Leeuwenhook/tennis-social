@@ -566,32 +566,6 @@ export function AdminView({
             <ShieldCheck size={15} /> {t.lockedFields}
           </p>
         ) : null}
-        <div className="form-grid two-col">
-          <div className="field">
-            <Label htmlFor="admin-description">English description</Label>
-            <textarea
-              id="admin-description" placeholder={t.autoDescription}
-              value={draft.description}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, description: event.target.value }))
-              }
-              className="native-textarea"
-              rows={3}
-            />
-          </div>
-          <div className="field">
-            <Label htmlFor="admin-description-zh">中文介绍</Label>
-            <textarea
-              id="admin-description-zh" placeholder={t.autoDescription}
-              value={draft.descriptionZh}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, descriptionZh: event.target.value }))
-              }
-              className="native-textarea"
-              rows={3}
-            />
-          </div>
-        </div>
         {adminMessage ? (
           <div className="admin-message">
             <Check size={15} /> {adminMessage}
@@ -643,6 +617,20 @@ export function AdminView({
               value={venueDraft.area}
               onChange={(event) => setVenueDraft((current) => ({ ...current, area: event.target.value }))}
             />
+          </div>
+          <div className="field">
+            <Label htmlFor="venue-description">Venue description (English)</Label>
+            <textarea id="venue-description" className="native-textarea" rows={3} maxLength={2000}
+              placeholder="留空自动生成 / Leave empty to auto-generate"
+              value={venueDraft.description}
+              onChange={(event) => setVenueDraft((current) => ({ ...current, description: event.target.value }))} />
+          </div>
+          <div className="field">
+            <Label htmlFor="venue-descriptionZh">场地介绍（中文）</Label>
+            <textarea id="venue-descriptionZh" className="native-textarea" rows={3} maxLength={2000}
+              placeholder="留空自动生成 / Leave empty to auto-generate"
+              value={venueDraft.descriptionZh}
+              onChange={(event) => setVenueDraft((current) => ({ ...current, descriptionZh: event.target.value }))} />
           </div>
           <div className="field">
             <Label htmlFor="venue-address">{language === 'zh' ? '详细地址' : 'Street address'}</Label>

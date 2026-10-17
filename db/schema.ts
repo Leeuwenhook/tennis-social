@@ -15,6 +15,8 @@ export const venues = pgTable('venues', {
   address: text('address').notNull().default(''),
   addressZh: text('address_zh').notNull().default(''),
   postcode: text('postcode').notNull().default(''),
+  description: text('description'),
+  descriptionZh: text('description_zh'),
   notes: text('notes').notNull().default(''),
   photo: text('photo').notNull(),
   photosJson: text('photos_json').notNull().default('[]'),
@@ -36,6 +38,7 @@ export const sessions = pgTable('sessions', {
   formatsJson: text('formats_json').notNull().default('["singles","doubles"]'),
   seekingLevelsJson: text('seeking_levels_json').notNull().default('[]'),
   status: text('status', { enum: ['published', 'draft'] }).notNull(),
+  // TODO: retire legacy session descriptions after the rollback window.
   description: text('description').notNull(),
   descriptionZh: text('description_zh').notNull(),
   createdAt: text('created_at').notNull(),

@@ -327,10 +327,10 @@ function RequestCard({
           <CalendarDays size={14} aria-hidden="true" />
           {request.preferredDate ? formatDate(request.preferredDate, language) : slotLabels(request.preferredSlots, language)}
         </span>
-        <span>
+        {request.startTime && request.endTime ? <span>
           <Clock3 size={14} aria-hidden="true" />
           {request.startTime && request.endTime ? `${request.startTime}–${request.endTime}` : ''} · {request.startTime && request.endTime ? formatDuration(request.startTime, request.endTime, language) : ''}
-        </span>
+        </span> : null}
       </div>
       <dl className="cs-pr-details">
         <div>
@@ -360,6 +360,7 @@ function RequestCard({
 }
 
 function ApplicationDialog({
+  language,
   request,
   form,
   state,
@@ -369,6 +370,7 @@ function ApplicationDialog({
   onSubmit,
   onDismiss,
 }: {
+  language: Language;
   request: PublicRequest;
   form: ApplicationForm;
   state: ApplicationState;
@@ -407,7 +409,7 @@ function ApplicationDialog({
     >
       <h2 id="partner-application-title">{sent ? t.sent : t.formTitle}</h2>
       <p className="cs-pr-dialog-sub">
-        {request.venueName || request.postcode} · {request.startTime && request.endTime ? `${request.startTime}–${request.endTime}` : ''}
+        {request.venueName || request.postcode} · {request.preferredDate ? formatDate(request.preferredDate, language) : slotLabels(request.preferredSlots, language)} {request.startTime && request.endTime ? `${request.startTime}–${request.endTime}` : ''}
       </p>
       {state.kind === 'sent' ? (
         <>
@@ -448,7 +450,7 @@ function ApplicationDialog({
             </label>
             <label className="cs-pr-field">
               <span>
-                {t.phone} ({t.optional})
+                {t.phone} {form.preferredContact === 'phone' ? '*' : `(${t.optional})`}
               </span>
               <input
                 type="tel"
@@ -457,6 +459,7 @@ function ApplicationDialog({
                 onChange={(event) => onChange({ ...form, phone: event.target.value })}
               />
             </label>
+              <PartnerContactFields value={form} labels={t} onChange={(contacts) => onChange({ ...form, ...contacts })} />
             <div className="cs-pr-form-row">
               <label className="cs-pr-field">
                 <span>{t.yourLevel}</span>
@@ -473,7 +476,6 @@ function ApplicationDialog({
                   ))}
                 </select>
               </label>
-              <PartnerContactFields value={form} labels={t} onChange={(contacts) => onChange({ ...form, ...contacts })} />
               <label className="cs-pr-field">
                 <span>{t.format}</span>
                 <select
@@ -689,6 +691,7 @@ export function PublicPartnerRequests({ language }: { language: Language }) {
 
       {applicationRequest ? (
         <ApplicationDialog
+          language={language}
           request={applicationRequest}
           form={form}
           state={applicationState}

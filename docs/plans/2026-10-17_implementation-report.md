@@ -26,6 +26,11 @@ Migration 0020 adds follow-up state, its index and `email_suppressions`; it skip
 
 Owner setup: configure `REVIEW_TOKEN_SECRET` in Production and Preview, retain SMTP and `CRON_SECRET`, and apply 0018–0020 before merging. The new `/api/cron/session-followups` schedules are 09:00 and 20:00 UTC daily. Test authenticated cron invocation, repeated invocation, historical/refunded bookings, signed unsubscribe and subsequent suppression on Preview. No remote smoke tests were attempted and no live email was sent.
 
-Validation: 59 tests passed (19 more than baseline); TypeScript, lint and production build passed. Exact `npx tsx --test tests/*.test.ts` is blocked by sandbox IPC binding (EPERM); the same tests run via `node --import tsx --test --test-isolation=none tests/*.test.ts`.
+Validation: 61 tests passed (21 more than baseline); TypeScript, lint and production build passed. Exact `npx tsx --test tests/*.test.ts` is blocked by sandbox IPC binding (EPERM); the same tests run via `node --import tsx --test --test-isolation=none tests/*.test.ts`.
 
 A.5 external acceptance items 5 (Vercel env setup), 15, 25 and 32 (Preview/mobile/SMTP/Stripe smoke tests) remain owner steps because this task explicitly prohibits Vercel and production access. All application and migration implementation items are included. Git commits are exported separately due to the read-only original Git metadata; no original branch switch, push, migration or deployment occurred.
+
+
+Final review fix-up: admin notification is attempted independently even if customer confirmation email fails; phone preference fields now show required labels consistently, and undated application dialogs show slot labels. Added regression tests for admin claim ownership and swallowed database errors. New modules and tests were formatted with the repository formatter.
+
+Email links use the production site origin. During Preview unsubscribe acceptance, replace the link's origin with the Preview origin so that Preview's token secret and test database handle the request.

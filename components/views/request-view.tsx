@@ -381,7 +381,7 @@ export function RequestView({
                 {t.email} <em>*</em>
               </Label>
               <Input
-                id="request-email"
+                id="request-email" required
                 type="email"
                 autoComplete="email"
                 value={requestForm.email}
@@ -392,7 +392,7 @@ export function RequestView({
             </div>
             <div className="field">
               <Label htmlFor="request-phone">
-                {t.phone} <small>({t.optional})</small>
+                {t.phone} {requestForm.preferredContact === 'phone' ? <em>*</em> : <small>({t.optional})</small>}
               </Label>
               <Input
                 id="request-phone" required={requestForm.preferredContact === 'phone'}

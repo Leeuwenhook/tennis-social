@@ -35,6 +35,7 @@ export const sessions = pgTable('sessions', {
   pricePence: integer('price_pence').notNull(),
   capacity: integer('capacity').notNull(),
   bookedSpots: integer('booked_spots').notNull().default(0),
+  markedFull: boolean('marked_full').notNull().default(false),
   formatsJson: text('formats_json').notNull().default('["singles","doubles"]'),
   seekingLevelsJson: text('seeking_levels_json').notNull().default('[]'),
   status: text('status', { enum: ['published', 'draft'] }).notNull(),

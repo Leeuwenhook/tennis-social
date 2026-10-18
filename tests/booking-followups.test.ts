@@ -184,6 +184,7 @@ void test('suppression or refund after a claim prevents sending', async () => {
         check: (sql) => {
           assert.match(sql, /sessions.status = 'published'/);
           assert.match(sql, /sessions.booked_spots < sessions.capacity/);
+          assert.match(sql, /NOT sessions.marked_full/);
           assert.match(sql, /LIMIT 3/);
         },
       },

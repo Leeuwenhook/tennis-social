@@ -194,6 +194,7 @@ export async function POST(request: Request) {
         SET booked_spots = booked_spots + ${participants.length}, updated_at = ${nowIso}
         WHERE id = ${sessionId}
           AND status = 'published'
+          AND NOT marked_full
           AND (date > ${clock.date} OR (date = ${clock.date} AND end_time > ${clock.time}))
           AND booked_spots + ${participants.length} <= capacity
         RETURNING id, venue_id, price_pence

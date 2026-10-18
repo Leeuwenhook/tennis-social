@@ -18,7 +18,7 @@ import { Label } from '@/components/ui/label';
 import { VenuePhoto } from '@/components/venue-photo';
 import { RACKET_PRICE_PENCE, type GameFormat, type Venue } from '@/lib/demo-data';
 import { formatDate, formatMoney, formatNames } from '@/lib/formatters';
-import { LEVELS } from '@/lib/tennis-utils';
+import { availableSpots, LEVELS } from '@/lib/tennis-utils';
 import type { Translations } from '@/lib/translations';
 import type {
   BookingStage,
@@ -392,7 +392,7 @@ export function BookingView({
                 <input
                   type="checkbox"
                   checked={bookingForm.includeFriends}
-                  disabled={selectedSession.capacity - selectedSession.bookedSpots < 2}
+                  disabled={availableSpots(selectedSession) < 2}
                   onChange={(event) => onToggleFriends(event.target.checked)}
                 />
                 <span>{t.addFriends}</span>
@@ -402,7 +402,7 @@ export function BookingView({
                   label={t.groupSize}
                   value={bookingForm.participants.length}
                   min={1}
-                  max={selectedSession.capacity - selectedSession.bookedSpots}
+                  max={availableSpots(selectedSession)}
                   onChange={onUpdateGroupSize}
                 />
               ) : (

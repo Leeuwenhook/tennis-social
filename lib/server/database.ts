@@ -14,6 +14,7 @@ export type SessionRow = {
   price_pence: number;
   capacity: number;
   booked_spots: number;
+  marked_full?: boolean;
   formats_json: string;
   seeking_levels_json: string;
   status: 'published' | 'draft';
@@ -601,6 +602,7 @@ export function serializeSession(row: SessionRow) {
     pricePence: row.price_pence,
     capacity: row.capacity,
     bookedSpots: row.booked_spots,
+    markedFull: Boolean(row.marked_full),
     formats,
     seekingLevels,
     status: row.status,

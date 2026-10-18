@@ -33,6 +33,7 @@ import {
   emptyVenueDraft,
   getVenue,
   isPast,
+  availableSpots,
   LANGUAGE_STORAGE_KEY,
   LEVELS,
   normalizeBooking,
@@ -43,6 +44,7 @@ import {
   profileFormFromUser,
   routeStateFromLocation,
   SESSION_STORAGE_KEY,
+  sessionPayload,
   sessionSort,
   shiftDate,
   validFormats,
@@ -733,7 +735,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
                     endTime: session.endTime,
                     pricePence: session.pricePence,
                     formats: session.formats,
-                    placesLeft: Math.max(0, session.capacity - session.bookedSpots),
+                    placesLeft: availableSpots(session),
                   };
                 }),
           },
@@ -778,7 +780,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
 
   function beginBooking() {
     if (!selectedSession || selectedSession.status !== 'published') return;
-    if (selectedSession.capacity - selectedSession.bookedSpots < 1) return;
+    if (availableSpots(selectedSession) < 1) return;
     const preferredBookingFormat = user?.preferredFormat && user.preferredFormat !== 'both' && selectedSession.formats.includes(user.preferredFormat)
       ? user.preferredFormat
       : selectedSession.formats[0] ?? GAME_FORMATS[0];
@@ -1079,7 +1081,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     if (bookingForm.participants.some((level) => !level)) errors.participants = t.chooseLevels;
     if (
       selectedSession &&
-      bookingForm.participants.length > selectedSession.capacity - selectedSession.bookedSpots
+      bookingForm.participants.length > availableSpots(selectedSession)
     ) {
       errors.participants = t.notEnoughSpots;
     }
@@ -1116,7 +1118,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       liveSession.status !== 'published' ||
       isPast(liveSession) ||
       formatUnavailable ||
-      bookingForm.participants.length > liveSession.capacity - liveSession.bookedSpots
+      bookingForm.participants.length > availableSpots(liveSession)
     ) {
       paymentSubmittingRef.current = false;
       setCheckoutLoading(false);
@@ -1518,25 +1520,12 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     return parseMinutes(a.startTime) < parseMinutes(b.endTime) && parseMinutes(b.startTime) < parseMinutes(a.endTime);
   }
 
-  function sessionPayload(session: Session, status = session.status) {
-    return {
-      venueId: session.venueId,
-      date: session.date,
-      startTime: session.startTime,
-      endTime: session.endTime,
-      pricePence: session.pricePence,
-      capacity: session.capacity,
-      formats: session.formats,
-      seekingLevels: session.seekingLevels ?? [],
-      status,
-    };
-  }
-
-  async function markSessionFull(session: Session) {
+  async function setSessionFull(session: Session, markedFull: boolean) {
+    if (markedFull && !window.confirm(t.markFullConfirm)) return;
     try {
       const response = await fetch(`/api/admin/sessions/${session.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sessionPayload({ ...session, capacity: session.bookedSpots })),
+        body: JSON.stringify(sessionPayload({ ...session, markedFull })),
       });
       const data = await response.json();
       if (!response.ok) { setAdminMessage(data.error === 'capacity_too_low' ? t.cannotReduceCapacity : t.saveFailed); return; }
@@ -1694,7 +1683,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     setAdminBusy(true);
     const created: Session[] = [];
     for (let week = 1; week <= 4; week += 1) {
-      const candidate = { ...session, id: '', date: shiftDate(session.date, week * 7), bookedSpots: 0 };
+      const candidate = { ...session, id: '', date: shiftDate(session.date, week * 7), bookedSpots: 0, markedFull: false };
       const conflict = sessions.some((item) => item.venueId === candidate.venueId && item.date === candidate.date && sessionOverlaps(item, candidate))
         || created.some((item) => item.venueId === candidate.venueId && item.date === candidate.date && sessionOverlaps(item, candidate));
       if (conflict) continue;
@@ -1971,7 +1960,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
   }
 
   const publishedCount = sessions.filter((s) => s.status === 'published' && !isPast(s)).length;
-  const openSpots = upcomingSessions.reduce((sum, s) => sum + Math.max(0, s.capacity - s.bookedSpots), 0);
+  const openSpots = upcomingSessions.reduce((sum, s) => sum + availableSpots(s), 0);
 
   return (
     <div className="app-shell">
@@ -2179,7 +2168,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             onApplyVenueDefaultPrice={applyVenueDefaultPrice}
             onStartEditSession={startEdit}
             onCreateRecurringSessions={(session) => void createRecurringSessions(session)}
-            onMarkSessionFull={(session) => void markSessionFull(session)}
+            onSetSessionFull={(session, markedFull) => void setSessionFull(session, markedFull)}
             onDeleteSession={(session) => void deleteSession(session)}
             onBulkUpdateSessionStatus={(status) => void bulkUpdateSessionStatus(status)}
             onExportSessions={exportSessions}

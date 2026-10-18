@@ -218,6 +218,16 @@ export function normalizeVenue(value: unknown): Venue | null {
   };
 }
 
+/** Places a visitor can still book; a manually marked-full session has none. */
+export function availableSpots(session: Pick<Session, 'capacity' | 'bookedSpots' | 'markedFull'>) {
+  return session.markedFull ? 0 : Math.max(0, session.capacity - session.bookedSpots);
+}
+
+/** Booked count shown publicly: a marked-full session displays every place as taken. */
+export function displayedBookedSpots(session: Pick<Session, 'capacity' | 'bookedSpots' | 'markedFull'>) {
+  return session.markedFull ? session.capacity : session.bookedSpots;
+}
+
 export function isPast(session: Session) {
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/London',
@@ -310,5 +320,6 @@ export function sessionPayload(session: Session, status = session.status) {
     formats: session.formats,
     seekingLevels: session.seekingLevels ?? [],
     status,
+    markedFull: session.markedFull,
   };
 }

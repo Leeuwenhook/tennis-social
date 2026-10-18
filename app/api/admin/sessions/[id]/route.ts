@@ -33,7 +33,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (!session) return Response.json({ error: 'invalid_session' }, { status: 400 });
     const existingRows = await db`
       SELECT id, venue_id, date, start_time, end_time, price_pence, capacity,
-             booked_spots, formats_json, seeking_levels_json, status
+             booked_spots, marked_full, formats_json, seeking_levels_json, status
       FROM sessions
       WHERE id = ${id}
     ` as SessionRow[];
@@ -58,15 +58,19 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       return Response.json({ error: 'capacity_too_low' }, { status: 409 });
     }
 
+    // Omitted means unchanged, so ordinary edits never reopen or close bookings.
+    const markedFull = typeof input?.markedFull === 'boolean' ? input.markedFull : Boolean(existing.marked_full);
+
     const now = new Date().toISOString();
     const rows = await db`
       UPDATE sessions
       SET venue_id = ${session.venueId}, date = ${session.date}, start_time = ${session.startTime},
           end_time = ${session.endTime}, price_pence = ${session.pricePence}, capacity = ${session.capacity},
+          marked_full = ${markedFull},
           formats_json = ${JSON.stringify(session.formats)}, seeking_levels_json = ${JSON.stringify(session.seekingLevels)}, status = ${session.status}, updated_at = ${now}
       WHERE id = ${id} AND booked_spots <= ${session.capacity}
       RETURNING id, venue_id, date, start_time, end_time, price_pence, capacity,
-                booked_spots, formats_json, seeking_levels_json, status
+                booked_spots, marked_full, formats_json, seeking_levels_json, status
     ` as SessionRow[];
     if (!rows[0]) return Response.json({ error: 'capacity_too_low' }, { status: 409 });
     return Response.json({ session: serializeSession(rows[0]) });

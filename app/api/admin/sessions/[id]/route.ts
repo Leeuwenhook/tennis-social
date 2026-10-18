@@ -58,15 +58,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       return Response.json({ error: 'capacity_too_low' }, { status: 409 });
     }
 
-    // Omitted means unchanged, so ordinary edits never reopen or close bookings.
-    const markedFull = typeof input?.markedFull === 'boolean' ? input.markedFull : Boolean(existing.marked_full);
+    // Omitted means unchanged. The COALESCE keeps the value current at UPDATE
+    // time, so an edit racing another admin's "mark full" cannot undo it.
+    const markedFull = typeof input?.markedFull === 'boolean' ? input.markedFull : null;
 
     const now = new Date().toISOString();
     const rows = await db`
       UPDATE sessions
       SET venue_id = ${session.venueId}, date = ${session.date}, start_time = ${session.startTime},
           end_time = ${session.endTime}, price_pence = ${session.pricePence}, capacity = ${session.capacity},
-          marked_full = ${markedFull},
+          marked_full = COALESCE(${markedFull}::boolean, marked_full),
           formats_json = ${JSON.stringify(session.formats)}, seeking_levels_json = ${JSON.stringify(session.seekingLevels)}, status = ${session.status}, updated_at = ${now}
       WHERE id = ${id} AND booked_spots <= ${session.capacity}
       RETURNING id, venue_id, date, start_time, end_time, price_pence, capacity,

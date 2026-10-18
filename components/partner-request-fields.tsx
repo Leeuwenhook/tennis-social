@@ -7,6 +7,13 @@ export type ContactFields = {
   whatsapp?: string;
   preferredContact?: 'email' | 'phone' | 'wechat' | 'whatsapp';
 };
+/** Shows a legacy WeChat/WhatsApp value in the combined field until the player types a new one. */
+export function contactHandleValue(value: ContactFields) {
+  if (value.phone) return value.phone;
+  const preferred = value.preferredContact === 'wechat' ? value.wechat : value.preferredContact === 'whatsapp' ? value.whatsapp : '';
+  return preferred || value.wechat || value.whatsapp || '';
+}
+
 /** The single phone/WeChat/WhatsApp field is required unless the player prefers email. */
 export function contactHandleRequired(preferredContact: ContactFields['preferredContact']) {
   return (preferredContact ?? 'email') !== 'email';

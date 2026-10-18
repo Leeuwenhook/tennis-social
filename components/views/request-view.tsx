@@ -8,7 +8,7 @@ import Check from 'lucide-react/dist/esm/icons/check.mjs';
 import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check.mjs';
 import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs';
 
-import { contactHandleRequired, PartnerContactFields, PartnerSlotFields } from '@/components/partner-request-fields';
+import { contactHandleRequired, contactHandleValue, PartnerContactFields, PartnerSlotFields } from '@/components/partner-request-fields';
 import { slotLabels } from '@/lib/partner-request-slots';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,6 +69,7 @@ export function RequestView({
   const [budgetText, setBudgetText] = useState(() => requestForm.budgetPence == null ? '' : (requestForm.budgetPence / 100).toFixed(2));
   const structured = requestForm.requestKind !== undefined;
   const findCourtOnly = requestForm.requestKind === 'find_court';
+  const courtBooked = requestForm.requestKind === 'find_partners' || requestForm.venueBookingStatus === 'booked';
   // Keep the typed text while it still represents the form value; reformat only when the value changed elsewhere (e.g. switching drafts).
   const budgetValue = budgetPenceFromText(budgetText) === (requestForm.budgetPence ?? null)
     ? budgetText
@@ -344,7 +345,7 @@ export function RequestView({
                 }
               />
             </div>
-            {requestForm.venueBookingStatus === 'booked' ? <>
+            {courtBooked ? <>
             <div className="field request-time-field">
               <Label htmlFor="request-start">
                 {t.preferredTimeRange} <em>*</em>
@@ -404,9 +405,9 @@ export function RequestView({
               <Input
                 id="request-phone" required={contactHandleRequired(requestForm.preferredContact)}
                 type="text"
-                maxLength={50}
+                maxLength={40}
                 autoComplete="tel"
-                value={requestForm.phone}
+                value={contactHandleValue(requestForm)}
                 onChange={(event) =>
                   setRequestForm((current) => ({ ...current, phone: event.target.value }))
                 }

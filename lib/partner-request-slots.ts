@@ -39,3 +39,10 @@ export function slotsFromText(text: string): PreferredSlot[] {
   const patterns = [/上午|早上|\bmornings?\b/i, /下午|\bafternoons?\b/i, /晚上|晚间|\bevenings?\b|\bnights?\b/i];
   return PREFERRED_SLOTS.filter((_, index) => patterns[index].test(text));
 }
+
+/** "Have a court, need partners" always means the court is booked, whatever a draft says. */
+export function withPartnerCourtBooked<T extends { requestKind?: string; venueBookingStatus?: string }>(form: T): T {
+  return form.requestKind === 'find_partners' && form.venueBookingStatus !== 'booked'
+    ? { ...form, venueBookingStatus: 'booked' }
+    : form;
+}

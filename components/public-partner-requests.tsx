@@ -7,7 +7,7 @@ import MapPin from 'lucide-react/dist/esm/icons/map-pin.mjs';
 import RotateCw from 'lucide-react/dist/esm/icons/rotate-cw.mjs';
 import Users from 'lucide-react/dist/esm/icons/users.mjs';
 
-import { contactHandleRequired, PartnerContactFields } from '@/components/partner-request-fields';
+import { contactHandleRequired, contactHandleValue, PartnerContactFields } from '@/components/partner-request-fields';
 import { PREFERRED_SLOTS, SLOT_LABELS, slotLabels } from '@/lib/partner-request-slots';
 import { formatDate, formatDuration } from '@/lib/formatters';
 import { LEVELS } from '@/lib/tennis-utils';
@@ -454,8 +454,8 @@ function ApplicationDialog({
               </span>
               <input
                 type="text"
-                maxLength={50}
-                required={contactHandleRequired(form.preferredContact)} value={form.phone}
+                maxLength={40}
+                required={contactHandleRequired(form.preferredContact)} value={contactHandleValue(form)}
                 autoComplete="tel"
                 onChange={(event) => onChange({ ...form, phone: event.target.value })}
               />

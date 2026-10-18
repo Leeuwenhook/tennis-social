@@ -246,7 +246,7 @@ void test('summarized partner requirements are ready without a separate confirma
 void test('invalid or incomplete court details do not enable submission after a summary', async () => {
   for (const changes of [
     { preferredDate: null },
-    { startTime: '20:00', endTime: '18:00' },
+    { venueBookingStatus: 'booked', startTime: '20:00', endTime: '18:00' },
     { contactName: null },
     { email: 'invalid-email' },
     { venueName: null },
@@ -288,6 +288,15 @@ void test('dated period-only chat drafts can submit, undated ones cannot', async
     assert.equal(data.request.complete, Boolean(preferredDate));
     assert.deepEqual(data.request.preferredSlots, ['afternoon']);
   }
+});
+
+void test('unbooked chat drafts drop a partial time range instead of blocking completion', async () => {
+  globalThis.fetch = async () => providerReply('Ready.', { complete: true, needsPartner: false, venueBookingStatus: 'not_booked', preferredSlots: ['evening'], startTime: '19:00', endTime: null });
+  const data = await (await POST(chatRequest())).json();
+  assert.equal(data.request.complete, true);
+  assert.equal(data.request.startTime, null);
+  assert.equal(data.request.endTime, null);
+  assert.deepEqual(data.request.preferredSlots, ['evening']);
 });
 
 void test('booked chat drafts require times and derive every overlapping period', async () => {

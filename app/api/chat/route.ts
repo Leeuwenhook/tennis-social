@@ -1,4 +1,4 @@
-import { PREFERRED_SLOTS } from '@/lib/partner-request-slots';
+import { PREFERRED_SLOTS, slotsForTimeRange } from '@/lib/partner-request-slots';
 import { getRuntimeEnv } from '@/lib/server/runtime';
 import { venues } from '@/lib/demo-data';
 import { generateChatResponse } from '@/lib/server/gemini-chat';
@@ -119,15 +119,19 @@ export async function POST(request: Request) {
     const textField = (key: string) => typeof source[key] === 'string' ? source[key].trim().slice(0, MAX_REQUEST_FIELD_LENGTH) : null;
     const preferredSlots = Array.isArray(source.preferredSlots) ? [...new Set(source.preferredSlots.filter((slot): slot is string => typeof slot === 'string' && PREFERRED_SLOTS.includes(slot as never)))] : [];
     const venueBookingStatus = source.venueBookingStatus === 'booked' ? 'booked' as const : source.venueBookingStatus === 'not_booked' ? 'not_booked' as const : 'unknown' as const;
-    const slots = assistantPreferredSlots({ preferredSlots, venueBookingStatus, startTime: textField('startTime'), endTime: textField('endTime') }, messages.filter((message) => message.role === 'user').at(-1)?.content);
+    // Times are optional for unbooked drafts; drop a partial/invalid range so it cannot block an otherwise complete request.
+    const keepTimes = venueBookingStatus === 'booked' || slotsForTimeRange(textField('startTime') ?? '', textField('endTime') ?? '').length > 0;
+    const startTime = keepTimes ? textField('startTime') : null;
+    const endTime = keepTimes ? textField('endTime') : null;
+    const slots = assistantPreferredSlots({ preferredSlots, venueBookingStatus, startTime, endTime }, messages.filter((message) => message.role === 'user').at(-1)?.content);
     const normalizedRequest = {
       venueName: textField('venueName'),
       postcode: textField('postcode'),
       preferredSlots: slots,
       venueBookingStatus,
       preferredDate: textField('preferredDate'),
-      startTime: textField('startTime'),
-      endTime: textField('endTime'),
+      startTime,
+      endTime,
       contactName: textField('contactName'),
       email: textField('email'),
       phone: textField('phone'),

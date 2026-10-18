@@ -30,8 +30,9 @@ function formFromText(source: string, venueList: Venue[]): ReservationRequestFor
     postcode: '',
     preferredDate: draft?.preferredDate ?? '',
     preferredSlots: draft?.preferredSlots ?? [],
-    startTime: draft?.startTime ?? '',
-    endTime: draft?.endTime ?? '',
+    // Unbooked requests use periods (already derived from any parsed times); exact times are booked-only.
+    startTime: draft?.venueBookingStatus === 'booked' ? draft.startTime ?? '' : '',
+    endTime: draft?.venueBookingStatus === 'booked' ? draft.endTime ?? '' : '',
     ...emptyContact,
     message: source.trim().slice(0, 1000),
     requestKind,
@@ -172,7 +173,7 @@ export function AdminPasteRequests({
           </div>}
           <div className="field">
             <Label htmlFor="paste-booking-status">{t.venueBookingStatus}</Label>
-            <select id="paste-booking-status" className="native-select" value={form.venueBookingStatus ?? 'unknown'} onChange={(event) => setField('venueBookingStatus', event.target.value as ReservationRequestForm['venueBookingStatus'])}>
+            <select id="paste-booking-status" className="native-select" value={form.venueBookingStatus ?? 'unknown'} onChange={(event) => setDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, venueBookingStatus: event.target.value as ReservationRequestForm['venueBookingStatus'], startTime: '', endTime: '' } : item))}>
               <option value="booked">{t.venueBooked}</option><option value="not_booked">{t.not_booked}</option><option value="unknown">{t.unknown}</option>
             </select>
           </div>

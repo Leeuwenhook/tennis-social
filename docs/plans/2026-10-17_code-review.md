@@ -197,3 +197,65 @@
   - 场次表单中已没有描述字段。
   - 从后台下载的导入模板已没有描述列。
 - [ ] 部署后在 Vercel Cron 页面确认 session-followups 的两条计划为 `0 20 * * *` 和 `0 21 * * *`。
+
+## Round 3 review（commit d134ca5，`git diff 9cdb538..HEAD`）
+
+评审范围：owner 决定找球友需求**一律必填日期**。未订场的需求不再填精确起止时间，改为多选时段：上午 / 下午 / 晚上（上午 <12:00，下午 12:00–17:59，晚上 ≥18:00）。已订场的需求保留精确日期和时间，时段由时间推导。删除 weekday/weekend 时段值；`expires_on = preferred_date`；迁移 0019（生产库尚未执行）保留 `preferred_date NOT NULL`。本轮未 commit/push，未连接生产库或 Vercel，未实现 3.2。
+
+结论：**0 个 BLOCKER、3 个 SHOULD-FIX（已修复）、5 个 NIT（1 个顺手修复，其余未修）**。
+
+### SHOULD-FIX（已修复）
+
+- **R3-S1** `db/migrations/0019_partner_request_slots_contacts.sql:11-17`：0019 之前的旧需求都有精确时间，但 `preferred_slots_json` 是默认的 `'[]'`。序列化器 `requestPeriods`（`lib/server/database.ts:315`）会按时间推导时段，所以页面显示正常。但 `GET /api/reservation-requests?slot=...`（`app/api/reservation-requests/route.ts:46`）直接按库里存的 JSON 过滤，这些旧需求按时段过滤时永远查不到。库里存的数据和 API 输出也不一致。由于 0019 尚未在生产执行，已在 0019 末尾追加回填：对 `preferred_slots_json = '[]'` 且有起止时间的行，用与 `slotsForTimeRange` 相同的半开区间（`start < 区间结束 AND end > 区间开始`，`'HH:MM'` 文本可直接比较，`24:00` 也成立）写入有序 JSON 数组；没有重叠时段的行保持 `'[]'`。这只是数据更新，不影响 snapshot。**本会话没有可用的 Postgres，这条 SQL 未在真实 PG 上执行过**，请在 Neon 分支上先跑一遍（见下方清单）。
+- **R3-S2** `components/admin-paste-requests.tsx:33-35,176`：后台粘贴工具只在“已订场”时显示时间输入框，但解析出来的起止时间在未订场/未知时仍然留在表单里，并会一起提交。如果管理员把状态从“已订场”切到别的状态，而之前只填了开始时间，隐藏的半截时间会被服务端拒绝（`hasSchedule` 校验），界面只显示“请求无效”，看不到原因。已与前台表单（`request-view.tsx:314`）保持一致：切换订场状态时清空起止时间；非已订场的草稿不带入解析出的时间（时段已经由 parser 从时间推导出来，不会丢失信息）。
+- **R3-S3** `app/api/chat/route.ts:122-125`：提示词告诉模型“未订场时精确时间可选”。但如果模型对未订场的草稿只返回了 `startTime`（例如用户说“晚上 7 点左右”），或者返回了倒序时间，`validateReservationRequest` 会因为时间不完整而拒绝。这样 `complete` 一直是 `false`，用户也不知道还缺什么。已改为：非已订场的草稿只有在时间区间有效时才保留起止时间，否则置为 `null`，靠时段完成提交；已订场的草稿仍然必须有合法的时间。新增测试「unbooked chat drafts drop a partial time range instead of blocking completion」。原测试「invalid or incomplete court details…」中倒序时间那一项改为在 `venueBookingStatus: 'booked'` 下断言。
+
+### NIT
+
+- **R3-N1（已修）** `app/page.tsx:828-829`：`preferredDate >= today` 在外层和已订场分支里各判断了一次，已删除分支里那一次。
+- **R3-N2** 0019 中 `expires_on` 列和 `UPDATE … SET expires_on = preferred_date` 仍然保留，但代码已不再读这一列，只在写入时等于 `preferred_date`。这是冗余列，保留它可以避免改迁移结构，可以在后续迁移中删掉。
+- **R3-N3** `lib/partner-request-slots.ts:38-40`：`slotsFromText` 不识别“中午 / 傍晚 / 凌晨”这些说法；聊天兜底只扫描最后一条用户消息。如果模型没有返回时段，而用户最后一句是 “good morning …”，会被推成 `morning`。由于日期仍然必填，确认摘要里也会显示时段，风险不大。
+- **R3-N4** `lib/partner-request-parser.ts:105-113`：解析器只认 ISO、`dd/mm/yyyy` 和 “20 October 2026” 这几种日期写法。群聊里常见的“周六 / 明天 / 10月20日”都会被列为缺日期，需要管理员手填。现在日期必填，后台粘贴的手工量会增加，后续可以考虑支持这些写法。
+- **R3-N5** `app/api/admin/reservation-requests/route.ts:22`、`app/api/reservation-requests/route.ts:47`：`NULLS LAST` 在 NOT NULL 列上已经没有意义，无害。另外 `slotForSchedule` 现在只在测试中使用。
+
+### 已核对、没有问题的点
+
+- **迁移 0019 和 snapshot**：
+  - 0019 已删除 `DROP NOT NULL` 和 `DROP INDEX`，也不再新建 expiry 索引。0005 建立的 `idx_reservation_requests_status_date (status, preferred_date)` 保持不变。
+  - 0019、0020、0021 三个 snapshot 中，`preferred_date.notNull = true`，索引名和列与 0005、`db/schema.ts:157,181` 一致。journal 和 snapshot 的 id/prevId 链没有改动。
+  - `start_time/end_time DROP NOT NULL` 与“未订场可以没有时间”一致。
+  - 我是人工逐项比对的。本会话没有获准运行 `drizzle-kit generate` 做自动比对；Codex 的实现报告中记录了离线 generate 的结果是 no changes。
+  - 注意：如果某个 Preview 或 Neon 分支库已经执行过**旧版** 0019，drizzle 不会重跑修改后的 0019，那个库里会残留可空的 `preferred_date` 和 expiry 索引，新加的时段回填也不会执行。这种库需要重建分支，或者手动对齐。
+- **旧值残留**：全仓 grep `weekday_* / weekend_any / SLOT_REQUEST_TTL / 30 天 / COALESCE(expires_on…)` 均无残留。剩下的 `weekends / weekday_evenings` 属于用户资料里的 `PreferredTime`（`lib/tennis-utils.ts:24`），与找球友时段无关。9fa1f1d 加的 `COALESCE(expires_on, preferred_date)` 兜底已在公开列表和申请路由中改为直接比较 `preferred_date`，旧版本写入、`expires_on` 为空的行也能正确处理。中英文翻译和公开板块的时段筛选都只有 上午/下午/晚上 和 Morning/Afternoon/Evening。
+- **服务端校验**（`lib/server/reservation-request-validation.ts:95-99,124`）：
+  - 日期缺失、非法（如 2/30）或已过去，都会被拒绝。
+  - 旧时段值会被拒绝。
+  - 未订场时至少要选一个时段；时间可以不填，填了就必须合法。
+  - 已订场时必须有合法的起止时间（结束时间允许 `24:00`）；时段一律由服务端推导，忽略客户端传来的值。
+- **时段边界**：区间是半开的。`12:00` 属于下午，`18:00` 属于晚上，结束时刻本身不计入（例如 11:00–12:00 只算上午）。跨越多个时段时全部计入。测试覆盖了 00:00、12:00、17:59、18:00、24:00 以及非法区间。
+- **隐私**：`serializePublicReservationRequest`（`lib/server/database.ts:353-363`）只输出场地、邮编、区域、日期、时段、时间、水平、人数、形式、订场状态和预算。不包含 contact_name、email、phone、wechat、whatsapp、preferred_contact 和 message，测试已覆盖。
+- **前端**：
+  - 前台表单的日期始终必填，切换订场状态时保留日期。
+  - 公开卡片和申请弹窗：未订场时显示“日期 · 时段”，已订场时显示精确时间和时长。列表按日期升序排列。
+  - 后台列表的日期列不再有 `—` 分支。
+  - 提交成功页显示日期和时段或时间。
+- **聊天**：提示词已改为日期必填，并说明了时段定义。`assistantPreferredSlots` 对已订场一律用时间推导时段，未订场时优先采用模型返回的时段。没有日期时 `complete` 一律为 `false`，测试已覆盖。
+
+### 检查结果（本轮修复后）
+
+| 检查 | 结果 |
+|---|---|
+| `npx tsx --test tests/*.test.ts` | ✅ 76 通过，0 失败 |
+| `npx tsc --noEmit` | ✅ |
+| `npm run lint`（oxlint） | ✅ 无告警 |
+| `npm run build` | ✅ |
+| `git diff --check` | ✅ |
+
+### Round 3 合并前补充（owner）
+
+- [ ] 在 Neon 分支上执行修改后的 0019，然后运行 `SELECT id, start_time, end_time, venue_booking_status, preferred_slots_json FROM reservation_requests ORDER BY preferred_date;`，确认旧需求都回填了正确的时段（R3-S1）。另外确认 `preferred_date` 仍为 NOT NULL，`idx_reservation_requests_status_date` 仍然存在。
+- [ ] 如果某个 Preview 库已经执行过旧版 0019，先重建该分支，再验收。
+- [ ] Preview 验收：
+  - 前台未订场时只选时段、不填时间，可以提交；已订场时必须填时间。
+  - 后台粘贴“2099-12-20 18:00-20:00 缺2人”这类文本：草稿显示“晚上”，没有隐藏时间；切到“已订场”后要求填时间。
+  - 在聊天里说“晚上 7 点左右”，可以完成提交（R3-S3）。

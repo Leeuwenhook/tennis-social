@@ -38,7 +38,7 @@ beforeEach(() => {
     venue_id: null,
     venue_name: 'Victoria Park',
     postcode: '',
-    preferred_date: '2026-12-20',
+    preferred_date: '2026-12-20', preferred_slots_json: '["evening"]', expires_on: '2026-12-20',
     start_time: '18:00',
     end_time: '20:00',
     contact_name: 'Test Player',
@@ -101,6 +101,9 @@ void test('admins can cancel and reopen a request while preserving its details',
     assert.equal(savedRow.status, status);
     assert.equal(data.request.id, 'request-test');
     assert.equal(data.request.venueName, 'Victoria Park');
+    assert.equal(data.request.preferredDate, '2026-12-20');
+    assert.deepEqual(data.request.preferredSlots, ['evening']);
+    assert.equal(data.request.expiresOn, '2026-12-20');
     assert.equal(data.request.message, 'Two players');
     assert.equal(data.request.createdAt, '2026-10-01T12:00:00.000Z');
     assert.notEqual(savedRow.updated_at, savedRow.created_at);

@@ -35,8 +35,6 @@ export type Session = {
   formats: GameFormat[];
   seekingLevels?: string[];
   status: SessionStatus;
-  description: string;
-  descriptionZh: string;
   bookingPreferences?: SessionBookingPreference[];
 };
 
@@ -95,12 +93,12 @@ export type SessionDraft = {
   capacity: string;
   formats: GameFormat[];
   seekingLevels: string[];
-  description: string;
-  descriptionZh: string;
   status: SessionStatus;
 };
 
 export type VenueDraft = {
+  description: string;
+  descriptionZh: string;
   address: string;
   addressZh: string;
   postcode: string;
@@ -120,7 +118,6 @@ export type SessionImportIssueCode =
   | 'startTime'
   | 'endTime'
   | 'timeRange'
-  | 'description'
   | 'price'
   | 'capacity'
   | 'formats'
@@ -141,11 +138,16 @@ export type ReservationRequest = {
   venueName: string;
   postcode: string;
   preferredDate: string;
-  startTime: string;
-  endTime: string;
+  startTime: string | null;
+  endTime: string | null;
   contactName: string;
   email: string;
   phone: string;
+  wechat?: string;
+  whatsapp?: string;
+  preferredContact?: 'email' | 'phone' | 'wechat' | 'whatsapp';
+  preferredSlots?: string[];
+  expiresOn?: string | null;
   message: string;
   status: ReservationRequestStatus;
   createdAt: string;
@@ -169,6 +171,11 @@ export type ReservationRequestForm = {
   contactName: string;
   email: string;
   phone: string;
+  wechat?: string;
+  whatsapp?: string;
+  preferredContact?: 'email' | 'phone' | 'wechat' | 'whatsapp';
+  preferredSlots?: string[];
+  expiresOn?: string | null;
   message: string;
   requestKind?: ReservationRequestKind;
   venueBookingStatus?: VenueBookingStatus;

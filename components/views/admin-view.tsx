@@ -19,6 +19,7 @@ import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs';
 import Upload from 'lucide-react/dist/esm/icons/upload.mjs';
 import UserRound from 'lucide-react/dist/esm/icons/user-round.mjs';
 
+import { slotLabels } from '@/lib/partner-request-slots';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -53,6 +54,7 @@ type AdminApplication = {
   contact_name?: string;
   email: string;
   phone?: string | null;
+  wechat?: string; whatsapp?: string; preferred_contact?: string;
   tennis_level?: string;
   preferred_format?: string;
   message?: string | null;
@@ -141,7 +143,7 @@ function AdminRequestApplications({ request, t }: { request: ReservationRequest;
             <div className="request-admin-application" key={application.id}>
               <div>
                 <strong>{application.name ?? application.contact_name ?? t.unknown}</strong>
-                <span><a href={`mailto:${application.email}`}>{application.email}</a>{application.phone ? ` · ${application.phone}` : ''}</span>
+                <span><a href={`mailto:${application.email}`}>{application.email}</a>{application.phone ? ` · ${application.phone}` : ''} · {t.wechat}: {application.wechat || '—'} · {t.whatsapp}: {application.whatsapp || '—'} · {t.preferredContact}: <strong>{application.preferred_contact ?? 'email'}</strong></span>
                 <span>{application.tennis_level || t.unknown} · {preferredFormatLabel(application.preferred_format, t)}</span>
                 {application.message ? <small>{application.message}</small> : null}
               </div>
@@ -223,6 +225,7 @@ export function AdminView({
   onStartEditSession,
   onCreateRecurringSessions,
   onDeleteSession,
+  onMarkSessionFull,
   onBulkUpdateSessionStatus,
   onExportSessions,
   onUndoLastOperation,
@@ -295,6 +298,7 @@ export function AdminView({
   onStartEditSession: (session: Session) => void;
   onCreateRecurringSessions: (session: Session) => void;
   onDeleteSession: (session: Session) => void;
+  onMarkSessionFull: (session: Session) => void;
   onBulkUpdateSessionStatus: (status: SessionStatus) => void;
   onExportSessions: () => void;
   onUndoLastOperation: () => void;
@@ -482,7 +486,7 @@ export function AdminView({
             <Input
               id="admin-capacity"
               type="number"
-              min="1"
+              min="0"
               value={draft.capacity}
               onChange={(event) => setDraft((current) => ({ ...current, capacity: event.target.value }))}
             />
@@ -562,32 +566,6 @@ export function AdminView({
             <ShieldCheck size={15} /> {t.lockedFields}
           </p>
         ) : null}
-        <div className="form-grid two-col">
-          <div className="field">
-            <Label htmlFor="admin-description">English description</Label>
-            <textarea
-              id="admin-description"
-              value={draft.description}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, description: event.target.value }))
-              }
-              className="native-textarea"
-              rows={3}
-            />
-          </div>
-          <div className="field">
-            <Label htmlFor="admin-description-zh">中文介绍</Label>
-            <textarea
-              id="admin-description-zh"
-              value={draft.descriptionZh}
-              onChange={(event) =>
-                setDraft((current) => ({ ...current, descriptionZh: event.target.value }))
-              }
-              className="native-textarea"
-              rows={3}
-            />
-          </div>
-        </div>
         {adminMessage ? (
           <div className="admin-message">
             <Check size={15} /> {adminMessage}
@@ -639,6 +617,20 @@ export function AdminView({
               value={venueDraft.area}
               onChange={(event) => setVenueDraft((current) => ({ ...current, area: event.target.value }))}
             />
+          </div>
+          <div className="field">
+            <Label htmlFor="venue-description">Venue description (English)</Label>
+            <textarea id="venue-description" className="native-textarea" rows={3} maxLength={2000}
+              placeholder="留空自动生成 / Leave empty to auto-generate"
+              value={venueDraft.description}
+              onChange={(event) => setVenueDraft((current) => ({ ...current, description: event.target.value }))} />
+          </div>
+          <div className="field">
+            <Label htmlFor="venue-descriptionZh">场地介绍（中文）</Label>
+            <textarea id="venue-descriptionZh" className="native-textarea" rows={3} maxLength={2000}
+              placeholder="留空自动生成 / Leave empty to auto-generate"
+              value={venueDraft.descriptionZh}
+              onChange={(event) => setVenueDraft((current) => ({ ...current, descriptionZh: event.target.value }))} />
           </div>
           <div className="field">
             <Label htmlFor="venue-address">{language === 'zh' ? '详细地址' : 'Street address'}</Label>
@@ -1168,6 +1160,7 @@ export function AdminView({
                                   >
                                     <Repeat2 size={14} /> {t.createNextWeeks}
                                   </Button>
+                                  {session.capacity > session.bookedSpots ? <Button variant="outline" title={t.markFullHint} onClick={() => onMarkSessionFull(session)}>{t.markFull}</Button> : null}
                                   <Button
                                     variant="destructive"
                                     size="sm"
@@ -1309,11 +1302,11 @@ export function AdminView({
                           </div>
                           <span>
                             <CalendarDays size={14} /> {formatLongDate(request.preferredDate, language)} ·{' '}
-                            {request.startTime}–{request.endTime}
+                            {request.venueBookingStatus === 'booked' && request.startTime && request.endTime ? `${request.startTime}–${request.endTime}` : slotLabels(request.preferredSlots, language)}
                           </span>
                           <span>
                             <UserRound size={14} /> {request.contactName} ·{' '}
-                            <a href={`mailto:${request.email}`}>{request.email}</a>
+                            <a href={`mailto:${request.email}`}>{request.email}</a> · {t.preferredContact}: <strong>{request.preferredContact ?? 'email'}</strong> · {t.wechat}: {request.wechat || '—'} · {t.whatsapp}: {request.whatsapp || '—'}
                             {request.phone ? ` · ${request.phone}` : ''}
                           </span>
                           {request.message ? <p>{request.message}</p> : null}

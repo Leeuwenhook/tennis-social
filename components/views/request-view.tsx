@@ -8,6 +8,8 @@ import Check from 'lucide-react/dist/esm/icons/check.mjs';
 import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check.mjs';
 import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs';
 
+import { PartnerContactFields, PartnerSlotFields } from '@/components/partner-request-fields';
+import { slotLabels } from '@/lib/partner-request-slots';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -129,7 +131,7 @@ export function RequestView({
             <div>
               <small>{t.preferredTimeRange}</small>
               <strong>
-                {submittedRequest.startTime}–{submittedRequest.endTime}
+                {submittedRequest.venueBookingStatus === 'booked' && submittedRequest.startTime && submittedRequest.endTime ? `${submittedRequest.startTime}–${submittedRequest.endTime}` : slotLabels(submittedRequest.preferredSlots, language)}
               </strong>
             </div>
             {submittedRequest.requestKind ? <>
@@ -309,7 +311,7 @@ export function RequestView({
             {structured ? <>
               <div className="field">
                 <Label htmlFor="request-booking-status">{t.venueBookingStatus} <em>*</em></Label>
-                <select id="request-booking-status" className="native-select" value={requestForm.venueBookingStatus ?? 'unknown'} onChange={(event) => setField('venueBookingStatus', event.target.value as ReservationRequestForm['venueBookingStatus'])}>
+                <select id="request-booking-status" className="native-select" value={requestForm.venueBookingStatus ?? 'unknown'} onChange={(event) => setRequestForm((current) => ({ ...current, venueBookingStatus: event.target.value as ReservationRequestForm['venueBookingStatus'], startTime: '', endTime: '' }))}>
                   <option value="booked">{t.venueBooked}</option><option value="not_booked">{t.not_booked}</option><option value="unknown">{t.unknown}</option>
                 </select>
               </div>
@@ -327,6 +329,7 @@ export function RequestView({
               </Label>
               <Input
                 id="request-date"
+                required
                 type="date"
                 min={dateFromToday(0)}
                 value={requestForm.preferredDate}
@@ -335,6 +338,7 @@ export function RequestView({
                 }
               />
             </div>
+            {requestForm.venueBookingStatus === 'booked' ? <>
             <div className="field request-time-field">
               <Label htmlFor="request-start">
                 {t.preferredTimeRange} <em>*</em>
@@ -342,7 +346,7 @@ export function RequestView({
               <div className="time-pair">
                 <Input
                   id="request-start"
-                  type="time"
+                  type="time" required
                   value={requestForm.startTime}
                   onChange={(event) =>
                     setRequestForm((current) => ({ ...current, startTime: event.target.value }))
@@ -351,7 +355,7 @@ export function RequestView({
                 <span>–</span>
                 <Input
                   aria-label={language === 'zh' ? '结束时间' : 'End time'}
-                  type="time"
+                  type="time" required
                   value={requestForm.endTime}
                   onChange={(event) =>
                     setRequestForm((current) => ({ ...current, endTime: event.target.value }))
@@ -359,6 +363,7 @@ export function RequestView({
                 />
               </div>
             </div>
+            </> : <PartnerSlotFields label={t.preferredSlots} language={language} value={requestForm.preferredSlots} onChange={(slots) => setField('preferredSlots', slots)} />}
             <div className="field">
               <Label htmlFor="request-name">
                 {t.name} <em>*</em>
@@ -377,7 +382,7 @@ export function RequestView({
                 {t.email} <em>*</em>
               </Label>
               <Input
-                id="request-email"
+                id="request-email" required
                 type="email"
                 autoComplete="email"
                 value={requestForm.email}
@@ -388,10 +393,10 @@ export function RequestView({
             </div>
             <div className="field">
               <Label htmlFor="request-phone">
-                {t.phone} <small>({t.optional})</small>
+                {t.phone} {requestForm.preferredContact === 'phone' ? <em>*</em> : <small>({t.optional})</small>}
               </Label>
               <Input
-                id="request-phone"
+                id="request-phone" required={requestForm.preferredContact === 'phone'}
                 type="tel"
                 autoComplete="tel"
                 value={requestForm.phone}
@@ -400,6 +405,7 @@ export function RequestView({
                 }
               />
             </div>
+            <PartnerContactFields value={requestForm} labels={t} onChange={(contacts) => setRequestForm((current) => ({ ...current, ...contacts }))} />
             <div className="field request-message-field">
               <Label htmlFor="request-message">
                 {t.requestMessage} <small>({t.optional})</small>

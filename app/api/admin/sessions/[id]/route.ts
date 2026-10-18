@@ -28,12 +28,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     const db = database();
     await ensureSeeded(db);
-    const venueRows = await db`SELECT id FROM venues` as Array<{ id: string }>;
+    const venueRows = await db`SELECT id, name, name_zh FROM venues` as Array<{ id: string; name: string; name_zh: string }>;
     const session = input ? validateSessionInput(input, venueRows.map((venue) => venue.id)) : null;
     if (!session) return Response.json({ error: 'invalid_session' }, { status: 400 });
     const existingRows = await db`
       SELECT id, venue_id, date, start_time, end_time, price_pence, capacity,
-             booked_spots, formats_json, seeking_levels_json, status, description, description_zh
+             booked_spots, formats_json, seeking_levels_json, status
       FROM sessions
       WHERE id = ${id}
     ` as SessionRow[];
@@ -63,11 +63,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       UPDATE sessions
       SET venue_id = ${session.venueId}, date = ${session.date}, start_time = ${session.startTime},
           end_time = ${session.endTime}, price_pence = ${session.pricePence}, capacity = ${session.capacity},
-          formats_json = ${JSON.stringify(session.formats)}, seeking_levels_json = ${JSON.stringify(session.seekingLevels)}, status = ${session.status}, description = ${session.description},
-          description_zh = ${session.descriptionZh}, updated_at = ${now}
+          formats_json = ${JSON.stringify(session.formats)}, seeking_levels_json = ${JSON.stringify(session.seekingLevels)}, status = ${session.status}, updated_at = ${now}
       WHERE id = ${id} AND booked_spots <= ${session.capacity}
       RETURNING id, venue_id, date, start_time, end_time, price_pence, capacity,
-                booked_spots, formats_json, seeking_levels_json, status, description, description_zh
+                booked_spots, formats_json, seeking_levels_json, status
     ` as SessionRow[];
     if (!rows[0]) return Response.json({ error: 'capacity_too_low' }, { status: 409 });
     return Response.json({ session: serializeSession(rows[0]) });

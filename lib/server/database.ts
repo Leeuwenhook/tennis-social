@@ -1,3 +1,4 @@
+import { PREFERRED_SLOTS, slotsForTimeRange } from '../partner-request-slots';
 import { neon } from '@neondatabase/serverless';
 
 import { GAME_FORMATS, RACKET_PRICE_PENCE, venues, type GameFormat } from '../demo-data';
@@ -16,11 +17,14 @@ export type SessionRow = {
   formats_json: string;
   seeking_levels_json: string;
   status: 'published' | 'draft';
+  /** Legacy storage only; excluded from product serialization. Remove after rollback window. */
   description: string;
   description_zh: string;
 };
 
 export type VenueRow = {
+  description?: string | null;
+  description_zh?: string | null;
   id: string;
   name: string;
   name_zh: string;
@@ -61,6 +65,13 @@ export type BookingRow = {
   stripe_payment_intent_id: string | null;
   checkout_url: string | null;
   expires_at: string | null;
+  followup_email_status: 'pending' | 'sending' | 'sent' | 'skipped';
+  followup_email_sent_at: string | null;
+  followup_email_message_id: string | null;
+  followup_email_claimed_at: string | null;
+  admin_notification_status: 'pending' | 'sending' | 'sent' | 'skipped';
+  admin_notification_claimed_at: string | null;
+  admin_notification_sent_at: string | null;
   confirmation_email_status: 'pending' | 'sending' | 'sent';
   confirmation_email_sent_at: string | null;
   confirmation_email_message_id: string | null;
@@ -156,8 +167,8 @@ export type ReservationRequestRow = {
   venue_name: string;
   postcode: string;
   preferred_date: string;
-  start_time: string;
-  end_time: string;
+  start_time: string | null;
+  end_time: string | null;
   contact_name: string;
   email: string;
   phone: string;
@@ -173,6 +184,11 @@ export type ReservationRequestRow = {
   status: 'pending' | 'reviewing' | 'completed' | 'cancelled';
   created_at: string;
   updated_at: string;
+  preferred_slots_json?: string;
+  expires_on?: string | null;
+  wechat?: string;
+  whatsapp?: string;
+  preferred_contact?: 'email' | 'phone' | 'wechat' | 'whatsapp';
 };
 
 export type Database = ReturnType<typeof neon>;
@@ -212,7 +228,7 @@ function sessionInsert(db: Database, session: ReturnType<typeof createDemoSeed>[
     ) VALUES (
       ${session.id}, ${session.venueId}, ${session.date}, ${session.startTime}, ${session.endTime},
       ${session.pricePence}, ${session.capacity}, ${session.bookedSpots}, ${JSON.stringify(session.formats)}, ${JSON.stringify(session.seekingLevels ?? [])}, ${session.status},
-      ${session.description}, ${session.descriptionZh}, ${now}, ${now}
+      ${''}, ${''}, ${now}, ${now}
     )
     ON CONFLICT (id) DO NOTHING
   `;
@@ -288,10 +304,19 @@ export function serializeVenue(row: VenueRow) {
     postcode: row.postcode?.trim() || demoLocation?.postcode || '',
     photo: row.photo,
     photos,
+    description: row.description ?? null,
+    descriptionZh: row.description_zh ?? null,
     notes: row.notes ?? '',
     peakPricePence: row.peak_price_pence,
     offPeakPricePence: row.off_peak_price_pence,
   };
+}
+
+function requestPeriods(row: ReservationRequestRow) {
+  const stored = parseJsonArray(row.preferred_slots_json).filter((slot) => PREFERRED_SLOTS.includes(slot as never));
+  // Pre-0019 requests have exact times but no stored periods.
+  return row.venue_booking_status === 'booked' || !stored.length
+    ? slotsForTimeRange(row.start_time ?? '', row.end_time ?? '') : stored;
 }
 
 export function serializeReservationRequest(row: ReservationRequestRow) {
@@ -301,12 +326,13 @@ export function serializeReservationRequest(row: ReservationRequestRow) {
     venueId: row.venue_id,
     venueName: row.venue_name,
     postcode: row.postcode,
+    preferredSlots: requestPeriods(row), expiresOn: row.preferred_date,
     preferredDate: row.preferred_date,
     startTime: row.start_time,
     endTime: row.end_time,
     contactName: row.contact_name,
     email: row.email,
-    phone: row.phone,
+    phone: row.phone, wechat: row.wechat ?? '', whatsapp: row.whatsapp ?? '', preferredContact: row.preferred_contact ?? 'email',
     message: row.message,
     status: row.status,
     createdAt: row.created_at,
@@ -327,6 +353,7 @@ function parseJsonArray(value: string | undefined) {
 export function serializePublicReservationRequest(row: ReservationRequestRow & { area?: string | null }) {
   return {
     id: row.id, venueName: row.venue_name, postcode: row.postcode, area: row.area ?? '',
+    preferredSlots: requestPeriods(row), expiresOn: row.preferred_date,
     preferredDate: row.preferred_date, startTime: row.start_time, endTime: row.end_time,
     requestKind: row.request_kind ?? 'find_court', existingPlayerLevels: parseJsonArray(row.existing_player_levels_json),
     seekingPlayerCount: row.seeking_player_count ?? 0, seekingLevels: parseJsonArray(row.seeking_levels_json),
@@ -577,8 +604,6 @@ export function serializeSession(row: SessionRow) {
     formats,
     seekingLevels,
     status: row.status,
-    description: row.description,
-    descriptionZh: row.description_zh,
   };
 }
 

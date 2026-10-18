@@ -1,10 +1,11 @@
+import { slotsFromText, slotsForTimeRange } from './partner-request-slots';
 import type { ReservationRequestForm } from '../types/tennis';
 
 export type PartnerRequestDraft = Partial<Pick<ReservationRequestForm,
-  'venueName' | 'preferredDate' | 'startTime' | 'endTime' | 'existingPlayerLevels' |
+  'preferredSlots' | 'venueName' | 'preferredDate' | 'startTime' | 'endTime' | 'existingPlayerLevels' |
   'seekingLevels' | 'seekingPlayerCount' | 'preferredFormat' |
   'venueBookingStatus' | 'requestKind'>> & {
-  missing: Array<'preferredDate' | 'time' | 'seekingPlayerCount'>;
+  missing: Array<'preferredDate' | 'time' | 'preferredSlots' | 'seekingPlayerCount'>;
   source: string;
 };
 
@@ -143,8 +144,13 @@ export function parsePartnerRequestDraft(source: string): PartnerRequestDraft {
   else if (/booked|reserved|已订|已预订/i.test(text)) result.venueBookingStatus = 'booked';
   const partnerWording = /existing\s+players?|player\s+levels?|looking\s+for\s+(?:a\s+)?partner|find(?:ing)?\s+(?:a\s+)?partner|已有球友|球友(?:水平|等级)|寻找球友|找球友/i.test(text);
   if (result.venueName) result.requestKind = result.venueBookingStatus === 'booked' || partnerWording ? 'find_partners' : 'find_both';
+
+  result.preferredSlots = result.venueBookingStatus === 'booked' || times
+    ? slotsForTimeRange(result.startTime ?? '', result.endTime ?? '') : slotsFromText(text);
   if (!result.preferredDate) result.missing.push('preferredDate');
-  if (!result.startTime || !result.endTime) result.missing.push('time');
+  if (result.venueBookingStatus === 'booked') {
+    if (!result.startTime || !result.endTime) result.missing.push('time');
+  } else if (!result.preferredSlots.length) result.missing.push('preferredSlots');
   if (result.seekingPlayerCount === undefined) result.missing.push('seekingPlayerCount');
   return result;
 }

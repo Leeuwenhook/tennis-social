@@ -1,6 +1,9 @@
+import { PREFERRED_SLOTS, requestExpiresOn, slotsForTimeRange } from '../partner-request-slots';
 import { TENNIS_LEVELS } from './user-auth';
 
 export type ReservationRequestInput = {
+  preferredSlots?: unknown;
+  wechat?: unknown; whatsapp?: unknown; preferredContact?: unknown;
   requestType?: unknown;
   venueId?: unknown;
   venueName?: unknown;
@@ -70,7 +73,8 @@ export function validateReservationRequest(
   const endTime = cleanString(input.endTime, 5);
   const contactName = cleanString(input.contactName, 120);
   const email = cleanString(input.email, 254).toLowerCase();
-  const phone = cleanString(input.phone, 50);
+  const contacts = validateContactMethods(input);
+  if (!contacts) return null;
   const tennisLevel = cleanString(input.tennisLevel, 8);
   const gameFormat = input.gameFormat;
   const requestKind = input.requestKind === undefined ? 'find_court' : input.requestKind;
@@ -88,15 +92,18 @@ export function validateReservationRequest(
     : input.needsPartner === false ? 'Partner matching: No.' : '';
   const message = [partnerSummary, cleanString(input.message, 1000)].filter(Boolean).join('\n').slice(0, 1000);
   const today = new Date().toISOString().slice(0, 10);
+  let preferredSlots = Array.isArray(input.preferredSlots) ? [...new Set(input.preferredSlots)] : [];
+  if ((input.preferredSlots !== undefined && !Array.isArray(input.preferredSlots)) || !preferredSlots.every((slot) => PREFERRED_SLOTS.includes(slot as never))) return null;
+  if (!isValidDate(preferredDate) || preferredDate < today) return null;
+  if (venueBookingStatus !== 'booked' && preferredSlots.length < 1) return null;
+  const hasSchedule = venueBookingStatus === 'booked' || Boolean(startTime || endTime);
+  if (hasSchedule && (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(startTime) || !/^(?:(?:[01]\d|2[0-3]):[0-5]\d|24:00)$/.test(endTime) ||
+    minutes(endTime) <= minutes(startTime))) return null;
+
 
   if (
     !requestType ||
     (requestType === 'known_venue' ? !venueName : !/^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/.test(postcode)) ||
-    !isValidDate(preferredDate) || preferredDate < today ||
-    !/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime) ||
-    minutes(startTime) < 0 || minutes(startTime) > 1439 ||
-    minutes(endTime) < 1 || minutes(endTime) > 1440 ||
-    minutes(endTime) <= minutes(startTime) ||
     !contactName || !/^\S+@\S+\.\S+$/.test(email)
   ) return null;
 
@@ -114,21 +121,36 @@ export function validateReservationRequest(
   // A court-only request needs nobody; a partner search must need at least one player.
   if (requestKind === 'find_court' ? seekingPlayerCount !== 0 : seekingPlayerCount < 1) return null;
 
-  return { requestType, venueId: requestType === 'known_venue' ? venueId : null, venueName: requestType === 'known_venue' ? venueName : '', postcode: requestType === 'find_nearby' ? postcode : '', preferredDate, startTime, endTime, contactName, email, phone, message, requestKind, venueBookingStatus, existingPlayerLevels, seekingPlayerCount, seekingLevels, preferredFormat, budgetPence };
+  if (venueBookingStatus === 'booked') preferredSlots = slotsForTimeRange(startTime, endTime);
+  return { requestType, venueId: requestType === 'known_venue' ? venueId : null, venueName: requestType === 'known_venue' ? venueName : '', postcode: requestType === 'find_nearby' ? postcode : '', preferredDate, startTime: startTime || null, endTime: endTime || null, preferredSlots: preferredSlots as string[], expiresOn: requestExpiresOn(preferredDate), ...contacts, contactName, email, message, requestKind, venueBookingStatus, existingPlayerLevels, seekingPlayerCount, seekingLevels, preferredFormat, budgetPence };
 }
 
 export type PartnerRequestApplicationInput = {
-  name?: unknown; email?: unknown; phone?: unknown; tennisLevel?: unknown;
+  name?: unknown; email?: unknown; phone?: unknown; wechat?: unknown; whatsapp?: unknown; preferredContact?: unknown; tennisLevel?: unknown;
   preferredFormat?: unknown; message?: unknown;
 };
 
 export function validatePartnerRequestApplication(input: PartnerRequestApplicationInput) {
   const name = cleanString(input.name, 120);
   const email = cleanString(input.email, 254).toLowerCase();
-  const phone = cleanString(input.phone, 50);
+  const contacts = validateContactMethods(input);
+  if (!contacts) return null;
   const tennisLevel = cleanString(input.tennisLevel, 8);
   const preferredFormat = cleanString(input.preferredFormat, 20);
   const message = cleanString(input.message, 1000);
   if (!name || !/^\S+@\S+\.\S+$/.test(email) || !TENNIS_LEVELS.includes(tennisLevel as never) || !['singles', 'doubles', 'practice', 'flexible'].includes(preferredFormat)) return null;
-  return { name, email, phone, tennisLevel, preferredFormat, message };
+  return { name, email, ...contacts, tennisLevel, preferredFormat, message };
+}
+
+export function validateContactMethods(input: { phone?: unknown; wechat?: unknown; whatsapp?: unknown; preferredContact?: unknown }) {
+  const phone = typeof input.phone === 'string' ? input.phone.trim() : '';
+  const whatsapp = typeof input.whatsapp === 'string' ? input.whatsapp.trim() : '';
+  const wechat = typeof input.wechat === 'string' ? input.wechat.trim() : '';
+  const preferredContact = input.preferredContact === undefined ? 'email' : input.preferredContact;
+  const values = { phone, whatsapp, wechat };
+  if ((phone && !/^\+?[0-9()-]{6,20}$/.test(phone.replace(/\s/g, ''))) ||
+      (whatsapp && !/^\+?[0-9()-]{6,20}$/.test(whatsapp.replace(/\s/g, ''))) || wechat.length > 40 ||
+      !['email', 'phone', 'wechat', 'whatsapp'].includes(preferredContact as string) ||
+      (preferredContact !== 'email' && !values[preferredContact as keyof typeof values])) return null;
+  return { ...values, preferredContact: preferredContact as 'email' | 'phone' | 'wechat' | 'whatsapp' };
 }

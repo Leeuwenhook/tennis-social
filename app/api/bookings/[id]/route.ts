@@ -1,3 +1,4 @@
+import { sendAdminBookingNotificationOnce } from '@/lib/server/booking-email';
 import {
   database,
   DatabaseNotConfiguredError,
@@ -79,6 +80,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
         console.error('Unable to send booking confirmation email', error);
         confirmationEmailStatus = 'failed';
       }
+      try { await sendAdminBookingNotificationOnce(db, currentBooking.id); }
+      catch { console.error('Admin booking notification failed', currentBooking.id); }
     }
     return Response.json({ booking: serializeBooking(currentBooking), confirmationEmailStatus });
   } catch (error) {

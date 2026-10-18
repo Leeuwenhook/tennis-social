@@ -1,3 +1,4 @@
+import { londonDateTime } from './london-time';
 import { venues } from '../demo-data';
 import {
   isEmailConfigured,
@@ -12,7 +13,7 @@ import {
 } from './database';
 
 type BookingReminderCandidate = BookingRow &
-  Pick<SessionRow, 'venue_id' | 'date' | 'start_time' | 'end_time' | 'description' | 'description_zh'>;
+  Pick<SessionRow, 'venue_id' | 'date' | 'start_time' | 'end_time'>;
 
 export type BookingReminderRunResult = {
   status: 'outside_window' | 'email_not_configured' | 'sent';
@@ -23,21 +24,7 @@ export type BookingReminderRunResult = {
   failed?: number;
 };
 
-const LONDON_TIME_ZONE = 'Europe/London';
 const STALE_CLAIM_AFTER_MS = 10 * 60 * 1000;
-
-function londonDateTime(now: Date) {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: LONDON_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(now);
-  return Object.fromEntries(parts.map((part) => [part.type, part.value]));
-}
 
 function tomorrowDate(date: string) {
   const [year, month, day] = date.split('-').map(Number);
@@ -56,7 +43,7 @@ export async function sendDueBookingReminders(
   const staleClaimBefore = new Date(now.getTime() - STALE_CLAIM_AFTER_MS).toISOString();
   const candidates = await db`
     SELECT bookings.*, sessions.venue_id, sessions.date, sessions.start_time,
-           sessions.end_time, sessions.description, sessions.description_zh
+           sessions.end_time
     FROM bookings
     JOIN sessions ON sessions.id = bookings.session_id
     WHERE bookings.status = 'confirmed'

@@ -1,4 +1,13 @@
+import { slotsForTimeRange, slotsFromText } from './partner-request-slots';
+
+export function assistantPreferredSlots(draft: BookingAssistantDraft, userText = '') {
+  const schedule = slotsForTimeRange(draft.startTime ?? '', draft.endTime ?? '');
+  if (draft.venueBookingStatus === 'booked') return schedule;
+  return draft.preferredSlots?.length ? draft.preferredSlots : schedule.length ? schedule : slotsFromText(userText);
+}
+
 export type BookingAssistantDraft = {
+  venueBookingStatus?: 'booked' | 'not_booked' | 'unknown' | null;
   venueName?: string | null;
   postcode?: string | null;
   preferredSlots?: string[] | null;

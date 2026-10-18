@@ -825,7 +825,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       setRequestError(t.requestSeekingCountInvalid);
       return;
     }
-    const valid = validLocation && validStructured && (requestForm.venueBookingStatus === 'booked'
+    const valid = validLocation && validStructured && requestForm.preferredDate >= dateFromToday(0) && (requestForm.venueBookingStatus === 'booked'
         ? requestForm.preferredDate >= dateFromToday(0) && requestForm.startTime && requestForm.endTime && parseMinutes(requestForm.endTime) > parseMinutes(requestForm.startTime)
         : (requestForm.preferredSlots ?? []).length > 0) &&
       requestForm.contactName.trim() && /^\S+@\S+\.\S+$/.test(requestForm.email);

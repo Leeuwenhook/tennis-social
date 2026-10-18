@@ -889,7 +889,7 @@
           "name": "preferred_date",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "preferred_slots_json": {
           "name": "preferred_slots_json",
@@ -1039,8 +1039,8 @@
         }
       },
       "indexes": {
-        "idx_reservation_requests_status_expiry": {
-          "name": "idx_reservation_requests_status_expiry",
+        "idx_reservation_requests_status_date": {
+          "name": "idx_reservation_requests_status_date",
           "columns": [
             {
               "expression": "status",
@@ -1049,7 +1049,7 @@
               "nulls": "last"
             },
             {
-              "expression": "expires_on",
+              "expression": "preferred_date",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

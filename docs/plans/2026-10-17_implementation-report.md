@@ -77,3 +77,35 @@ Initial checks caught a restored tool type declaration, a test fixture field and
 3. On the owner’s Preview environment, check venue create/edit/blank fallback in both languages, session form/copy/import behavior, detail header and email previews. Verify booking/request notifications reach both owners once. Test follow-ups with `Authorization: Bearer <CRON_SECRET>` and `?force=1` on eligible test bookings; repeat to confirm no duplicate, and check suppression/refunds. Without force, verify the skip response outside London 21h. The owner handles deployment and confirmation of the updated cron schedules.
 
 Deviations: no scope deviations. The test runner and disposable PostgreSQL single-user mode are sandbox accommodations. Preview/mobile, SMTP/Stripe and deployed cron acceptance remain owner steps; no remote services were touched.
+
+## Round 3 — Required dates and time-of-day periods (2026-10-18)
+
+Owner correction supersedes the earlier undated/weekday-slot design. Every request now requires a valid, nonpast `preferred_date`. Unbooked/unknown requests require one or more `morning|afternoon|evening` choices; clock times may be NULL. Booked requests still require a date and valid exact start/end times, and their stored/display/filter periods are derived from the entire clock range. Periods are morning before 12:00, afternoon 12:00–17:59, evening from 18:00; end times are exclusive, including support for 24:00. Weekends use the same periods.
+
+### Files changed
+
+- Request flows: `app/page.tsx`, `components/views/request-view.tsx`, `components/public-partner-requests.tsx`, `components/views/admin-view.tsx`, `components/admin-paste-requests.tsx`. Date is always shown/required and retained when changing booking status. Unbooked forms show the existing multi-select chips with the new periods. Public cards and application context show date plus periods, or exact booked times; date filtering remains available alongside period filtering, with explicit ascending date sorting. The join form inherits its target request’s schedule and keeps its existing contact fields.
+- Contract and language: `types/tennis.ts`, `lib/partner-request-slots.ts`, `lib/server/reservation-request-validation.ts`, `lib/server/database.ts`, `lib/translations.ts`, `app/api/reservation-requests/route.ts`, `app/api/reservation-requests/[id]/applications/route.ts`. Removed the 30-day TTL. New writes set `expires_on = preferred_date`; serialization and request/application eligibility use the date directly, including rows written by an older release without `expires_on`. Both languages use 上午/下午/晚上 and Morning/Afternoon/Evening. Shared chip and public-filter components consume the revised bilingual slot labels. Public serializers still exclude all contacts and private messages. Pre-0019 rows without stored periods derive them from their existing times.
+- Parsing/chat: `lib/partner-request-parser.ts`, `lib/booking-assistant.ts`, `app/api/chat/route.ts`. Support 上午/早上/morning, 下午/afternoon, 晚上/evening/night; missing dates always block completion. Booked drafts require exact times and derive all overlapping periods. Dated unbooked period-only drafts can submit. Contact/account behavior is unchanged.
+- Tests: `tests/booking-chat.test.ts`, `tests/partner-request-contract.test.ts`, `tests/partner-request-parser.test.ts`, `tests/partner-slots-contacts.test.ts`, `tests/reservation-partner-details.test.ts`, `tests/reservation-request-status.test.ts`. Coverage includes missing/invalid/past dates, nullable unbooked times, rejected legacy slot values, noon/18:00/24:00 boundaries, overlapping periods, serializer privacy/expiry and bilingual chat/paste behavior.
+- Migration/schema: `db/schema.ts`, `db/migrations/0019_partner_request_slots_contacts.sql`, and `db/migrations/meta/{0019,0020,0021}_snapshot.json`.
+
+### Migration changes
+
+Edited unapplied migration 0019 to remove `preferred_date DROP NOT NULL`. Retained the original `(status, preferred_date)` index rather than replacing it with an expiry index. Kept the `expires_on` column and its date backfill, nullable clock columns, slot JSON column and all contact additions. Updated subsequent snapshots so future generation preserves the corrected constraint/index. Journal entries, snapshot IDs/chain and migration numbering are unchanged; no new migration is necessary.
+
+Offline `DATABASE_URL='' npx drizzle-kit generate --name round3_consistency_check` reported **no schema changes, nothing to migrate**, creating no files and connecting to no database. Local assertions also verified the 0019–0021 date/time constraints, date indexes and journal entries.
+
+### Checks
+
+| Check | Result |
+|---|---|
+| `npx tsx --test tests/*.test.ts` | Sandbox IPC `EPERM`; used the owner-authorized fallback below |
+| `node --import tsx --test --test-isolation=none tests/*.test.ts` | **75 passed, 0 failed** |
+| `npx tsc --noEmit` | Passed |
+| `npm run lint` | Passed |
+| `npm run build` | Passed; local build emitted dependency/tooling warnings |
+| Offline Drizzle schema consistency / snapshot assertions | Passed |
+| `git diff --check` | Passed |
+
+Deviations: none in scope; only the authorized test-runner fallback was needed. Email-preview contains booking/follow-up examples rather than partner-request schedules, so no changes were needed there. Production DB, remote Vercel and section 3.2 were untouched. No commit, push or branch switch was performed; all changes remain uncommitted. Browser/mobile acceptance remains unverified in this local session.

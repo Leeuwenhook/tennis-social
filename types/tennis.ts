@@ -137,7 +137,7 @@ export type ReservationRequest = {
   venueId: string | null;
   venueName: string;
   postcode: string;
-  preferredDate: string | null;
+  preferredDate: string;
   startTime: string | null;
   endTime: string | null;
   contactName: string;

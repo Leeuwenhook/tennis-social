@@ -1,3 +1,4 @@
+import { PREFERRED_SLOTS, slotsForTimeRange } from '../partner-request-slots';
 import { neon } from '@neondatabase/serverless';
 
 import { GAME_FORMATS, RACKET_PRICE_PENCE, venues, type GameFormat } from '../demo-data';
@@ -165,7 +166,7 @@ export type ReservationRequestRow = {
   venue_id: string | null;
   venue_name: string;
   postcode: string;
-  preferred_date: string | null;
+  preferred_date: string;
   start_time: string | null;
   end_time: string | null;
   contact_name: string;
@@ -311,6 +312,13 @@ export function serializeVenue(row: VenueRow) {
   };
 }
 
+function requestPeriods(row: ReservationRequestRow) {
+  const stored = parseJsonArray(row.preferred_slots_json).filter((slot) => PREFERRED_SLOTS.includes(slot as never));
+  // Pre-0019 requests have exact times but no stored periods.
+  return row.venue_booking_status === 'booked' || !stored.length
+    ? slotsForTimeRange(row.start_time ?? '', row.end_time ?? '') : stored;
+}
+
 export function serializeReservationRequest(row: ReservationRequestRow) {
   return {
     id: row.id,
@@ -318,7 +326,7 @@ export function serializeReservationRequest(row: ReservationRequestRow) {
     venueId: row.venue_id,
     venueName: row.venue_name,
     postcode: row.postcode,
-    preferredSlots: parseJsonArray(row.preferred_slots_json), expiresOn: row.expires_on ?? row.preferred_date,
+    preferredSlots: requestPeriods(row), expiresOn: row.preferred_date,
     preferredDate: row.preferred_date,
     startTime: row.start_time,
     endTime: row.end_time,
@@ -345,7 +353,7 @@ function parseJsonArray(value: string | undefined) {
 export function serializePublicReservationRequest(row: ReservationRequestRow & { area?: string | null }) {
   return {
     id: row.id, venueName: row.venue_name, postcode: row.postcode, area: row.area ?? '',
-    preferredSlots: parseJsonArray(row.preferred_slots_json), expiresOn: row.expires_on ?? row.preferred_date,
+    preferredSlots: requestPeriods(row), expiresOn: row.preferred_date,
     preferredDate: row.preferred_date, startTime: row.start_time, endTime: row.end_time,
     requestKind: row.request_kind ?? 'find_court', existingPlayerLevels: parseJsonArray(row.existing_player_levels_json),
     seekingPlayerCount: row.seeking_player_count ?? 0, seekingLevels: parseJsonArray(row.seeking_levels_json),

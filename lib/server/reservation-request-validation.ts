@@ -1,4 +1,4 @@
-import { PREFERRED_SLOTS, requestExpiresOn } from '../partner-request-slots';
+import { PREFERRED_SLOTS, requestExpiresOn, slotsForTimeRange } from '../partner-request-slots';
 import { TENNIS_LEVELS } from './user-auth';
 
 export type ReservationRequestInput = {
@@ -92,12 +92,12 @@ export function validateReservationRequest(
     : input.needsPartner === false ? 'Partner matching: No.' : '';
   const message = [partnerSummary, cleanString(input.message, 1000)].filter(Boolean).join('\n').slice(0, 1000);
   const today = new Date().toISOString().slice(0, 10);
-  const preferredSlots = Array.isArray(input.preferredSlots) ? [...new Set(input.preferredSlots)] : [];
+  let preferredSlots = Array.isArray(input.preferredSlots) ? [...new Set(input.preferredSlots)] : [];
   if ((input.preferredSlots !== undefined && !Array.isArray(input.preferredSlots)) || !preferredSlots.every((slot) => PREFERRED_SLOTS.includes(slot as never))) return null;
-  if (venueBookingStatus === 'booked' ? !preferredDate : preferredSlots.length < 1) return null;
-  const hasSchedule = Boolean(preferredDate || startTime || endTime);
-  if (hasSchedule && (!isValidDate(preferredDate) || preferredDate < today ||
-    !/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(startTime) || !/^(?:(?:[01]\d|2[0-3]):[0-5]\d|24:00)$/.test(endTime) ||
+  if (!isValidDate(preferredDate) || preferredDate < today) return null;
+  if (venueBookingStatus !== 'booked' && preferredSlots.length < 1) return null;
+  const hasSchedule = venueBookingStatus === 'booked' || Boolean(startTime || endTime);
+  if (hasSchedule && (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(startTime) || !/^(?:(?:[01]\d|2[0-3]):[0-5]\d|24:00)$/.test(endTime) ||
     minutes(endTime) <= minutes(startTime))) return null;
 
 
@@ -121,7 +121,8 @@ export function validateReservationRequest(
   // A court-only request needs nobody; a partner search must need at least one player.
   if (requestKind === 'find_court' ? seekingPlayerCount !== 0 : seekingPlayerCount < 1) return null;
 
-  return { requestType, venueId: requestType === 'known_venue' ? venueId : null, venueName: requestType === 'known_venue' ? venueName : '', postcode: requestType === 'find_nearby' ? postcode : '', preferredDate: preferredDate || null, startTime: startTime || null, endTime: endTime || null, preferredSlots: preferredSlots as string[], expiresOn: requestExpiresOn(preferredDate || null), ...contacts, contactName, email, message, requestKind, venueBookingStatus, existingPlayerLevels, seekingPlayerCount, seekingLevels, preferredFormat, budgetPence };
+  if (venueBookingStatus === 'booked') preferredSlots = slotsForTimeRange(startTime, endTime);
+  return { requestType, venueId: requestType === 'known_venue' ? venueId : null, venueName: requestType === 'known_venue' ? venueName : '', postcode: requestType === 'find_nearby' ? postcode : '', preferredDate, startTime: startTime || null, endTime: endTime || null, preferredSlots: preferredSlots as string[], expiresOn: requestExpiresOn(preferredDate), ...contacts, contactName, email, message, requestKind, venueBookingStatus, existingPlayerLevels, seekingPlayerCount, seekingLevels, preferredFormat, budgetPence };
 }
 
 export type PartnerRequestApplicationInput = {

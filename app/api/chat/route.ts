@@ -1,8 +1,8 @@
-import { PREFERRED_SLOTS, slotForSchedule } from '@/lib/partner-request-slots';
+import { PREFERRED_SLOTS } from '@/lib/partner-request-slots';
 import { getRuntimeEnv } from '@/lib/server/runtime';
 import { venues } from '@/lib/demo-data';
 import { generateChatResponse } from '@/lib/server/gemini-chat';
-import { hasPartnerDetails } from '@/lib/booking-assistant';
+import { hasPartnerDetails, assistantPreferredSlots } from '@/lib/booking-assistant';
 import { TENNIS_LEVELS } from '@/lib/server/user-auth';
 import { validateReservationRequest } from '@/lib/server/reservation-request-validation';
 
@@ -19,8 +19,9 @@ const MAX_REQUEST_FIELD_LENGTH = 500;
 const requestShape = `{
   "venueName": string | null,
   "postcode": string | null,
-  "preferredSlots": ("weekday_morning" | "weekday_afternoon" | "weekday_evening" | "weekend_any")[] | null,
+  "preferredSlots": ("morning" | "afternoon" | "evening")[] | null,
   "preferredDate": string | null,
+  "venueBookingStatus": "booked" | "not_booked" | "unknown" | null,
   "startTime": string | null,
   "endTime": string | null,
   "contactName": string | null,
@@ -62,14 +63,14 @@ export async function POST(request: Request) {
   const systemInstruction = [
     'You are the Tennis Match London booking assistant.',
     'Help the user request a tennis court/session. Be warm, concise, and ask one or two missing questions at a time.',
-    'When there is no specific date, ask for preferred time slots (weekday morning/afternoon/evening or weekend).',
+    'A specific date is always required. Ask for it when missing. For unbooked courts collect one or more periods: morning (上午/早上/morning), afternoon (下午/afternoon), evening (晚上/evening/night). Weekdays and weekends are determined by the date.',
     body.language === 'zh'
       ? 'Understand English and Chinese. Reply with the language the user uses.'
       : body.language === 'en'
         ? 'Understand English and Chinese. Reply with the language the user uses. '
         : 'Understand English and Chinese and reply in the language the user uses.',
     `Today's date in London is ${new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/London', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())}. Use this to resolve relative dates.`,
-    'Collect: venue or area/postcode, preferredSlots (at least one), optional date (YYYY-MM-DD) with start and end time together, player count or level, contact name, email, and optional phone/message.',
+    'Collect: venue or area/postcode, required date (YYYY-MM-DD), venueBookingStatus, player count or level, contact name, email, and optional phone/message. If booked, require exact start/end times and derive all overlapping periods (morning before 12:00, afternoon 12:00–17:59, evening from 18:00). Otherwise require preferredSlots (at least one); exact times are optional. Do not infer booked status just because times are given.',
     'Always establish whether the user needs help finding tennis partners. Ask explicitly if they have not answered; do not repeat answered questions. Record their answer in needsPartner; use null until answered.',
     'If needsPartner=true, ask their tennis level and whether they want singles or doubles. Both are required before confirmation. Use gameFormat=singles or doubles. Record tennisLevel as a string (for example "3.0") from 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0; clarify vague levels rather than inventing a rating. If needsPartner=false, these fields are optional.',
     'Include partner-finding requirements, tennis level, and singles/doubles in the confirmation summary. Never set complete=true while needsPartner is unknown or required partner details are missing.',
@@ -117,13 +118,13 @@ export async function POST(request: Request) {
     const source = parsed.request;
     const textField = (key: string) => typeof source[key] === 'string' ? source[key].trim().slice(0, MAX_REQUEST_FIELD_LENGTH) : null;
     const preferredSlots = Array.isArray(source.preferredSlots) ? [...new Set(source.preferredSlots.filter((slot): slot is string => typeof slot === 'string' && PREFERRED_SLOTS.includes(slot as never)))] : [];
-    // A draft with a concrete date but no slots would otherwise never validate as complete.
-    const scheduleSlot = slotForSchedule(textField('preferredDate') ?? '', textField('startTime') ?? '');
-    if (!preferredSlots.length && scheduleSlot) preferredSlots.push(scheduleSlot);
+    const venueBookingStatus = source.venueBookingStatus === 'booked' ? 'booked' as const : source.venueBookingStatus === 'not_booked' ? 'not_booked' as const : 'unknown' as const;
+    const slots = assistantPreferredSlots({ preferredSlots, venueBookingStatus, startTime: textField('startTime'), endTime: textField('endTime') }, messages.filter((message) => message.role === 'user').at(-1)?.content);
     const normalizedRequest = {
       venueName: textField('venueName'),
       postcode: textField('postcode'),
-      preferredSlots,
+      preferredSlots: slots,
+      venueBookingStatus,
       preferredDate: textField('preferredDate'),
       startTime: textField('startTime'),
       endTime: textField('endTime'),

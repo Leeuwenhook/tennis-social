@@ -18,7 +18,7 @@ type PublicRequest = {
   venueName: string;
   postcode: string;
   area: string;
-  preferredDate: string | null;
+  preferredDate: string;
   preferredSlots: string[];
   expiresOn: string;
   startTime: string | null;
@@ -325,11 +325,11 @@ function RequestCard({
       <div className="cs-pr-meta">
         <span>
           <CalendarDays size={14} aria-hidden="true" />
-          {request.preferredDate ? formatDate(request.preferredDate, language) : slotLabels(request.preferredSlots, language)}
+          {`${formatDate(request.preferredDate, language)}${request.venueBookingStatus !== 'booked' ? ` · ${slotLabels(request.preferredSlots, language)}` : ''}`}
         </span>
-        {request.startTime && request.endTime ? <span>
+        {request.venueBookingStatus === 'booked' && request.startTime && request.endTime ? <span>
           <Clock3 size={14} aria-hidden="true" />
-          {request.startTime && request.endTime ? `${request.startTime}–${request.endTime}` : ''} · {request.startTime && request.endTime ? formatDuration(request.startTime, request.endTime, language) : ''}
+          {request.startTime}–{request.endTime} · {formatDuration(request.startTime, request.endTime, language)}
         </span> : null}
       </div>
       <dl className="cs-pr-details">
@@ -409,7 +409,7 @@ function ApplicationDialog({
     >
       <h2 id="partner-application-title">{sent ? t.sent : t.formTitle}</h2>
       <p className="cs-pr-dialog-sub">
-        {request.venueName || request.postcode} · {request.preferredDate ? formatDate(request.preferredDate, language) : slotLabels(request.preferredSlots, language)} {request.startTime && request.endTime ? `${request.startTime}–${request.endTime}` : ''}
+        {request.venueName || request.postcode} · {`${formatDate(request.preferredDate, language)}${request.venueBookingStatus !== 'booked' ? ` · ${slotLabels(request.preferredSlots, language)}` : ''}`} {request.venueBookingStatus === 'booked' && request.startTime && request.endTime ? `${request.startTime}–${request.endTime}` : ''}
       </p>
       {state.kind === 'sent' ? (
         <>
@@ -587,7 +587,7 @@ export function PublicPartnerRequests({ language }: { language: Language }) {
           return false;
         }
         return true;
-      }),
+      }).sort((a, b) => a.preferredDate.localeCompare(b.preferredDate)),
     [filters, requests],
   );
 

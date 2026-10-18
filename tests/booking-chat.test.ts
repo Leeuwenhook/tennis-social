@@ -53,7 +53,7 @@ function providerReply(
     reply,
     request: {
       venueName: 'Victoria Park',
-      preferredSlots: ['weekday_evening'], preferredDate: '2099-12-20',
+      preferredSlots: ['evening'], preferredDate: '2099-12-20',
       startTime: '18:00',
       endTime: '20:00',
       contactName: 'Test Player',
@@ -279,4 +279,34 @@ void test('requests without partner matching do not require level or format', as
     (await (await POST(chatRequest())).json()).request.complete,
     true,
   );
+});
+
+void test('dated period-only chat drafts can submit, undated ones cannot', async () => {
+  for (const preferredDate of ['2099-12-20', null]) {
+    globalThis.fetch = async () => providerReply('Ready.', { complete: true, needsPartner: false, preferredDate, preferredSlots: ['afternoon'], startTime: null, endTime: null });
+    const data = await (await POST(chatRequest())).json();
+    assert.equal(data.request.complete, Boolean(preferredDate));
+    assert.deepEqual(data.request.preferredSlots, ['afternoon']);
+  }
+});
+
+void test('booked chat drafts require times and derive every overlapping period', async () => {
+  for (const startTime of ['11:00', null]) {
+    globalThis.fetch = async () => providerReply('Ready.', { complete: true, needsPartner: false, venueBookingStatus: 'booked', preferredSlots: ['evening'], startTime, endTime: '18:30' });
+    const data = await (await POST(chatRequest())).json();
+    assert.equal(data.request.complete, Boolean(startTime));
+    assert.deepEqual(data.request.preferredSlots, startTime ? ['morning', 'afternoon', 'evening'] : []);
+  }
+});
+
+void test('chat recovers bilingual periods from user wording without inventing a date', async () => {
+  for (const [keyword, slot] of [['上午', 'morning'], ['早上', 'morning'], ['morning', 'morning'], ['下午', 'afternoon'], ['afternoon', 'afternoon'], ['晚上', 'evening'], ['evening', 'evening'], ['night', 'evening']]) {
+    globalThis.fetch = async () => providerReply('Ready.', { complete: true, needsPartner: false, preferredSlots: null, startTime: null, endTime: null });
+    const response = await POST(new Request('http://localhost/api/chat', {
+      method: 'POST', body: JSON.stringify({ messages: [{ role: 'user', content: `2099-12-20 Victoria Park ${keyword}` }] }),
+    }));
+    const data = await response.json();
+    assert.equal(data.request.complete, true);
+    assert.deepEqual(data.request.preferredSlots, [slot]);
+  }
 });

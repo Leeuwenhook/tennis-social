@@ -126,12 +126,12 @@ export function RequestView({
             </div>
             <div>
               <small>{t.preferredDate}</small>
-              <strong>{submittedRequest.preferredDate ? formatLongDate(submittedRequest.preferredDate, language) : slotLabels(submittedRequest.preferredSlots, language)}</strong>
+              <strong>{formatLongDate(submittedRequest.preferredDate, language)}</strong>
             </div>
             <div>
               <small>{t.preferredTimeRange}</small>
               <strong>
-                {submittedRequest.startTime && submittedRequest.endTime ? `${submittedRequest.startTime}–${submittedRequest.endTime}` : slotLabels(submittedRequest.preferredSlots, language)}
+                {submittedRequest.venueBookingStatus === 'booked' && submittedRequest.startTime && submittedRequest.endTime ? `${submittedRequest.startTime}–${submittedRequest.endTime}` : slotLabels(submittedRequest.preferredSlots, language)}
               </strong>
             </div>
             {submittedRequest.requestKind ? <>
@@ -311,7 +311,7 @@ export function RequestView({
             {structured ? <>
               <div className="field">
                 <Label htmlFor="request-booking-status">{t.venueBookingStatus} <em>*</em></Label>
-                <select id="request-booking-status" className="native-select" value={requestForm.venueBookingStatus ?? 'unknown'} onChange={(event) => setRequestForm((current) => ({ ...current, venueBookingStatus: event.target.value as ReservationRequestForm['venueBookingStatus'], preferredDate: '', startTime: '', endTime: '' }))}>
+                <select id="request-booking-status" className="native-select" value={requestForm.venueBookingStatus ?? 'unknown'} onChange={(event) => setRequestForm((current) => ({ ...current, venueBookingStatus: event.target.value as ReservationRequestForm['venueBookingStatus'], startTime: '', endTime: '' }))}>
                   <option value="booked">{t.venueBooked}</option><option value="not_booked">{t.not_booked}</option><option value="unknown">{t.unknown}</option>
                 </select>
               </div>
@@ -323,13 +323,13 @@ export function RequestView({
               <div className="field"><Label htmlFor="request-format">{t.requestFormat}</Label><select id="request-format" className="native-select" value={requestForm.preferredFormat ?? 'flexible'} onChange={(event) => setField('preferredFormat', event.target.value as ReservationRequestForm['preferredFormat'])}><option value="singles">{t.singles}</option><option value="doubles">{t.doubles}</option><option value="practice">{t.practice}</option><option value="flexible">{t.flexible}</option></select></div>
               <div className="field"><Label htmlFor="request-budget">{t.budget} <small>({t.optional})</small></Label><Input id="request-budget" type="number" min={0} step={0.01} value={budgetValue} onChange={(event) => { setBudgetText(event.target.value); setField('budgetPence', budgetPenceFromText(event.target.value)); }} /></div>
             </> : null}
-            {requestForm.venueBookingStatus === 'booked' ? <>
             <div className="field">
               <Label htmlFor="request-date">
                 {t.preferredDate} <em>*</em>
               </Label>
               <Input
                 id="request-date"
+                required
                 type="date"
                 min={dateFromToday(0)}
                 value={requestForm.preferredDate}
@@ -338,6 +338,7 @@ export function RequestView({
                 }
               />
             </div>
+            {requestForm.venueBookingStatus === 'booked' ? <>
             <div className="field request-time-field">
               <Label htmlFor="request-start">
                 {t.preferredTimeRange} <em>*</em>
@@ -345,7 +346,7 @@ export function RequestView({
               <div className="time-pair">
                 <Input
                   id="request-start"
-                  type="time"
+                  type="time" required
                   value={requestForm.startTime}
                   onChange={(event) =>
                     setRequestForm((current) => ({ ...current, startTime: event.target.value }))
@@ -354,7 +355,7 @@ export function RequestView({
                 <span>–</span>
                 <Input
                   aria-label={language === 'zh' ? '结束时间' : 'End time'}
-                  type="time"
+                  type="time" required
                   value={requestForm.endTime}
                   onChange={(event) =>
                     setRequestForm((current) => ({ ...current, endTime: event.target.value }))

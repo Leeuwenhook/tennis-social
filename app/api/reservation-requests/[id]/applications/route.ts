@@ -24,7 +24,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const { id: requestId } = await context.params;
     const today = new Date().toISOString().slice(0, 10);
     const found = await db`
-      SELECT requests.id, requests.status, COALESCE(requests.expires_on, requests.preferred_date) AS expires_on, requests.seeking_player_count,
+      SELECT requests.id, requests.status, requests.preferred_date AS expires_on, requests.seeking_player_count,
         (SELECT COUNT(*)::integer FROM partner_request_applications AS applications WHERE applications.request_id = requests.id AND applications.status = 'accepted') AS accepted_count
       FROM reservation_requests AS requests
       WHERE requests.id = ${requestId}
@@ -45,7 +45,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       FROM reservation_requests AS requests
       WHERE requests.id = ${requestId}
         AND requests.status IN ('pending', 'reviewing')
-        AND COALESCE(requests.expires_on, requests.preferred_date) >= ${today}
+        AND requests.preferred_date >= ${today}
         AND requests.seeking_player_count > (SELECT COUNT(*) FROM partner_request_applications AS applications WHERE applications.request_id = requests.id AND applications.status = 'accepted')
       RETURNING id, request_id, status, created_at
     ` as Array<{ id: string; request_id: string; status: string; created_at: string }>;

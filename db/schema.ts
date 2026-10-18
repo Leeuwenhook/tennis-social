@@ -154,7 +154,7 @@ export const reservationRequests = pgTable('reservation_requests', {
   venueId: text('venue_id').references(() => venues.id),
   venueName: text('venue_name').notNull(),
   postcode: text('postcode').notNull().default(''),
-  preferredDate: text('preferred_date'),
+  preferredDate: text('preferred_date').notNull(),
   preferredSlotsJson: text('preferred_slots_json').notNull().default('[]'),
   expiresOn: text('expires_on'),
   startTime: text('start_time'),
@@ -178,7 +178,7 @@ export const reservationRequests = pgTable('reservation_requests', {
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 }, (table) => [
-  index('idx_reservation_requests_status_expiry').on(table.status, table.expiresOn),
+  index('idx_reservation_requests_status_date').on(table.status, table.preferredDate),
 ]);
 
 export const partnerRequestApplications = pgTable('partner_request_applications', {

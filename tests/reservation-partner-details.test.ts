@@ -5,7 +5,7 @@ import { validateReservationRequest } from '../lib/server/reservation-request-va
 const request = {
   requestType: 'known_venue',
   venueName: 'Victoria Park',
-  preferredSlots: ['weekday_evening'], preferredDate: '2099-12-20',
+  preferredSlots: ['evening'], preferredDate: '2099-12-20',
   startTime: '18:00',
   endTime: '20:00',
   contactName: 'Test Player',

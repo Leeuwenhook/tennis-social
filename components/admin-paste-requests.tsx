@@ -67,8 +67,9 @@ export function AdminPasteRequests({
   const form = drafts[index];
   const findCourtOnly = form?.requestKind === 'find_court';
   const missing = form ? [
-    ...(!form.preferredDate && (form.venueBookingStatus === 'booked' || !(form.preferredSlots ?? []).length) ? [t.preferredDate] : []),
-    ...((form.preferredDate || form.venueBookingStatus === 'booked') && (!form.startTime || !form.endTime) ? [t.preferredTimeRange] : []),
+    ...(!form.preferredDate ? [t.preferredDate] : []),
+    ...(form.venueBookingStatus !== 'booked' && !form.preferredSlots?.length ? [t.preferredSlots] : []),
+    ...(form.venueBookingStatus === 'booked' && (!form.startTime || !form.endTime) ? [t.preferredTimeRange] : []),
     ...(!findCourtOnly && form.seekingPlayerCount === undefined ? [t.seekingPlayers] : []),
   ] : [];
 
@@ -177,17 +178,17 @@ export function AdminPasteRequests({
           </div>
           {form.venueBookingStatus !== 'booked' ? <PartnerSlotFields label={t.preferredSlots} language={t.email === '邮箱' ? 'zh' : 'en'} value={form.preferredSlots} onChange={(slots) => setField('preferredSlots', slots)} /> : null}
           <div className="field">
-            <Label htmlFor="paste-date">{t.preferredDate} {form.venueBookingStatus === 'booked' ? <em>*</em> : <small>({t.optional})</small>}</Label>
-            <Input id="paste-date" type="date" min={dateFromToday(0)} required={form.venueBookingStatus === 'booked'} value={form.preferredDate} onChange={(event) => setField('preferredDate', event.target.value)} />
+            <Label htmlFor="paste-date">{t.preferredDate} <em>*</em></Label>
+            <Input id="paste-date" type="date" min={dateFromToday(0)} required value={form.preferredDate} onChange={(event) => setField('preferredDate', event.target.value)} />
           </div>
-          <div className="field">
-            <Label htmlFor="paste-start">{t.preferredTimeRange} {form.venueBookingStatus === 'booked' || form.preferredDate ? <em>*</em> : <small>({t.optional})</small>}</Label>
+          {form.venueBookingStatus === 'booked' ? <div className="field">
+            <Label htmlFor="paste-start">{t.preferredTimeRange} <em>*</em></Label>
             <div className="time-pair">
-              <Input id="paste-start" type="time" value={form.startTime} onChange={(event) => setField('startTime', event.target.value)} />
+              <Input id="paste-start" type="time" required value={form.startTime} onChange={(event) => setField('startTime', event.target.value)} />
               <span>–</span>
-              <Input aria-label={t.preferredTimeRange} type="time" value={form.endTime} onChange={(event) => setField('endTime', event.target.value)} />
+              <Input aria-label={t.preferredTimeRange} type="time" required value={form.endTime} onChange={(event) => setField('endTime', event.target.value)} />
             </div>
-          </div>
+          </div> : null}
           <div className="field request-level-field"><Label>{t.existingLevels}</Label><div className="level-picker">{LEVELS.map((level) => <button type="button" key={`existing-${level}`} aria-pressed={(form.existingPlayerLevels ?? []).includes(level)} className={(form.existingPlayerLevels ?? []).includes(level) ? 'level-chip selected' : 'level-chip'} onClick={() => toggleLevel('existingPlayerLevels', level)}>{level}</button>)}</div></div>
           {!findCourtOnly ? <>
             <div className="field"><Label htmlFor="paste-seeking-count">{t.seekingPlayers} <em>*</em></Label><Input id="paste-seeking-count" type="number" min={1} max={100} value={form.seekingPlayerCount ?? ''} onChange={(event) => setField('seekingPlayerCount', event.target.value === '' ? undefined : Number(event.target.value))} /></div>

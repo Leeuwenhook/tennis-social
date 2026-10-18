@@ -67,7 +67,7 @@ void test('level ranges are not parsed as times', () => {
   assert.deepEqual(draft.existingPlayerLevels, ['3.0']);
   const noTime = parsePartnerRequestDraft('Victoria Park 水平3.0-3.5');
   assert.equal(noTime.startTime, undefined);
-  assert.ok(noTime.missing.includes('time'));
+  assert.ok(noTime.missing.includes('preferredSlots'));
 });
 
 void test('rejects invalid dates and resolves meridiems and durations sensibly', () => {
@@ -90,7 +90,7 @@ void test('rejects invalid dates and resolves meridiems and durations sensibly',
   const evening = parsePartnerRequestDraft('Victoria Park 6pm for 1.5 hours');
   assert.equal(evening.startTime, '18:00');
   assert.equal(evening.endTime, '19:30');
-  assert.ok(parsePartnerRequestDraft('Victoria Park 23:00 for 2 hours').missing.includes('time'));
+  assert.ok(parsePartnerRequestDraft('Victoria Park booked 23:00 for 2 hours').missing.includes('time'));
 });
 
 void test('splits list items and consecutive one-line venue requests conservatively', () => {
@@ -108,11 +108,19 @@ void test('splits list items and consecutive one-line venue requests conservativ
   assert.equal(parsePartnerRequestDrafts('Chestnuts Park（北伦敦）\n6–8PM（连续2小时）\n球友水平3.0').length, 1);
 });
 
-void test('parses bilingual slots without requiring a date or clock times', () => {
-  for (const text of ['Victoria Park 工作日晚上 周末 缺2人 未订场', 'Victoria Park weekday evening weekend need 2 players not booked']) {
+void test('parses bilingual periods and always asks for a missing date', () => {
+  for (const text of ['Victoria Park 晚上 缺2人 未订场', 'Victoria Park evening need 2 players not booked']) {
     const draft = parsePartnerRequestDraft(text);
-    assert.deepEqual(draft.preferredSlots, ['weekday_evening', 'weekend_any']);
-    assert.equal(draft.missing.includes('preferredDate'), false);
+    assert.deepEqual(draft.preferredSlots, ['evening']);
+    assert.equal(draft.missing.includes('preferredDate'), true);
     assert.equal(draft.missing.includes('time'), false);
   }
+  for (const keyword of ['上午', '早上', 'morning']) {
+    const draft = parsePartnerRequestDraft(`Victoria Park 2099-12-20 ${keyword} 缺2人 未订场`);
+    assert.deepEqual(draft.preferredSlots, ['morning']);
+    assert.deepEqual(draft.missing, []);
+  }
+  assert.deepEqual(parsePartnerRequestDraft('Victoria Park 2099-12-20 下午 晚上 缺2人 未订场').preferredSlots, ['afternoon', 'evening']);
+  assert.deepEqual(parsePartnerRequestDraft('Victoria Park 2099-12-20 booked 11:00-19:00 need 2 players').preferredSlots, ['morning', 'afternoon', 'evening']);
+  assert.ok(parsePartnerRequestDraft('Victoria Park 2099-12-20 booked evening need 2 players').missing.includes('time'));
 });

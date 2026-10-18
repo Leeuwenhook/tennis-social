@@ -1286,11 +1286,11 @@ export function AdminView({
                     return (
                       <article className="request-admin-row" key={request.id}>
                         <div className="request-admin-date">
-                          <strong>{request.preferredDate ? new Date(`${request.preferredDate}T12:00:00`).getDate() : '—'}</strong>
+                          <strong>{new Date(`${request.preferredDate}T12:00:00`).getDate()}</strong>
                           <span>
-                            {request.preferredDate ? new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-GB', {
+                            {new Intl.DateTimeFormat(language === 'zh' ? 'zh-CN' : 'en-GB', {
                               month: 'short',
-                            }).format(new Date(`${request.preferredDate}T12:00:00`)) : ''}
+                            }).format(new Date(`${request.preferredDate}T12:00:00`))}
                           </span>
                         </div>
                         <div className="request-admin-main">
@@ -1301,8 +1301,8 @@ export function AdminView({
                             </Badge>
                           </div>
                           <span>
-                            <CalendarDays size={14} /> {request.preferredDate ? formatLongDate(request.preferredDate, language) : slotLabels(request.preferredSlots, language)} ·{' '}
-                            {request.startTime && request.endTime ? `${request.startTime}–${request.endTime}` : ''}
+                            <CalendarDays size={14} /> {formatLongDate(request.preferredDate, language)} ·{' '}
+                            {request.venueBookingStatus === 'booked' && request.startTime && request.endTime ? `${request.startTime}–${request.endTime}` : slotLabels(request.preferredSlots, language)}
                           </span>
                           <span>
                             <UserRound size={14} /> {request.contactName} ·{' '}

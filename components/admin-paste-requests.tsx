@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs';
 
-import { PartnerContactFields, PartnerSlotFields } from '@/components/partner-request-fields';
+import { contactHandleRequired, PartnerContactFields, PartnerSlotFields } from '@/components/partner-request-fields';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -210,8 +210,8 @@ export function AdminPasteRequests({
             <Input id="paste-email" required type="email" value={contact.email} onChange={(event) => setContact((current) => ({ ...current, email: event.target.value }))} />
           </div>
           <div className="field">
-            <Label htmlFor="paste-phone">{t.phone} {form.preferredContact === 'phone' ? <em>*</em> : <small>({t.optional})</small>}</Label>
-            <Input id="paste-phone" type="tel" required={form.preferredContact === 'phone'} value={contact.phone} onChange={(event) => setContact((current) => ({ ...current, phone: event.target.value }))} />
+            <Label htmlFor="paste-phone">{t.contactHandle} {contactHandleRequired(form.preferredContact) ? <em>*</em> : <small>({t.optional})</small>}</Label>
+            <Input id="paste-phone" type="text" maxLength={50} required={contactHandleRequired(form.preferredContact)} value={contact.phone} onChange={(event) => setContact((current) => ({ ...current, phone: event.target.value }))} />
           </div>
           <PartnerContactFields labels={t} value={{ ...form, phone: contact.phone }} onChange={(contacts) => setDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...contacts } : item))} />
           <div className="field request-message-field">

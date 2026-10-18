@@ -7,6 +7,11 @@ export type ContactFields = {
   whatsapp?: string;
   preferredContact?: 'email' | 'phone' | 'wechat' | 'whatsapp';
 };
+/** The single phone/WeChat/WhatsApp field is required unless the player prefers email. */
+export function contactHandleRequired(preferredContact: ContactFields['preferredContact']) {
+  return (preferredContact ?? 'email') !== 'email';
+}
+
 export function PartnerContactFields({
   value,
   onChange,
@@ -15,7 +20,7 @@ export function PartnerContactFields({
   value: ContactFields;
   onChange: (value: ContactFields) => void;
   labels: {
-    phone: string;
+    contactSms: string;
     wechat: string;
     whatsapp: string;
     email: string;
@@ -23,25 +28,9 @@ export function PartnerContactFields({
     contactPrivacyNote: string;
   };
 }) {
+  const optionLabels = { email: labels.email, phone: labels.contactSms, wechat: labels.wechat, whatsapp: labels.whatsapp };
   return (
     <>
-      {(['wechat', 'whatsapp'] as const).map((key) => (
-        <label className="field cs-pr-field" key={key}>
-          <span>
-            {labels[key]}
-            {value.preferredContact === key ? ' *' : ''}
-          </span>
-          <input
-            className="native-input"
-            required={value.preferredContact === key}
-            maxLength={key === 'wechat' ? 40 : 50}
-            value={value[key] ?? ''}
-            onChange={(event) =>
-              onChange({ ...value, [key]: event.target.value })
-            }
-          />
-        </label>
-      ))}
       <label className="field cs-pr-field">
         <span>{labels.preferredContact}</span>
         <select
@@ -57,7 +46,7 @@ export function PartnerContactFields({
         >
           {(['email', 'phone', 'wechat', 'whatsapp'] as const).map((key) => (
             <option key={key} value={key}>
-              {labels[key]}
+              {optionLabels[key]}
             </option>
           ))}
         </select>

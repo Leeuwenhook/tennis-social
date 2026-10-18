@@ -148,9 +148,10 @@ export function validateContactMethods(input: { phone?: unknown; wechat?: unknow
   const wechat = typeof input.wechat === 'string' ? input.wechat.trim() : '';
   const preferredContact = input.preferredContact === undefined ? 'email' : input.preferredContact;
   const values = { phone, whatsapp, wechat };
-  if ((phone && !/^\+?[0-9()-]{6,20}$/.test(phone.replace(/\s/g, ''))) ||
+  // `phone` is the combined phone/WeChat/WhatsApp field, so it accepts any handle and satisfies every non-email preference.
+  if (phone.length > 50 ||
       (whatsapp && !/^\+?[0-9()-]{6,20}$/.test(whatsapp.replace(/\s/g, ''))) || wechat.length > 40 ||
       !['email', 'phone', 'wechat', 'whatsapp'].includes(preferredContact as string) ||
-      (preferredContact !== 'email' && !values[preferredContact as keyof typeof values])) return null;
+      (preferredContact !== 'email' && !phone && !values[preferredContact as keyof typeof values])) return null;
   return { ...values, preferredContact: preferredContact as 'email' | 'phone' | 'wechat' | 'whatsapp' };
 }

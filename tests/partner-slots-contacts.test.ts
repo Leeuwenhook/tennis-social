@@ -75,8 +75,16 @@ void test('contact preferences require their matching value in both forms', () =
       [],
     ),
   );
+  // The combined phone/WeChat/WhatsApp field accepts any handle up to 50 characters.
+  assert.ok(validatePartnerRequestApplication({ ...application, phone: 'wxid_player' }));
+  assert.ok(
+    validateReservationRequest(
+      { ...base, preferredContact: 'wechat', phone: 'wxid_player' },
+      [],
+    ),
+  );
   assert.equal(
-    validatePartnerRequestApplication({ ...application, phone: 'abc' }),
+    validatePartnerRequestApplication({ ...application, phone: 'x'.repeat(51) }),
     null,
   );
   assert.equal(

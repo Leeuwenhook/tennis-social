@@ -271,20 +271,6 @@ export async function ensureSeeded(db = database()) {
   ]);
 }
 
-export async function resetSeed(db = database()) {
-  const now = new Date().toISOString();
-  const seed = createDemoSeed(new Date(now));
-  await db.transaction([
-    db`DELETE FROM bookings`,
-    db`DELETE FROM webhook_events`,
-    db`DELETE FROM sessions`,
-    ...seed.venues.map((venue) => venueInsert(db, venue, now)),
-    ...seed.sessions.map((session) => sessionInsert(db, session, now)),
-    ...seed.bookings.map((booking) => bookingInsert(db, booking, now)),
-  ]);
-  return seed;
-}
-
 export function serializeVenue(row: VenueRow) {
   const demoLocation = venues.find((venue) => venue.id === row.id);
   let photos: string[] = [];

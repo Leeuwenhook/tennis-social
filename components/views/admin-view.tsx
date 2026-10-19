@@ -217,7 +217,6 @@ export function AdminView({
   sessionImportFailed,
   language,
   t,
-  onResetDemo,
   onLogoutAdmin,
   onSaveDraft,
   onSaveVenue,
@@ -290,7 +289,6 @@ export function AdminView({
   sessionImportFailed: boolean;
   language: Language;
   t: Translations;
-  onResetDemo: () => void;
   onLogoutAdmin: () => void;
   onSaveDraft: (e: SubmitEvent<HTMLFormElement>) => void;
   onSaveVenue: (e: SubmitEvent<HTMLFormElement>) => void;
@@ -825,9 +823,6 @@ export function AdminView({
           <p>{t.adminIntro}</p>
         </div>
         <div className="admin-heading-actions">
-          <Button variant="outline" onClick={onResetDemo} disabled={adminBusy}>
-            <RefreshCw size={15} /> {t.resetDemo}
-          </Button>
           <Button variant="ghost" onClick={onLogoutAdmin} disabled={adminBusy}>
             {t.logout}
           </Button>

@@ -7,7 +7,7 @@ import MapPin from 'lucide-react/dist/esm/icons/map-pin.mjs';
 import RotateCw from 'lucide-react/dist/esm/icons/rotate-cw.mjs';
 import Users from 'lucide-react/dist/esm/icons/users.mjs';
 
-import { PartnerContactFields } from '@/components/partner-request-fields';
+import { contactHandleRequired, contactHandleValue, PartnerContactFields } from '@/components/partner-request-fields';
 import { PREFERRED_SLOTS, SLOT_LABELS, slotLabels } from '@/lib/partner-request-slots';
 import { formatDate, formatDuration } from '@/lib/formatters';
 import { LEVELS } from '@/lib/tennis-utils';
@@ -89,7 +89,7 @@ const copy = {
     name: 'Name',
     email: 'Email',
     phone: 'Phone',
-    preferredSlots: 'Preferred time slots', wechat: 'WeChat', whatsapp: 'WhatsApp', preferredContact: 'Preferred contact method', contactPrivacyNote: 'Contact details are shared with matched players only after review.',
+    preferredSlots: 'Preferred time slots', wechat: 'WeChat', whatsapp: 'WhatsApp', contactSms: 'SMS', contactHandle: 'Phone / WeChat / WhatsApp', preferredContact: 'Preferred contact method', contactPrivacyNote: 'Contact details are shared with matched players only after review.',
     yourLevel: 'Your level',
     chooseLevel: 'Choose your level',
     message: 'Message',
@@ -142,7 +142,7 @@ const copy = {
     name: '姓名',
     email: '邮箱',
     phone: '电话',
-    preferredSlots: '偏好时间段', wechat: '微信', whatsapp: 'WhatsApp', preferredContact: '首选联系方式', contactPrivacyNote: '联系方式仅在审核后与匹配球友共享。',
+    preferredSlots: '偏好时间段', wechat: '微信', whatsapp: 'WhatsApp', contactSms: '短信', contactHandle: '手机号/微信/WhatsApp', preferredContact: '首选联系方式', contactPrivacyNote: '联系方式仅在审核后与匹配球友共享。',
     yourLevel: '你的水平',
     chooseLevel: '选择你的水平',
     message: '留言',
@@ -450,11 +450,12 @@ function ApplicationDialog({
             </label>
             <label className="cs-pr-field">
               <span>
-                {t.phone} {form.preferredContact === 'phone' ? '*' : `(${t.optional})`}
+                {t.contactHandle} {contactHandleRequired(form.preferredContact) ? '*' : `(${t.optional})`}
               </span>
               <input
-                type="tel"
-                required={form.preferredContact === 'phone'} value={form.phone}
+                type="text"
+                maxLength={40}
+                required={contactHandleRequired(form.preferredContact)} value={contactHandleValue(form)}
                 autoComplete="tel"
                 onChange={(event) => onChange({ ...form, phone: event.target.value })}
               />

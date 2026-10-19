@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs';
 
-import { PartnerContactFields, PartnerSlotFields } from '@/components/partner-request-fields';
+import { contactHandleRequired, PartnerContactFields, PartnerSlotFields } from '@/components/partner-request-fields';
+import { withPartnerCourtBooked } from '@/lib/partner-request-slots';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,8 +32,8 @@ function formFromText(source: string, venueList: Venue[]): ReservationRequestFor
     preferredDate: draft?.preferredDate ?? '',
     preferredSlots: draft?.preferredSlots ?? [],
     // Unbooked requests use periods (already derived from any parsed times); exact times are booked-only.
-    startTime: draft?.venueBookingStatus === 'booked' ? draft.startTime ?? '' : '',
-    endTime: draft?.venueBookingStatus === 'booked' ? draft.endTime ?? '' : '',
+    startTime: draft?.venueBookingStatus === 'booked' || requestKind === 'find_partners' ? draft?.startTime ?? '' : '',
+    endTime: draft?.venueBookingStatus === 'booked' || requestKind === 'find_partners' ? draft?.endTime ?? '' : '',
     ...emptyContact,
     message: source.trim().slice(0, 1000),
     requestKind,
@@ -65,7 +66,7 @@ export function AdminPasteRequests({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
-  const form = drafts[index];
+  const form = drafts[index] ? withPartnerCourtBooked(drafts[index]) : undefined;
   const findCourtOnly = form?.requestKind === 'find_court';
   const missing = form ? [
     ...(!form.preferredDate ? [t.preferredDate] : []),
@@ -171,12 +172,12 @@ export function AdminPasteRequests({
             <Label htmlFor="paste-postcode">{t.postcode} <em>*</em></Label>
             <Input id="paste-postcode" maxLength={12} placeholder={t.postcodePlaceholder} value={form.postcode} onChange={(event) => setField('postcode', event.target.value)} />
           </div>}
-          <div className="field">
+          {form.requestKind !== 'find_partners' ? <div className="field">
             <Label htmlFor="paste-booking-status">{t.venueBookingStatus}</Label>
             <select id="paste-booking-status" className="native-select" value={form.venueBookingStatus ?? 'unknown'} onChange={(event) => setDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, venueBookingStatus: event.target.value as ReservationRequestForm['venueBookingStatus'], startTime: '', endTime: '' } : item))}>
               <option value="booked">{t.venueBooked}</option><option value="not_booked">{t.not_booked}</option><option value="unknown">{t.unknown}</option>
             </select>
-          </div>
+          </div> : null}
           {form.venueBookingStatus !== 'booked' ? <PartnerSlotFields label={t.preferredSlots} language={t.email === '邮箱' ? 'zh' : 'en'} value={form.preferredSlots} onChange={(slots) => setField('preferredSlots', slots)} /> : null}
           <div className="field">
             <Label htmlFor="paste-date">{t.preferredDate} <em>*</em></Label>
@@ -210,8 +211,8 @@ export function AdminPasteRequests({
             <Input id="paste-email" required type="email" value={contact.email} onChange={(event) => setContact((current) => ({ ...current, email: event.target.value }))} />
           </div>
           <div className="field">
-            <Label htmlFor="paste-phone">{t.phone} {form.preferredContact === 'phone' ? <em>*</em> : <small>({t.optional})</small>}</Label>
-            <Input id="paste-phone" type="tel" required={form.preferredContact === 'phone'} value={contact.phone} onChange={(event) => setContact((current) => ({ ...current, phone: event.target.value }))} />
+            <Label htmlFor="paste-phone">{t.contactHandle} {contactHandleRequired(form.preferredContact) ? <em>*</em> : <small>({t.optional})</small>}</Label>
+            <Input id="paste-phone" type="text" maxLength={40} required={contactHandleRequired(form.preferredContact)} value={contact.phone} onChange={(event) => setContact((current) => ({ ...current, phone: event.target.value }))} />
           </div>
           <PartnerContactFields labels={t} value={{ ...form, phone: contact.phone }} onChange={(contacts) => setDrafts((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...contacts } : item))} />
           <div className="field request-message-field">

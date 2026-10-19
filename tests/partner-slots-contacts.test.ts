@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { requestExpiresOn } from '../lib/partner-request-slots';
+import { requestExpiresOn, withPartnerCourtBooked } from '../lib/partner-request-slots';
 import {
   validateReservationRequest,
   validatePartnerRequestApplication,
@@ -10,7 +10,7 @@ const base = {
   venueName: 'Victoria Park',
   contactName: 'Player',
   email: 'player@example.com',
-  requestKind: 'find_partners',
+  requestKind: 'find_both',
   seekingPlayerCount: 1,
   venueBookingStatus: 'not_booked',
   preferredSlots: ['evening'],
@@ -75,8 +75,16 @@ void test('contact preferences require their matching value in both forms', () =
       [],
     ),
   );
+  // The combined phone/WeChat/WhatsApp field accepts any handle up to 40 characters.
+  assert.ok(validatePartnerRequestApplication({ ...application, phone: 'wxid_player' }));
+  assert.ok(
+    validateReservationRequest(
+      { ...base, preferredContact: 'wechat', phone: 'wxid_player' },
+      [],
+    ),
+  );
   assert.equal(
-    validatePartnerRequestApplication({ ...application, phone: 'abc' }),
+    validatePartnerRequestApplication({ ...application, phone: 'x'.repeat(41) }),
     null,
   );
   assert.equal(
@@ -119,4 +127,21 @@ void test('period boundaries use all overlapping periods and exclude the end ins
   assert.equal(validateReservationRequest({ ...base, preferredSlots: ['weekend_any'] }, []), null);
   const booked = validateReservationRequest({ ...base, venueBookingStatus: 'booked', startTime: '11:00', endTime: '18:30', preferredSlots: ['evening'] }, []);
   assert.deepEqual(booked?.preferredSlots, ['morning', 'afternoon', 'evening']);
+});
+
+void test('a court-and-partners request must be booked with exact times', () => {
+  const partners = { ...base, requestKind: 'find_partners' };
+  assert.equal(validateReservationRequest(partners, []), null);
+  assert.equal(validateReservationRequest({ ...partners, venueBookingStatus: 'booked' }, []), null);
+  const booked = withPartnerCourtBooked({ ...partners, startTime: '18:00', endTime: '20:00' });
+  assert.equal(booked.venueBookingStatus, 'booked');
+  assert.deepEqual(validateReservationRequest(booked, [])?.preferredSlots, ['evening']);
+  assert.equal(withPartnerCourtBooked(base).venueBookingStatus, 'not_booked');
+});
+
+void test('legacy WeChat/WhatsApp values show in the combined contact field', async () => {
+  const { contactHandleValue } = await import('../components/partner-request-fields');
+  assert.equal(contactHandleValue({ phone: '', wechat: 'legacy_player', preferredContact: 'wechat' }), 'legacy_player');
+  assert.equal(contactHandleValue({ phone: '', whatsapp: '+447123456789', preferredContact: 'email' }), '+447123456789');
+  assert.equal(contactHandleValue({ phone: 'typed', wechat: 'legacy_player' }), 'typed');
 });

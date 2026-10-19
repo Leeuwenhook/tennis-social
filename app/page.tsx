@@ -23,6 +23,7 @@ import {
   type Venue,
 } from "@/lib/demo-data";
 import { formatLongDate, importIssueLabel, parseMinutes } from "@/lib/formatters";
+import { withPartnerCourtBooked } from "@/lib/partner-request-slots";
 import { parseSessionWorkbook, SessionImportError } from "@/lib/session-import";
 import {
   ADMIN_SESSION_STORAGE_KEY,
@@ -807,11 +808,12 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
   async function submitReservationRequest(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (requestBusy) return;
+    const requestPayload = withPartnerCourtBooked(requestForm);
     const validLocation = requestForm.requestType === 'known_venue' ? requestForm.venueName.trim() : /^[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}$/.test(requestForm.postcode.trim());
     const structured = requestForm.requestKind !== undefined;
     const validStructured = !structured || (
       ['find_partners', 'find_court', 'find_both'].includes(requestForm.requestKind ?? '') &&
-      ['booked', 'not_booked', 'unknown'].includes(requestForm.venueBookingStatus ?? '') &&
+      ['booked', 'not_booked', 'unknown'].includes(requestPayload.venueBookingStatus ?? '') &&
       ['singles', 'doubles', 'practice', 'flexible'].includes(requestForm.preferredFormat ?? '') &&
       Number.isInteger(requestForm.seekingPlayerCount) && (requestForm.seekingPlayerCount ?? -1) >= 0 &&
       (requestForm.existingPlayerLevels ?? []).every((level) => LEVELS.includes(level as never)) &&
@@ -827,7 +829,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       setRequestError(t.requestSeekingCountInvalid);
       return;
     }
-    const valid = validLocation && validStructured && requestForm.preferredDate >= dateFromToday(0) && (requestForm.venueBookingStatus === 'booked'
+    const valid = validLocation && validStructured && requestForm.preferredDate >= dateFromToday(0) && (requestPayload.venueBookingStatus === 'booked'
         ? requestForm.startTime && requestForm.endTime && parseMinutes(requestForm.endTime) > parseMinutes(requestForm.startTime)
         : (requestForm.preferredSlots ?? []).length > 0) &&
       requestForm.contactName.trim() && /^\S+@\S+\.\S+$/.test(requestForm.email);
@@ -841,7 +843,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
       const response = await fetch('/api/reservation-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestForm),
+        body: JSON.stringify(requestPayload),
       });
       const data = await response.json() as { request?: ReservationRequest };
       if (!response.ok || !data.request) {

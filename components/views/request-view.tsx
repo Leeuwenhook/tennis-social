@@ -8,7 +8,7 @@ import Check from 'lucide-react/dist/esm/icons/check.mjs';
 import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check.mjs';
 import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs';
 
-import { PartnerContactFields, PartnerSlotFields } from '@/components/partner-request-fields';
+import { contactHandleRequired, contactHandleValue, PartnerContactFields, PartnerSlotFields } from '@/components/partner-request-fields';
 import { slotLabels } from '@/lib/partner-request-slots';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,6 +69,7 @@ export function RequestView({
   const [budgetText, setBudgetText] = useState(() => requestForm.budgetPence == null ? '' : (requestForm.budgetPence / 100).toFixed(2));
   const structured = requestForm.requestKind !== undefined;
   const findCourtOnly = requestForm.requestKind === 'find_court';
+  const courtBooked = requestForm.requestKind === 'find_partners' || requestForm.venueBookingStatus === 'booked';
   // Keep the typed text while it still represents the form value; reformat only when the value changed elsewhere (e.g. switching drafts).
   const budgetValue = budgetPenceFromText(budgetText) === (requestForm.budgetPence ?? null)
     ? budgetText
@@ -85,9 +86,15 @@ export function RequestView({
     setRequestForm((current) => {
       const requestType = kind === 'find_partners' ? 'known_venue' : kind === 'find_court' ? 'find_nearby' : current.requestType;
       const typeChanged = requestType !== current.requestType;
+      // "Have a court, need partners" implies the court is booked, so the status select is hidden.
+      const venueBookingStatus = kind === 'find_partners' ? 'booked' : current.requestKind === 'find_partners' ? 'unknown' : current.venueBookingStatus;
+      const statusChanged = venueBookingStatus !== current.venueBookingStatus;
       return {
         ...current,
         requestKind: kind,
+        venueBookingStatus,
+        startTime: statusChanged ? '' : current.startTime,
+        endTime: statusChanged ? '' : current.endTime,
         requestType,
         venueId: typeChanged ? null : current.venueId,
         venueName: typeChanged ? '' : current.venueName,
@@ -309,12 +316,12 @@ export function RequestView({
               </div>
             )}
             {structured ? <>
-              <div className="field">
+              {requestForm.requestKind !== 'find_partners' ? <div className="field">
                 <Label htmlFor="request-booking-status">{t.venueBookingStatus} <em>*</em></Label>
                 <select id="request-booking-status" className="native-select" value={requestForm.venueBookingStatus ?? 'unknown'} onChange={(event) => setRequestForm((current) => ({ ...current, venueBookingStatus: event.target.value as ReservationRequestForm['venueBookingStatus'], startTime: '', endTime: '' }))}>
                   <option value="booked">{t.venueBooked}</option><option value="not_booked">{t.not_booked}</option><option value="unknown">{t.unknown}</option>
                 </select>
-              </div>
+              </div> : null}
               <div className="field request-level-field"><Label>{t.existingLevels}</Label><div className="level-picker">{LEVELS.map((level) => <button type="button" key={`existing-${level}`} aria-pressed={(requestForm.existingPlayerLevels ?? []).includes(level)} className={(requestForm.existingPlayerLevels ?? []).includes(level) ? 'level-chip selected' : 'level-chip'} onClick={() => toggleLevel('existingPlayerLevels', level)}>{level}</button>)}</div></div>
               {!findCourtOnly ? <>
               <div className="field"><Label htmlFor="seeking-count">{t.seekingPlayers} <em>*</em></Label><Input id="seeking-count" type="number" min={1} max={100} value={requestForm.seekingPlayerCount ?? ''} onChange={(event) => setField('seekingPlayerCount', event.target.value === '' ? undefined : Number(event.target.value))} /></div>
@@ -338,7 +345,7 @@ export function RequestView({
                 }
               />
             </div>
-            {requestForm.venueBookingStatus === 'booked' ? <>
+            {courtBooked ? <>
             <div className="field request-time-field">
               <Label htmlFor="request-start">
                 {t.preferredTimeRange} <em>*</em>
@@ -393,13 +400,14 @@ export function RequestView({
             </div>
             <div className="field">
               <Label htmlFor="request-phone">
-                {t.phone} {requestForm.preferredContact === 'phone' ? <em>*</em> : <small>({t.optional})</small>}
+                {t.contactHandle} {contactHandleRequired(requestForm.preferredContact) ? <em>*</em> : <small>({t.optional})</small>}
               </Label>
               <Input
-                id="request-phone" required={requestForm.preferredContact === 'phone'}
-                type="tel"
+                id="request-phone" required={contactHandleRequired(requestForm.preferredContact)}
+                type="text"
+                maxLength={40}
                 autoComplete="tel"
-                value={requestForm.phone}
+                value={contactHandleValue(requestForm)}
                 onChange={(event) =>
                   setRequestForm((current) => ({ ...current, phone: event.target.value }))
                 }

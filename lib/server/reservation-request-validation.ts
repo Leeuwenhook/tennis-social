@@ -117,7 +117,7 @@ export function validateReservationRequest(
     !levelsValid(input.existingPlayerLevels, existingPlayerLevels) ||
     !levelsValid(input.seekingLevels, seekingLevels)
   ) return null;
-  if (requestKind === 'find_partners' && requestType !== 'known_venue') return null;
+  if (requestKind === 'find_partners' && (requestType !== 'known_venue' || venueBookingStatus !== 'booked')) return null;
   // A court-only request needs nobody; a partner search must need at least one player.
   if (requestKind === 'find_court' ? seekingPlayerCount !== 0 : seekingPlayerCount < 1) return null;
 
@@ -148,9 +148,10 @@ export function validateContactMethods(input: { phone?: unknown; wechat?: unknow
   const wechat = typeof input.wechat === 'string' ? input.wechat.trim() : '';
   const preferredContact = input.preferredContact === undefined ? 'email' : input.preferredContact;
   const values = { phone, whatsapp, wechat };
-  if ((phone && !/^\+?[0-9()-]{6,20}$/.test(phone.replace(/\s/g, ''))) ||
+  // `phone` is the combined phone/WeChat/WhatsApp field, so it accepts any handle (40 chars, matching profile phone) and satisfies every non-email preference.
+  if (phone.length > 40 ||
       (whatsapp && !/^\+?[0-9()-]{6,20}$/.test(whatsapp.replace(/\s/g, ''))) || wechat.length > 40 ||
       !['email', 'phone', 'wechat', 'whatsapp'].includes(preferredContact as string) ||
-      (preferredContact !== 'email' && !values[preferredContact as keyof typeof values])) return null;
+      (preferredContact !== 'email' && !phone && !values[preferredContact as keyof typeof values])) return null;
   return { ...values, preferredContact: preferredContact as 'email' | 'phone' | 'wechat' | 'whatsapp' };
 }

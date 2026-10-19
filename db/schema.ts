@@ -131,6 +131,10 @@ export const bookings = pgTable('bookings', {
   reminderEmailSentAt: text('reminder_email_sent_at'),
   reminderEmailMessageId: text('reminder_email_message_id'),
   reminderEmailClaimedAt: text('reminder_email_claimed_at'),
+  autoRefundStatus: text('auto_refund_status', { enum: ['none', 'processing', 'refunded', 'failed'] }).notNull().default('none'),
+  autoRefundClaimedAt: text('auto_refund_claimed_at'),
+  autoRefundedAt: text('auto_refunded_at'),
+  autoRefundId: text('auto_refund_id'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 }, (table) => [

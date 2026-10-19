@@ -120,6 +120,10 @@ export function DetailView({
               {t.noLevelLimit}. {t.allLevels}.
             </span>
           </div>
+          <div className="detail-note">
+            <ShieldCheck size={18} />
+            <span>{t.autoRefundNote}</span>
+          </div>
           <div className="detail-location">
             <MapPin size={19} aria-hidden="true" />
             <div className="detail-location-copy">

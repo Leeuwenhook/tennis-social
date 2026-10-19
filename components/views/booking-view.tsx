@@ -179,6 +179,9 @@ export function BookingView({
           <p className="summary-notice">
             <ShieldCheck size={15} /> {t.demoNotice}
           </p>
+          <p className="summary-notice">
+            <ShieldCheck size={15} /> {t.autoRefundNote}
+          </p>
         </div>
       </aside>
     );

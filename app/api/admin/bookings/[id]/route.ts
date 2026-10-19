@@ -1,10 +1,5 @@
-import {
-  database,
-  DatabaseNotConfiguredError,
-  ensureSeeded,
-  serializeBooking,
-  type BookingRow,
-} from '@/lib/server/database';
+import { cancelBooking } from '@/lib/server/admin-cancel-booking';
+import { database, DatabaseNotConfiguredError, serializeBooking } from '@/lib/server/database';
 import { requireAdmin } from '@/lib/server/admin-auth';
 
 export const dynamic = 'force-dynamic';
@@ -14,42 +9,19 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   const unauthorized = requireAdmin(request);
   if (unauthorized) return unauthorized;
   const { id } = await context.params;
-  let input: { status?: unknown };
+  let input: { status?: unknown; refund?: unknown };
   try {
-    input = await request.json() as { status?: unknown };
+    input = await request.json() as { status?: unknown; refund?: unknown };
   } catch {
     return Response.json({ error: 'invalid_request' }, { status: 400 });
   }
   if (input.status !== 'cancelled') return Response.json({ error: 'invalid_status' }, { status: 400 });
-
   try {
-    const db = database();
-    await ensureSeeded(db);
-    const now = new Date().toISOString();
-    const rows = await db`
-      WITH cancelled AS (
-        UPDATE bookings
-        SET status = 'cancelled', updated_at = ${now}
-        WHERE id = ${id} AND status = 'confirmed'
-        RETURNING id, session_id, participant_count
-      ), released AS (
-        UPDATE sessions AS sessions
-        SET booked_spots = GREATEST(0, sessions.booked_spots - cancelled.participant_count),
-            updated_at = ${now}
-        FROM cancelled
-        WHERE sessions.id = cancelled.session_id
-        RETURNING sessions.id
-      )
-      SELECT bookings.*
-      FROM bookings
-      JOIN cancelled ON cancelled.id = bookings.id
-    ` as BookingRow[];
-    if (!rows[0]) {
-      const existing = await db`SELECT status FROM bookings WHERE id = ${id}` as Array<{ status: string }>;
-      if (!existing[0]) return Response.json({ error: 'booking_not_found' }, { status: 404 });
-      return Response.json({ error: 'booking_already_processed' }, { status: 409 });
-    }
-    return Response.json({ booking: serializeBooking(rows[0]) });
+    const result = await cancelBooking(database(), id, input.refund === true);
+    if ('booking' in result) return Response.json({ booking: serializeBooking(result.booking) });
+    if (result.status === 'not_found') return Response.json({ error: 'booking_not_found' }, { status: 404 });
+    if (result.status === 'refund_failed') return Response.json({ error: 'refund_failed' }, { status: 502 });
+    return Response.json({ error: 'booking_already_processed' }, { status: 409 });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {
       return Response.json({ error: 'database_not_configured' }, { status: 503 });

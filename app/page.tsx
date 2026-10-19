@@ -60,6 +60,7 @@ import type {
   AuthMode,
   Booking,
   BookingStage,
+  BookingStatus,
   ConfirmationEmailStatus,
   Language,
   LoyaltyStatus,
@@ -110,7 +111,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
   const [shareNotice, setShareNotice] = useState('');
   const [confirmation, setConfirmation] = useState<Booking | null>(null);
   const [confirmationEmailStatus, setConfirmationEmailStatus] = useState<ConfirmationEmailStatus>('not_applicable');
-  const [adminTab, setAdminTab] = useState<AdminTab>('sessions');
+  const [adminTab, setAdminTab] = useState<AdminTab>('overview');
   const [showExpiredSessions, setShowExpiredSessions] = useState(false);
   const [sessionEditorOpen, setSessionEditorOpen] = useState(false);
   const [venueEditorOpen, setVenueEditorOpen] = useState(false);
@@ -198,7 +199,6 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
   const adminBusyRef = useRef(false);
   const openSessionRef = useRef<(sessionId: string) => void>(() => undefined);
   const paymentSubmittingRef = useRef(false);
-  const cancellingBookingRef = useRef(new Set<string>());
 
   const t = translations[language];
   const requestVenueSuggestions = useMemo(() => {
@@ -1828,53 +1828,32 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     }
   }
 
-  async function cancelBooking(bookingId: string) {
+  /** Mirrors a booking cancelled or refunded in the admin bookings tab into local state. */
+  function applyBookingChange(bookingId: string, status: BookingStatus) {
     const booking = bookings.find((item) => item.id === bookingId);
-    if (
-      !booking ||
-      booking.status === 'cancelled' ||
-      cancellingBookingRef.current.has(bookingId) ||
-      !window.confirm(t.cancelConfirm)
-    ) return;
-    cancellingBookingRef.current.add(bookingId);
-    adminBusyRef.current = true;
-    ++sessionLoadVersion.current;
-    setAdminBusy(true);
-    let cancelledOnServer = false;
-    try {
-      const response = await fetch(`/api/admin/bookings/${encodeURIComponent(bookingId)}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'cancelled' }),
-      });
-      if (response.ok) cancelledOnServer = true;
-      else setAdminMessage(t.adminSaveUnavailable);
-    } catch {
-      setAdminMessage(t.adminSaveUnavailable);
+    if (!booking || booking.status !== 'confirmed') {
+      setBookings((current) => current.map((item) => (item.id === bookingId ? { ...item, status } : item)));
+      return;
     }
-    if (cancelledOnServer) {
-      setBookings((current) => current.map((item) => (item.id === bookingId ? { ...item, status: 'cancelled' } : item)));
-      setSessions((current) => current.map((session) => {
-        if (session.id !== booking.sessionId) return session;
-        const remainingParticipants = [...booking.participants];
-        return {
-          ...session,
-          bookedSpots: Math.max(0, session.bookedSpots - booking.participants.length),
-          bookingPreferences: session.bookingPreferences
-            ? session.bookingPreferences.filter((preference) => {
-              const participantIndex = remainingParticipants.findIndex(
-                (level) => level === preference.level && booking.format === preference.format,
-              );
-              if (participantIndex < 0) return true;
-              remainingParticipants.splice(participantIndex, 1);
-              return false;
-            })
-            : session.bookingPreferences,
-        };
-      }));
-    }
-    adminBusyRef.current = false;
-    setAdminBusy(false);
+    setBookings((current) => current.map((item) => (item.id === bookingId ? { ...item, status } : item)));
+    setSessions((current) => current.map((session) => {
+      if (session.id !== booking.sessionId) return session;
+      const remainingParticipants = [...booking.participants];
+      return {
+        ...session,
+        bookedSpots: Math.max(0, session.bookedSpots - booking.participants.length),
+        bookingPreferences: session.bookingPreferences
+          ? session.bookingPreferences.filter((preference) => {
+            const participantIndex = remainingParticipants.findIndex(
+              (level) => level === preference.level && booking.format === preference.format,
+            );
+            if (participantIndex < 0) return true;
+            remainingParticipants.splice(participantIndex, 1);
+            return false;
+          })
+          : session.bookingPreferences,
+      };
+    }));
   }
 
   async function updateRacketRentalSetting(enabled: boolean) {
@@ -2065,7 +2044,6 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             onSubmitAdminLogin={submitAdminLogin}
             adminTab={adminTab}
             setAdminTab={setAdminTab}
-            sessions={sessions}
             adminSessions={adminSessions}
             allSessions={allSessions}
             venueList={venueList}
@@ -2122,7 +2100,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             onExportSessions={exportSessions}
             onUndoLastOperation={() => void undoLastOperation()}
             onImportSessions={(event) => void importSessions(event)}
-            onCancelBooking={(id) => void cancelBooking(id)}
+            onBookingChanged={applyBookingChange}
             onUpdateReservationRequestStatus={(id, status) => void updateReservationRequestStatus(id, status)}
             onReservationRequestCreated={(request) => setReservationRequests((current) => [request, ...current])}
             onStartEditVenue={startEditVenue}

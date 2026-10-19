@@ -57,7 +57,8 @@
 ### 规则
 - “没有合适的球友搭配” = 场次开始前，所有有效报名的**参与人数合计 < 2**（只有一个人报名，没人跟他打）。一个预订里带了朋友（2 人以上）就不退。
 - 管理员“标记已满”的场次不自动退款（说明线下已经有人）。
-- 新增场次级开关 `auto_refund_enabled`（默认开），后台可以对个别场关闭。
+- 场次级开关暂不做：管理员可以用“标记已满”让某场不参与自动退款。
+- 判定时把正在付款中的人也算进去，避免刚好有第二人在付款时误退。
 
 ### 时间
 - Vercel Hobby 的 cron 只能每天跑。新 cron `/api/cron/auto-refunds` 每天伦敦时间 18:00 运行（UTC 17:00 和 18:00 各一条，按现有 reminders 的夏令时写法）。
@@ -66,8 +67,9 @@
 
 ### 实现
 - `bookings` 新增 `auto_refund_status`（`none` / `processing` / `refunded` / `failed`）和 `auto_refunded_at`。先用条件 UPDATE 认领（防止两条 cron 重复退款），再调 Stripe `POST /v1/refunds`（`payment_intent`，幂等键 `auto-refund-<bookingId>`）。
-- 退款成功后预订状态改为 `refunded` 并释放名额（复用 webhook `charge.refunded` 的同一段逻辑，抽成公共函数）；webhook 后到时按已退款处理，不重复释放。
-- 用了优惠券的预订：退款后优惠券恢复为 `available`（复用现有释放逻辑）。
+- 退款成功后预订状态改为 `refunded` 并释放名额；只有仍为 `confirmed` 时才释放，所以 webhook `charge.refunded` 先到也不会重复释放。免费预订直接取消，不调 Stripe。
+- 一场的预订全部处理完后，场次改回草稿，避免再有单人报名。
+- 用了优惠券的预订本轮不恢复优惠券。
 - 邮件：给客户发“未凑齐球友，已全额原路退款”（中英双语）；给管理员发汇总。
 - 前台：报名页和详情页加一句说明“开赛前 24 小时仍无其他球友报名，将自动全额原路退款”。
 
@@ -77,13 +79,14 @@
 
 ---
 
-## PR-C：赛后评论模块（迁移 `0024_session_reviews`）
+## PR-C：赛后评论模块（迁移 `0024_session_reviews`，基于 PR-B）
 
 按 3.2 规格分阶段，本轮做 Phase 1 + Phase 2：
 
-1. **Phase 1 文字评论**：`session_reviews` 和 `review_media` 两张表、`/review?t=` 提交页、提交/修改/删除 API、后台“评论审核”tab、场地详情页“球友留言”墙、跟进邮件里的“留下评价”按钮。
-2. **Phase 2 图片**：`@vercel/blob` 客户端直传，浏览器端压缩并去掉 EXIF，每条最多 5 张。
-3. **Phase 3 视频**（≤1 段，≤50MB / ≤60 秒）：本轮代码一起写，默认关闭（`REVIEW_VIDEO_ENABLED`），等确认流量成本后再开。
+1. **文字评论**：`session_reviews` 和 `review_media` 两张表、`/review?t=` 提交页、提交/修改/删除 API、后台“评论审核”tab、场地详情页“球友留言”墙、跟进邮件里的“留下评价”按钮。
+2. **图片**：`@vercel/blob` 客户端直传，浏览器端压缩并去掉 EXIF，每条最多 5 张。
+3. **视频**（≤1 段，≤50MB / ≤60 秒）：代码已写，默认关闭（`REVIEW_VIDEO_ENABLED`），确认流量成本后再开。
+4. 本轮不做：评价修改（可删除后重写）、场地卡片平均分。
 
 ### 开放问题的默认取舍（可改）
 - O-1 每个预订只有联系人能写 1 条。
@@ -97,6 +100,9 @@
 - 设置 `REVIEW_TOKEN_SECRET`（跟进邮件退订链接已经在用，确认生产已有）和 `REVIEWS_ENABLED=true`。
 
 ---
+
+## PR 对应
+- PR-A → #27，PR-B → #28，PR-C → #29（叠在 #28 上）。
 
 ## 发布顺序
 1. **PR-A**（无迁移）→ Preview 手机端手测 → 合并。

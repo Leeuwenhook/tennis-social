@@ -223,6 +223,11 @@ export function availableSpots(session: Pick<Session, 'capacity' | 'bookedSpots'
   return session.markedFull ? 0 : Math.max(0, session.capacity - session.bookedSpots);
 }
 
+/** Open sessions someone has already booked: a partner is waiting. */
+export function hasPartnerWaiting(session: Pick<Session, 'capacity' | 'bookedSpots' | 'markedFull'>) {
+  return session.bookedSpots > 0 && availableSpots(session) > 0;
+}
+
 /** Booked count shown publicly: a marked-full session displays every place as taken. */
 export function displayedBookedSpots(session: Pick<Session, 'capacity' | 'bookedSpots' | 'markedFull'>) {
   return session.markedFull ? session.capacity : session.bookedSpots;

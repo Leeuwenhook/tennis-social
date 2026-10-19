@@ -7,11 +7,14 @@ import type {
   SessionImportIssueCode,
 } from '@/types/tennis';
 
+/** Whole pounds stay short (£6); discounted prices keep their pence (£6.30). */
 export function formatMoney(pence: number, language: Language) {
+  const fractionDigits = pence % 100 === 0 ? 0 : 2;
   return new Intl.NumberFormat(language === 'zh' ? 'zh-CN' : 'en-GB', {
     style: 'currency',
     currency: 'GBP',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
   }).format(pence / 100);
 }
 

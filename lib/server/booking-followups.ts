@@ -101,7 +101,7 @@ export async function sendDueBookingFollowups(
       const next = (await db`
         SELECT sessions.id, sessions.date, sessions.start_time, sessions.end_time, venues.name, venues.name_zh
         FROM sessions JOIN venues ON venues.id = sessions.venue_id
-        WHERE sessions.status = 'published' AND sessions.booked_spots < sessions.capacity
+        WHERE sessions.status = 'published' AND NOT sessions.marked_full AND sessions.booked_spots < sessions.capacity
           AND (sessions.venue_id = ${booking.venue_id} OR venues.area = ${venue.area})
           AND sessions.date BETWEEN ${today} AND ${lastDate}
           AND (sessions.date > ${today} OR sessions.start_time > ${londonDateTimeClock(now)})

@@ -43,7 +43,7 @@ export async function POST(request: Request) {
         ${''}, ${''}, ${now}, ${now}
       )
       RETURNING id, venue_id, date, start_time, end_time, price_pence, capacity,
-                booked_spots, formats_json, seeking_levels_json, status
+                booked_spots, marked_full, formats_json, seeking_levels_json, status
     ` as SessionRow[];
     return Response.json({ session: serializeSession(rows[0]) }, { status: 201 });
   } catch (error) {
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
     await expireStaleReservations(db);
     const rows = await db`
       SELECT id, venue_id, date, start_time, end_time, price_pence, capacity,
-             booked_spots, formats_json, seeking_levels_json, status
+             booked_spots, marked_full, formats_json, seeking_levels_json, status
       FROM sessions
       ORDER BY date, start_time
     ` as SessionRow[];

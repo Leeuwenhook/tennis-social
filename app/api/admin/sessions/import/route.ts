@@ -217,7 +217,7 @@ export async function POST(request: Request) {
           ${''}, ${''}, ${now}, ${now}
         )
         RETURNING id, venue_id, date, start_time, end_time, price_pence, capacity,
-                  booked_spots, formats_json, seeking_levels_json, status
+                  booked_spots, marked_full, formats_json, seeking_levels_json, status
       `;
     });
     const inserted = await db.transaction([...venueInserts, ...sessionInserts]) as unknown as Array<Array<VenueRow | SessionRow>>;

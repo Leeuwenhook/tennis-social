@@ -17,7 +17,7 @@ import { VenuePhoto } from '@/components/venue-photo';
 import { resolveVenueDescriptions } from '@/lib/venue-description';
 import type { Venue } from '@/lib/demo-data';
 import { formatDuration, formatLongDate, formatMoney, formatNames } from '@/lib/formatters';
-import { venueFullLocation, venueMapsUrl } from '@/lib/tennis-utils';
+import { availableSpots, venueFullLocation, venueMapsUrl } from '@/lib/tennis-utils';
 import type { Translations } from '@/lib/translations';
 import type { Language, Session } from '@/types/tennis';
 
@@ -40,7 +40,7 @@ export function DetailView({
   onShareSession: () => void;
   onBeginBooking: () => void;
 }) {
-  const spots = Math.max(0, selectedSession.capacity - selectedSession.bookedSpots);
+  const spots = availableSpots(selectedSession);
   const full = spots === 0;
   const descriptions = resolveVenueDescriptions(selectedVenue);
   const fullLocation = venueFullLocation(selectedVenue, language);

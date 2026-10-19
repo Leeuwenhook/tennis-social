@@ -32,6 +32,8 @@ export type Session = {
   pricePence: number;
   capacity: number;
   bookedSpots: number;
+  /** Admin closed bookings manually; capacity keeps its original value. */
+  markedFull?: boolean;
   formats: GameFormat[];
   seekingLevels?: string[];
   status: SessionStatus;

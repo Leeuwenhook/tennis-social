@@ -14,7 +14,7 @@ import { VenuePhoto } from '@/components/venue-photo';
 import { PublicPartnerRequests } from '@/components/public-partner-requests';
 import type { Venue } from '@/lib/demo-data';
 import { formatDate, formatMoney, formatNames, sessionDurationBadge } from '@/lib/formatters';
-import { getVenue, sessionMatchPreferences, venueLocationSummary } from '@/lib/tennis-utils';
+import { availableSpots, getVenue, sessionMatchPreferences, venueLocationSummary } from '@/lib/tennis-utils';
 import type { Translations } from '@/lib/translations';
 import type { Booking, Language, Session } from '@/types/tennis';
 
@@ -41,7 +41,7 @@ export function HomeView({
 }) {
   function sessionCard(session: Session) {
     const venue = getVenue(session.venueId, venueList);
-    const spots = Math.max(0, session.capacity - session.bookedSpots);
+    const spots = availableSpots(session);
     const isFull = spots === 0;
     const displayedPreferences = sessionMatchPreferences(session, bookings);
     const durationBadge = sessionDurationBadge(session.startTime, session.endTime, language);

@@ -13,7 +13,7 @@ import { PublicPartnerRequests } from '@/components/public-partner-requests';
 import { VenuePhoto } from '@/components/venue-photo';
 import type { GameFormat, Venue } from '@/lib/demo-data';
 import { formatMoney, formatNames, sessionDurationBadge } from '@/lib/formatters';
-import { getVenue, sessionMatchPreferences, venueLocationSummary } from '@/lib/tennis-utils';
+import { availableSpots, displayedBookedSpots, getVenue, sessionMatchPreferences, venueLocationSummary } from '@/lib/tennis-utils';
 import type { Translations } from '@/lib/translations';
 import type { Booking, Language, Session } from '@/types/tennis';
 
@@ -161,12 +161,12 @@ export function CourtsideHomeView({
   const c = copy[language];
   const [formatFilter, setFormatFilter] = useState<FormatFilter>('all');
 
-  const nextSession = upcomingSessions.find((session) => session.capacity > session.bookedSpots) ?? upcomingSessions[0];
+  const nextSession = upcomingSessions.find((session) => availableSpots(session) > 0) ?? upcomingSessions[0];
   const nextVenue = nextSession ? getVenue(nextSession.venueId, venueList) : null;
 
   const stats = useMemo(() => {
     const openSpots = upcomingSessions.reduce(
-      (total, session) => total + Math.max(0, session.capacity - session.bookedSpots),
+      (total, session) => total + availableSpots(session),
       0,
     );
     const venueCount = new Set(upcomingSessions.map((session) => session.venueId)).size;
@@ -189,7 +189,7 @@ export function CourtsideHomeView({
 
   function sessionRow(session: Session, index: number) {
     const venue = getVenue(session.venueId, venueList);
-    const spots = Math.max(0, session.capacity - session.bookedSpots);
+    const spots = availableSpots(session);
     const isFull = spots === 0;
     const matchPreferences = sessionMatchPreferences(session, bookings);
     const durationBadge = sessionDurationBadge(session.startTime, session.endTime, language);
@@ -253,7 +253,7 @@ export function CourtsideHomeView({
           ) : null}
         </div>
         <div className="cs-row-spots">
-          <SpotMeter capacity={session.capacity} booked={session.bookedSpots} />
+          <SpotMeter capacity={session.capacity} booked={displayedBookedSpots(session)} />
           <span className={isFull ? 'full' : spots === 1 ? 'urgent' : ''}>
             {isFull ? t.full : `${spots} ${spots === 1 ? t.spotLeft : t.spotsLeft}`}
           </span>
@@ -343,7 +343,7 @@ export function CourtsideHomeView({
                   <div>
                     <small>{c.openSpots}</small>
                     <strong className="cs-digits accent">
-                      {nextSession.capacity === 0 ? t.full : Math.max(0, nextSession.capacity - nextSession.bookedSpots)}
+                      {availableSpots(nextSession) === 0 ? t.full : availableSpots(nextSession)}
                     </strong>
                     {nextSession.capacity > 0 ? <small>/ {nextSession.capacity}</small> : null}
                   </div>
@@ -354,7 +354,7 @@ export function CourtsideHomeView({
                     <small>{language === 'zh' ? nextVenue.areaZh || nextVenue.area : nextVenue.area}</small>
                   </span>
                   <span className="cs-board-go">
-                    {nextSession.capacity > nextSession.bookedSpots ? t.bookNow : t.viewDetails}{' '}
+                    {availableSpots(nextSession) > 0 ? t.bookNow : t.viewDetails}{' '}
                     <ArrowRight size={15} />
                   </span>
                 </div>

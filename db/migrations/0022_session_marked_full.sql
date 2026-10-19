@@ -1,0 +1,1 @@
+ALTER TABLE "sessions" ADD COLUMN "marked_full" boolean DEFAULT false NOT NULL;

@@ -1,4 +1,5 @@
 import { PREFERRED_SLOTS, slotsForTimeRange } from '../partner-request-slots';
+import { findPostcode } from '../postcode-geo';
 import { neon } from '@neondatabase/serverless';
 
 import { GAME_FORMATS, RACKET_PRICE_PENCE, venues, type GameFormat } from '../demo-data';
@@ -351,9 +352,11 @@ function parseJsonArray(value: string | undefined) {
   try { const parsed = JSON.parse(value ?? '[]'); return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []; } catch { return []; }
 }
 
-export function serializePublicReservationRequest(row: ReservationRequestRow & { area?: string | null }) {
+export function serializePublicReservationRequest(row: ReservationRequestRow & { area?: string | null; venue_postcode?: string | null; venue_address?: string | null }) {
   return {
     id: row.id, venueName: row.venue_name, postcode: row.postcode, area: row.area ?? '',
+    // Where the request is, for the distance filter: its own postcode, else the venue's.
+    locationPostcode: findPostcode(row.postcode ?? '', row.venue_postcode ?? '', row.venue_address ?? ''),
     preferredSlots: requestPeriods(row), expiresOn: row.preferred_date,
     preferredDate: row.preferred_date, startTime: row.start_time, endTime: row.end_time,
     requestKind: row.request_kind ?? 'find_court', existingPlayerLevels: parseJsonArray(row.existing_player_levels_json),

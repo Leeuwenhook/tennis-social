@@ -7,6 +7,7 @@ import {
   type BookingRow,
 } from '@/lib/server/database';
 import { requireAdmin } from '@/lib/server/admin-auth';
+import { searchAdminBookings } from '@/lib/server/admin-bookings';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -18,6 +19,8 @@ export async function GET(request: Request) {
     const db = database();
     await ensureSeeded(db);
     await expireStaleReservations(db);
+    const params = new URL(request.url).searchParams;
+    if (params.has('scope')) return Response.json(await searchAdminBookings(db, params));
     const rows = await db`
       SELECT *
       FROM bookings

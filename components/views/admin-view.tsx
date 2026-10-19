@@ -6,17 +6,13 @@ import ArrowLeft from 'lucide-react/dist/esm/icons/arrow-left.mjs';
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.mjs';
 import CalendarDays from 'lucide-react/dist/esm/icons/calendar-days.mjs';
 import Check from 'lucide-react/dist/esm/icons/check.mjs';
-import Download from 'lucide-react/dist/esm/icons/download.mjs';
 import Pencil from 'lucide-react/dist/esm/icons/pencil.mjs';
 import Plus from 'lucide-react/dist/esm/icons/plus.mjs';
 import RefreshCw from 'lucide-react/dist/esm/icons/refresh-cw.mjs';
-import Repeat2 from 'lucide-react/dist/esm/icons/repeat-2.mjs';
 import Settings2 from 'lucide-react/dist/esm/icons/settings-2.mjs';
 import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check.mjs';
-import Timer from 'lucide-react/dist/esm/icons/timer.mjs';
 import Trash2 from 'lucide-react/dist/esm/icons/trash-2.mjs';
 import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs';
-import Upload from 'lucide-react/dist/esm/icons/upload.mjs';
 import UserRound from 'lucide-react/dist/esm/icons/user-round.mjs';
 
 import { slotLabels } from '@/lib/partner-request-slots';
@@ -25,22 +21,25 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AdminPasteRequests } from '@/components/admin-paste-requests';
+import { AdminBookings } from '@/components/admin/admin-bookings';
+import { AdminOverview } from '@/components/admin/admin-overview';
+import { AdminSessionRows } from '@/components/admin/admin-session-rows';
+import { AdminSessionToolbar } from '@/components/admin/admin-session-toolbar';
 import { AdminReviews } from '@/components/admin-reviews';
-import { QrCodeDialog, siteOrigin } from '@/components/qr-code-dialog';
 import { GAME_FORMATS, type Venue } from '@/lib/demo-data';
 import {
-  bookingStatusLabel,
   formatDate,
   formatLongDate,
   formatMoney,
   formatNames,
   requestStatusLabel,
 } from '@/lib/formatters';
-import { availableSpots, emptyDraft, emptyVenueDraft, getVenue, LEVELS, shiftDate, venueLabel } from '@/lib/tennis-utils';
+import { emptyDraft, emptyVenueDraft, getVenue, LEVELS, shiftDate, venueLabel } from '@/lib/tennis-utils';
 import type { Translations } from '@/lib/translations';
 import type {
   AdminTab,
   Booking,
+  BookingStatus,
   Language,
   ReservationRequest,
   ReservationRequestStatus,
@@ -174,7 +173,6 @@ export function AdminView({
   onSubmitAdminLogin,
   adminTab,
   setAdminTab,
-  sessions,
   adminSessions,
   allSessions,
   venueList,
@@ -231,7 +229,7 @@ export function AdminView({
   onExportSessions,
   onUndoLastOperation,
   onImportSessions,
-  onCancelBooking,
+  onBookingChanged,
   onUpdateReservationRequestStatus,
   onReservationRequestCreated,
   onStartEditVenue,
@@ -246,7 +244,6 @@ export function AdminView({
   onSubmitAdminLogin: (e: SubmitEvent<HTMLFormElement>) => void;
   adminTab: AdminTab;
   setAdminTab: (tab: AdminTab) => void;
-  sessions: Session[];
   adminSessions: Session[];
   allSessions: Session[];
   venueList: Venue[];
@@ -303,12 +300,22 @@ export function AdminView({
   onExportSessions: () => void;
   onUndoLastOperation: () => void;
   onImportSessions: (e: ChangeEvent<HTMLInputElement>) => void;
-  onCancelBooking: (id: string) => void;
+  onBookingChanged: (id: string, status: BookingStatus) => void;
   onUpdateReservationRequestStatus: (id: string, status: ReservationRequestStatus) => void;
   onReservationRequestCreated: (request: ReservationRequest) => void;
   onStartEditVenue: (venue: Venue) => void;
   onDeleteVenue: (venue: Venue) => void;
 }) {
+  const pendingRequests = reservationRequests.filter((request) => request.status === 'pending').length;
+  const adminTabs: Array<{ id: AdminTab; label: string }> = [
+    { id: 'overview', label: language === 'zh' ? '概览' : 'Overview' },
+    { id: 'sessions', label: t.manageSessions },
+    { id: 'bookings', label: t.viewBookings },
+    { id: 'requests', label: pendingRequests ? `${t.manageRequests} (${pendingRequests})` : t.manageRequests },
+    { id: 'reviews', label: language === 'zh' ? '评价审核' : 'Reviews' },
+    { id: 'venues', label: t.manageVenues },
+  ];
+
   if (!adminAuthChecked || !adminAuthenticated) {
     if (!adminAuthChecked) {
       return (
@@ -813,7 +820,7 @@ export function AdminView({
   }
 
   return (
-    <section className="admin-page">
+    <section className="admin-page admin-page-wide">
       <div className="admin-heading">
         <div>
           <p className="eyebrow">
@@ -860,55 +867,29 @@ export function AdminView({
       </div>
       <div className="admin-workspace">
         <aside className="admin-sidebar">
+          <select
+            className="native-select admin-tab-select"
+            aria-label={t.admin}
+            value={adminTab}
+            onChange={(event) => setAdminTab(event.target.value as AdminTab)}
+          >
+            {adminTabs.map((tab) => (
+              <option key={tab.id} value={tab.id}>{tab.label}</option>
+            ))}
+          </select>
           <div className="admin-tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={adminTab === 'sessions'}
-              className={adminTab === 'sessions' ? 'active' : ''}
-              onClick={() => setAdminTab('sessions')}
-            >
-              {t.manageSessions}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={adminTab === 'bookings'}
-              className={adminTab === 'bookings' ? 'active' : ''}
-              onClick={() => setAdminTab('bookings')}
-            >
-              {t.viewBookings}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={adminTab === 'requests'}
-              className={adminTab === 'requests' ? 'active' : ''}
-              onClick={() => setAdminTab('requests')}
-            >
-              {t.manageRequests}
-              {reservationRequests.filter((request) => request.status === 'pending').length
-                ? ` (${reservationRequests.filter((request) => request.status === 'pending').length})`
-                : ''}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={adminTab === 'reviews'}
-              className={adminTab === 'reviews' ? 'active' : ''}
-              onClick={() => setAdminTab('reviews')}
-            >
-              {language === 'zh' ? '评价审核' : 'Reviews'}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={adminTab === 'venues'}
-              className={adminTab === 'venues' ? 'active' : ''}
-              onClick={() => setAdminTab('venues')}
-            >
-              {t.manageVenues}
-            </button>
+            {adminTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={adminTab === tab.id}
+                className={adminTab === tab.id ? 'active' : ''}
+                onClick={() => setAdminTab(tab.id)}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </aside>
         <div className="admin-main-content">
@@ -920,88 +901,24 @@ export function AdminView({
                     <p className="eyebrow muted">{t.sessions}</p>
                     <h2>{showExpiredSessions ? t.expiredSessions : t.upcoming}</h2>
                   </div>
-                  <div className="admin-session-import-actions">
-                    <Badge variant="secondary">{adminSessions.length}</Badge>
-                    <Button
-                      variant={sessionView === 'list' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setSessionView('list')}
-                      disabled={adminBusy}
-                    >
-                      {t.sessionTableView}
-                    </Button>
-                    <Button
-                      variant={sessionView === 'week' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setSessionView('week')}
-                      disabled={adminBusy}
-                    >
-                      {t.sessionCalendarView}
-                    </Button>
-                    <QrCodeDialog
-                      url={siteOrigin()}
-                      title={t.siteQrTitle}
-                      filename="tennis-match-qr"
-                      label={t.siteQrCode}
-                      t={t}
-                    />
-                    <Button variant="outline" size="sm" onClick={onExportSessions} disabled={adminBusy}>
-                      <Download size={14} /> {t.exportSessions}
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setDraft(emptyDraft(venueList));
-                        setSessionEditorOpen(true);
-                      }}
-                      disabled={adminBusy}
-                    >
-                      <Plus size={14} /> {t.addSession}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={onUndoLastOperation}
-                      disabled={adminBusy || !undoSessions}
-                    >
-                      <RefreshCw size={14} /> {t.undo}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowExpiredSessions((current) => !current)}
-                      disabled={adminBusy}
-                    >
-                      <Timer size={14} />{' '}
-                      {showExpiredSessions ? t.hideExpiredSessions : t.viewExpiredSessions}
-                    </Button>
-                    <a
-                      className={buttonVariants({
-                        variant: 'outline',
-                        className: 'admin-template-download',
-                      })}
-                      href="/session-import-template.xlsx"
-                      download
-                    >
-                      <Download size={14} /> {t.downloadSessionTemplate}
-                    </a>
-                    <input
-                      ref={sessionImportInput}
-                      className="sr-only"
-                      type="file"
-                      accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                      aria-label={t.importSessions}
-                      onChange={onImportSessions}
-                    />
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => sessionImportInput.current?.click()}
-                      disabled={adminBusy}
-                    >
-                      <Upload size={14} /> {adminBusy ? t.importingSessions : t.importSessions}
-                    </Button>
-                  </div>
+                  <AdminSessionToolbar
+                    language={language}
+                    t={t}
+                    adminBusy={adminBusy}
+                    sessionView={sessionView}
+                    setSessionView={setSessionView}
+                    showExpiredSessions={showExpiredSessions}
+                    setShowExpiredSessions={setShowExpiredSessions}
+                    canUndo={Boolean(undoSessions)}
+                    importInput={sessionImportInput}
+                    onAdd={() => {
+                      setDraft(emptyDraft(venueList));
+                      setSessionEditorOpen(true);
+                    }}
+                    onImport={onImportSessions}
+                    onExport={onExportSessions}
+                    onUndo={onUndoLastOperation}
+                  />
                 </div>
                 <p className="admin-session-import-help">{t.sessionImportHelp}</p>
                 {sessionImportMessage ? (
@@ -1088,208 +1005,29 @@ export function AdminView({
                 {sessionView === 'week' ? (
                   renderSessionCalendar()
                 ) : (
-                  <div className="session-table-wrap">
-                    <table className="session-table">
-                      <thead>
-                        <tr>
-                          <th>
-                            <input
-                              type="checkbox"
-                              aria-label={t.selectAll}
-                              checked={
-                                adminSessions.length > 0 &&
-                                adminSessions.every((session) => selectedSessionIds.includes(session.id))
-                              }
-                              onChange={(event) =>
-                                setSelectedSessionIds(
-                                  event.target.checked
-                                    ? adminSessions.map((session) => session.id)
-                                    : [],
-                                )
-                              }
-                            />
-                          </th>
-                          <th>{t.date}</th>
-                          <th>{t.location}</th>
-                          <th>{t.time}</th>
-                          <th>{t.status}</th>
-                          <th>{t.capacity}</th>
-                          <th>{t.actions}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {adminSessions.map((session) => {
-                          const venue = getVenue(session.venueId, venueList);
-                          const spots = availableSpots(session);
-                          return (
-                            <tr key={session.id}>
-                              <td>
-                                <input
-                                  type="checkbox"
-                                  aria-label={t.selectSession}
-                                  checked={selectedSessionIds.includes(session.id)}
-                                  onChange={(event) =>
-                                    setSelectedSessionIds((current) =>
-                                      event.target.checked
-                                        ? [...current, session.id]
-                                        : current.filter((id) => id !== session.id),
-                                    )
-                                  }
-                                />
-                              </td>
-                              <td>
-                                <strong>{formatDate(session.date, language)}</strong>
-                              </td>
-                              <td>{venue.name}</td>
-                              <td>
-                                {session.startTime}–{session.endTime}
-                              </td>
-                              <td>
-                                <Badge
-                                  variant={session.status === 'published' ? 'default' : 'outline'}
-                                >
-                                  {session.status === 'published' ? t.published : t.draft}
-                                </Badge>
-                              </td>
-                              <td>
-                                {session.bookedSpots}/{session.capacity} · {session.markedFull ? t.markedFull : `${spots} ${t.spotsLeft}`}
-                              </td>
-                              {/* oxlint-disable-next-line jsx-a11y/control-has-associated-label -- buttons inside carry visible text */}
-                              <td>
-                                <div className="admin-row-actions">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => onStartEditSession(session)}
-                                    disabled={adminBusy}
-                                  >
-                                    <Pencil size={14} /> {t.edit}
-                                  </Button>
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => onCreateRecurringSessions(session)}
-                                    disabled={adminBusy}
-                                  >
-                                    <Repeat2 size={14} /> {t.createNextWeeks}
-                                  </Button>
-                                  {session.status === 'published' ? (
-                                    <QrCodeDialog
-                                      url={`${siteOrigin()}/?view=detail&session=${encodeURIComponent(session.id)}`}
-                                      title={t.sessionQrTitle
-                                        .replace('{venue}', getVenue(session.venueId, venueList).name)
-                                        .replace('{date}', session.date)
-                                        .replace('{time}', session.startTime)}
-                                      filename={`tennis-match-${session.date}-${session.startTime.replace(':', '')}`}
-                                      label={t.qrCode}
-                                      t={t}
-                                    />
-                                  ) : null}
-                                  {session.markedFull ? (
-                                    <Button variant="outline" size="sm" onClick={() => onSetSessionFull(session, false)} disabled={adminBusy}>{t.unmarkFull}</Button>
-                                  ) : spots > 0 ? (
-                                    <Button variant="outline" size="sm" title={t.markFullHint} onClick={() => onSetSessionFull(session, true)} disabled={adminBusy}>{t.markFull}</Button>
-                                  ) : null}
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() => onDeleteSession(session)}
-                                    disabled={adminBusy}
-                                  >
-                                    <Trash2 size={14} /> {t.delete}
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                  <AdminSessionRows
+                    sessions={adminSessions}
+                    venueList={venueList}
+                    bookings={bookings}
+                    selectedSessionIds={selectedSessionIds}
+                    setSelectedSessionIds={setSelectedSessionIds}
+                    adminBusy={adminBusy}
+                    language={language}
+                    t={t}
+                    onEdit={onStartEditSession}
+                    onCreateRecurring={onCreateRecurringSessions}
+                    onSetFull={onSetSessionFull}
+                    onDelete={onDeleteSession}
+                  />
                 )}
                 {!adminSessions.length ? <div className="empty-state">{t.noSessions}</div> : null}
               </div>
               {sessionEditorOpen ? renderSessionEditor() : null}
             </div>
+          ) : adminTab === 'overview' ? (
+            <AdminOverview language={language} onOpenTab={setAdminTab} />
           ) : adminTab === 'bookings' ? (
-            <div className="admin-bookings">
-              <div className="admin-list-heading">
-                <div>
-                  <p className="eyebrow muted">{t.admin}</p>
-                  <h2>{t.bookingList}</h2>
-                  <p>{t.bookingListIntro}</p>
-                </div>
-                <Badge variant="secondary">{bookings.length}</Badge>
-              </div>
-              {bookings.length ? (
-                <div className="booking-table-wrap">
-                  <table className="booking-table">
-                    <thead>
-                      <tr>
-                        <th>{t.contact}</th>
-                        <th>{t.sessions}</th>
-                        <th>{t.format}</th>
-                        <th>{t.participants}</th>
-                        <th>{t.total}</th>
-                        <th>{t.status}</th>
-                        <th scope="col">{t.actions}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {bookings.map((booking) => {
-                        const session = sessions.find((item) => item.id === booking.sessionId);
-                        const venue = session
-                          ? getVenue(session.venueId, venueList)
-                          : getVenue(venueList[0].id, venueList);
-                        return (
-                          <tr key={booking.id}>
-                            <td>
-                              <strong>{booking.contactName}</strong>
-                              <span>{booking.email}</span>
-                              {booking.phone ? <span>{booking.phone}</span> : null}
-                            </td>
-                            <td>
-                              <strong>{venue.name}</strong>
-                              <span>{session ? formatDate(session.date, language) : ''}</span>
-                            </td>
-                            <td>
-                              <strong>{formatNames([booking.format], t)}</strong>
-                            </td>
-                            <td>
-                              <strong>
-                                {booking.participants.length}{' '}
-                                {booking.participants.length === 1 ? t.person : t.people}
-                              </strong>
-                              <span>{booking.participants.join(' · ')}</span>
-                            </td>
-                            <td>{formatMoney(booking.totalPence, language)}</td>
-                            <td>
-                              <Badge variant={booking.status === 'confirmed' ? 'default' : 'outline'}>
-                                {bookingStatusLabel(booking.status, t)}
-                              </Badge>
-                            </td>
-                            <td>
-                              {booking.status === 'confirmed' ? (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => onCancelBooking(booking.id)}
-                                  disabled={adminBusy}
-                                >
-                                  {t.cancelBooking}
-                                </Button>
-                              ) : null}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="empty-state">{t.emptyBookings}</div>
-              )}
-            </div>
+            <AdminBookings language={language} venueList={venueList} onBookingChanged={onBookingChanged} />
           ) : adminTab === 'requests' ? (
             <div className="admin-bookings admin-requests">
               <div className="admin-list-heading">

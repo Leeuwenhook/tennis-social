@@ -27,6 +27,8 @@ export function QrCodeDialog({
   label,
   t,
   disabled,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   url: string;
   title: string;
@@ -34,8 +36,14 @@ export function QrCodeDialog({
   label: string;
   t: Translations;
   disabled?: boolean;
+  /** When set, the dialog is controlled by the caller and no trigger button is rendered. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [ownOpen, setOwnOpen] = useState(false);
+  const controlled = controlledOpen !== undefined;
+  const open = controlled ? controlledOpen : ownOpen;
+  const setOpen = (value: boolean) => (controlled ? onOpenChange?.(value) : setOwnOpen(value));
   const [preview, setPreview] = useState('');
 
   useEffect(() => {
@@ -66,9 +74,11 @@ export function QrCodeDialog({
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)} disabled={disabled}>
-        <QrCode size={14} /> {label}
-      </Button>
+      {controlled ? null : (
+        <Button variant="outline" size="sm" onClick={() => setOpen(true)} disabled={disabled}>
+          <QrCode size={14} /> {label}
+        </Button>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>

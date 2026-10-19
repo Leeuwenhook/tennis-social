@@ -452,3 +452,28 @@ export async function sendAdminReviewNotification(details: Record<string, unknow
   try { return await sendAdminEmail(renderAdminDetails('新球友评价待审核 · New review to moderate', details)); }
   catch { console.error('Admin review notification failed', details.id); return { status: 'skipped' as const }; }
 }
+
+export type AdminCancellationEmailInput = BookingEmailInput & { refunded: boolean };
+export function renderAdminCancellationEmail({ booking, session, venue, refunded }: AdminCancellationEmailInput): RenderedBookingEmail {
+  const details = `${venue.name} / ${venue.nameZh} · ${session.date} ${session.start_time}–${session.end_time}`;
+  const outcome = refunded
+    ? [`We have refunded ${formatMoney(booking.total_pence)} to your original payment method. It usually arrives within 5–10 working days.`, `已将 ${formatMoney(booking.total_pence)} 全额原路退回，一般 5–10 个工作日到账。`]
+    : ['If you have questions about payment, reply to this email.', '如对付款有疑问，请直接回复本邮件。'];
+  const lines = [
+    `Hi ${booking.contact_name},`,
+    'Your booking has been cancelled by the Tennis Match team.',
+    '你的预订已由 Tennis Match 取消。',
+    details, ...outcome,
+    `Booking reference / 预订编号: ${booking.id}`,
+    'See other sessions / 查看其他场次: https://www.tennismatch.space',
+  ];
+  const html = `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:28px;background:#edf2eb;color:#173b2f">${lines.map((line) => `<p>${escapeHtml(line)}</p>`).join('')}</div>`;
+  return { subject: `Booking cancelled / 预订已取消${refunded ? '，已退款' : ''} · ${venue.name}`, text: lines.join('\n\n'), html };
+}
+export async function sendAdminCancellationEmail(input: AdminCancellationEmailInput): Promise<EmailSendResult> {
+  const transport = smtpTransport();
+  const { EMAIL_FROM } = getRuntimeEnv();
+  if (!transport || !EMAIL_FROM) return { status: 'skipped' };
+  const result = await transport.sendMail({ from: EMAIL_FROM, to: input.booking.email, ...renderAdminCancellationEmail(input) });
+  return { status: 'sent', messageId: result.messageId };
+}

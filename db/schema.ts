@@ -257,3 +257,14 @@ export const reviewMedia = pgTable('review_media', {
   index('idx_review_media_review').on(table.reviewId, table.sortOrder),
   index('idx_review_media_booking_status').on(table.bookingId, table.status),
 ]);
+
+export const adminLoginAttempts = pgTable('admin_login_attempts', {
+  id: text('id').primaryKey(),
+  username: text('username').notNull(),
+  ipHash: text('ip_hash').notNull(),
+  success: boolean('success').notNull(),
+  createdAt: text('created_at').notNull(),
+}, (table) => [
+  index('idx_admin_login_attempts_ip_created').on(table.ipHash, table.createdAt),
+  index('idx_admin_login_attempts_created').on(table.createdAt),
+]);

@@ -176,6 +176,13 @@
       "when": 1792395926664,
       "tag": "0024_session_reviews",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792449460980,
+      "tag": "0025_admin_login_attempts",
+      "breakpoints": true
     }
   ]
 }

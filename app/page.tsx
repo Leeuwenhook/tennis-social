@@ -1189,7 +1189,7 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
         body: JSON.stringify(adminLogin),
       });
       if (!response.ok) {
-        setAdminAuthError(t.invalidCredentials);
+        setAdminAuthError(response.status === 429 ? t.tooManyLoginAttempts : t.invalidCredentials);
         return;
       }
       setAdminAuthenticated(true);
@@ -1446,59 +1446,6 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
     }
     adminBusyRef.current = false;
     setAdminBusy(false);
-  }
-
-  async function resetDemo() {
-    if (!window.confirm(t.resetConfirm)) return;
-    adminBusyRef.current = true;
-    ++sessionLoadVersion.current;
-    setAdminBusy(true);
-    let resetFromServer = false;
-    let resetUnauthorized = false;
-    let nextVenues = venueList;
-    try {
-      const response = await fetch('/api/admin/reset', { method: 'POST' });
-      if (response.status === 401) {
-        resetUnauthorized = true;
-        setAdminAuthenticated(false);
-      }
-      if (response.ok) {
-        const data = await response.json() as { venues?: unknown[]; sessions?: Session[]; bookings?: Booking[] };
-        const resetVenues = data.venues?.map(normalizeVenue).filter((venue): venue is Venue => Boolean(venue));
-        if (data.sessions && data.bookings) {
-          setSessions(data.sessions);
-          setBookings(data.bookings);
-          if (resetVenues?.length) {
-            nextVenues = resetVenues;
-            setVenueList(resetVenues);
-          }
-          resetFromServer = true;
-        }
-      }
-    } catch {
-      // Keep the dashboard state unchanged when the server reset is unavailable.
-    }
-    if (resetUnauthorized) {
-      adminBusyRef.current = false;
-      setAdminBusy(false);
-      return;
-    }
-    if (!resetFromServer) {
-      setAdminMessage(t.adminSaveUnavailable);
-      adminBusyRef.current = false;
-      setAdminBusy(false);
-      return;
-    }
-    setConfirmation(null);
-    setSelectedSessionId(null);
-    setDraft(emptyDraft(nextVenues));
-    setVenueDraft(emptyVenueDraft(nextVenues));
-    setAdminMessage(t.resetDone);
-    paymentSubmittingRef.current = false;
-    cancellingBookingRef.current.clear();
-    adminBusyRef.current = false;
-    setAdminBusy(false);
-    navigate('admin');
   }
 
   function startEdit(session: Session) {
@@ -2161,7 +2108,6 @@ export function TennisSocialApp({ initialView = "home" }: { initialView?: View }
             sessionImportFailed={sessionImportFailed}
             language={language}
             t={t}
-            onResetDemo={() => void resetDemo()}
             onLogoutAdmin={() => void logoutAdmin()}
             onSaveDraft={saveDraft}
             onSaveVenue={saveVenue}

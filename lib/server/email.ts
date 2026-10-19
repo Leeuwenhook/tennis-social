@@ -447,3 +447,8 @@ export function sendAdminAutoRefundSummary(outcomes: Array<{ bookingId: string; 
     Object.fromEntries(outcomes.map((item) => [item.bookingId, `${item.status} · ${item.email} · session ${item.sessionId}`])),
   ));
 }
+
+export async function sendAdminReviewNotification(details: Record<string, unknown>) {
+  try { return await sendAdminEmail(renderAdminDetails('新球友评价待审核 · New review to moderate', details)); }
+  catch { console.error('Admin review notification failed', details.id); return { status: 'skipped' as const }; }
+}

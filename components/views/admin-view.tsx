@@ -25,6 +25,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AdminPasteRequests } from '@/components/admin-paste-requests';
+import { AdminReviews } from '@/components/admin-reviews';
 import { QrCodeDialog, siteOrigin } from '@/components/qr-code-dialog';
 import { GAME_FORMATS, type Venue } from '@/lib/demo-data';
 import {
@@ -898,6 +899,15 @@ export function AdminView({
             <button
               type="button"
               role="tab"
+              aria-selected={adminTab === 'reviews'}
+              className={adminTab === 'reviews' ? 'active' : ''}
+              onClick={() => setAdminTab('reviews')}
+            >
+              {language === 'zh' ? '评价审核' : 'Reviews'}
+            </button>
+            <button
+              type="button"
+              role="tab"
               aria-selected={adminTab === 'venues'}
               className={adminTab === 'venues' ? 'active' : ''}
               onClick={() => setAdminTab('venues')}
@@ -1378,6 +1388,8 @@ export function AdminView({
                 <div className="empty-state">{t.noRequests}</div>
               )}
             </div>
+          ) : adminTab === 'reviews' ? (
+            <AdminReviews language={language} />
           ) : (
             <div className={`admin-venue-layout${venueEditorOpen ? '' : ' venue-layout-full'}`}>
               <div className="admin-venue-list">

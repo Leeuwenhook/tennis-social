@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AdminPasteRequests } from '@/components/admin-paste-requests';
 import { AdminReviews } from '@/components/admin-reviews';
+import { QrCodeDialog, siteOrigin } from '@/components/qr-code-dialog';
 import { GAME_FORMATS, type Venue } from '@/lib/demo-data';
 import {
   bookingStatusLabel,
@@ -942,6 +943,13 @@ export function AdminView({
                     >
                       {t.sessionCalendarView}
                     </Button>
+                    <QrCodeDialog
+                      url={siteOrigin()}
+                      title={t.siteQrTitle}
+                      filename="tennis-match-qr"
+                      label={t.siteQrCode}
+                      t={t}
+                    />
                     <Button variant="outline" size="sm" onClick={onExportSessions} disabled={adminBusy}>
                       <Download size={14} /> {t.exportSessions}
                     </Button>
@@ -1170,6 +1178,18 @@ export function AdminView({
                                   >
                                     <Repeat2 size={14} /> {t.createNextWeeks}
                                   </Button>
+                                  {session.status === 'published' ? (
+                                    <QrCodeDialog
+                                      url={`${siteOrigin()}/?view=detail&session=${encodeURIComponent(session.id)}`}
+                                      title={t.sessionQrTitle
+                                        .replace('{venue}', getVenue(session.venueId, venueList).name)
+                                        .replace('{date}', session.date)
+                                        .replace('{time}', session.startTime)}
+                                      filename={`tennis-match-${session.date}-${session.startTime.replace(':', '')}`}
+                                      label={t.qrCode}
+                                      t={t}
+                                    />
+                                  ) : null}
                                   {session.markedFull ? (
                                     <Button variant="outline" size="sm" onClick={() => onSetSessionFull(session, false)} disabled={adminBusy}>{t.unmarkFull}</Button>
                                   ) : spots > 0 ? (

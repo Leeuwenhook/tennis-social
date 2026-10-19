@@ -18,7 +18,7 @@ import { resolveVenueDescriptions } from '@/lib/venue-description';
 import type { Venue } from '@/lib/demo-data';
 import { formatDuration, formatLongDate, formatMoney, formatNames } from '@/lib/formatters';
 import { VenueReviews } from '@/components/venue-reviews';
-import { availableSpots, venueFullLocation, venueMapsUrl } from '@/lib/tennis-utils';
+import { availableSpots, hasPartnerWaiting, venueFullLocation, venueMapsUrl } from '@/lib/tennis-utils';
 import type { Translations } from '@/lib/translations';
 import type { Language, Session } from '@/types/tennis';
 
@@ -102,6 +102,9 @@ export function DetailView({
               <span>
                 <small>{t.availability}</small>
                 <strong>{full ? t.full : `${spots} ${spots === 1 ? t.spotLeft : t.spotsLeft}`}</strong>
+                {hasPartnerWaiting(selectedSession) ? (
+                  <small className="detail-partner-waiting">{t.partnerWaiting.replace('{count}', String(selectedSession.bookedSpots))}</small>
+                ) : null}
               </span>
             </div>
             <div>

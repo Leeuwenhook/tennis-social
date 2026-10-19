@@ -10,6 +10,7 @@ import Users from 'lucide-react/dist/esm/icons/users.mjs';
 import { contactHandleRequired, contactHandleValue, PartnerContactFields } from '@/components/partner-request-fields';
 import { PREFERRED_SLOTS, SLOT_LABELS, slotLabels } from '@/lib/partner-request-slots';
 import { formatDate, formatDuration } from '@/lib/formatters';
+import { geocodePostcodes, milesBetween, normalizePostcode, type LatLng } from '@/lib/postcode-geo';
 import { LEVELS } from '@/lib/tennis-utils';
 import type { Language, PartnerRequestFormat, UserProfile } from '@/types/tennis';
 
@@ -17,6 +18,7 @@ type PublicRequest = {
   id: string;
   venueName: string;
   postcode: string;
+  locationPostcode?: string;
   area: string;
   preferredDate: string;
   preferredSlots: string[];
@@ -42,7 +44,8 @@ type ApplicationForm = {
 };
 
 type Filters = {
-  area: string;
+  postcode: string;
+  radius: string;
   date: string;
   slot: string;
   level: string;
@@ -63,7 +66,14 @@ const copy = {
     unavailable: 'Open requests are temporarily unavailable. Please try again later.',
     retry: 'Retry',
     empty: 'No requests match these filters. Try changing one filter to see other open requests.',
-    area: 'Area',
+    postcode: 'Post code',
+    postcodePlaceholder: 'e.g. SE1 or SE1 7PB',
+    radius: 'Within',
+    miles: (value: string) => `${value} miles`,
+    distance: (miles: number) => `≈ ${miles.toFixed(1)} mi away`,
+    postcodeInvalid: 'Enter a UK postcode such as SE1 or SE1 7PB.',
+    postcodeNotFound: 'We could not find that postcode.',
+    postcodeError: 'Postcode search is unavailable right now.',
     date: 'Date',
     level: 'Level',
     format: 'Format',
@@ -116,7 +126,14 @@ const copy = {
     unavailable: '开放需求暂时不可用，请稍后重试。',
     retry: '重试',
     empty: '没有符合筛选条件的需求。可以调整筛选条件后再查看。',
-    area: '区域',
+    postcode: '邮编',
+    postcodePlaceholder: '例如 SE1 或 SE1 7PB',
+    radius: '距离',
+    miles: (value: string) => `${value} 英里内`,
+    distance: (miles: number) => `约 ${miles.toFixed(1)} 英里`,
+    postcodeInvalid: '请输入英国邮编，例如 SE1 或 SE1 7PB。',
+    postcodeNotFound: '找不到这个邮编。',
+    postcodeError: '邮编查询暂时不可用。',
     date: '日期',
     level: '水平',
     format: '形式',
@@ -166,7 +183,12 @@ const copy = {
 type Copy = (typeof copy)[Language];
 
 const FORMATS: PartnerRequestFormat[] = ['singles', 'doubles', 'practice', 'flexible'];
-const EMPTY_FILTERS: Filters = { area: '', date: '', slot: '', level: '', format: '' };
+const EMPTY_FILTERS: Filters = { postcode: '', radius: '5', date: '', slot: '', level: '', format: '' };
+const RADII = ['1', '2', '5', '10'];
+
+type GeoState =
+  | { kind: 'off' | 'invalid' | 'loading' | 'not_found' | 'error' }
+  | { kind: 'ready'; origin: LatLng; points: Map<string, LatLng | null> };
 const EMPTY_FORM: ApplicationForm = {
   name: '',
   email: '',
@@ -229,14 +251,12 @@ function venueStatusLabel(status: PublicRequest['venueBookingStatus'], t: Copy) 
 
 function RequestFilters({
   filters,
-  areas,
   t,
   onChange,
   language,
 }: {
   language: Language;
   filters: Filters;
-  areas: string[];
   t: Copy;
   onChange: (filters: Filters) => void;
 }) {
@@ -245,12 +265,24 @@ function RequestFilters({
       <legend className="sr-only">{t.title}</legend>
       <label><span>{t.preferredSlots}</span><select value={filters.slot} onChange={(event) => onChange({ ...filters, slot: event.target.value })}><option value="">{t.all}</option>{PREFERRED_SLOTS.map((slot) => <option key={slot} value={slot}>{SLOT_LABELS[language][slot]}</option>)}</select></label>
       <label className="cs-pr-field">
-        <span>{t.area}</span>
-        <select value={filters.area} onChange={(event) => onChange({ ...filters, area: event.target.value })}>
-          <option value="">{t.all}</option>
-          {areas.map((area) => (
-            <option key={area} value={area}>
-              {area}
+        <span>{t.postcode}</span>
+        <input
+          type="text"
+          inputMode="text"
+          autoComplete="postal-code"
+          autoCapitalize="characters"
+          maxLength={9}
+          placeholder={t.postcodePlaceholder}
+          value={filters.postcode}
+          onChange={(event) => onChange({ ...filters, postcode: event.target.value })}
+        />
+      </label>
+      <label className="cs-pr-field">
+        <span>{t.radius}</span>
+        <select value={filters.radius} onChange={(event) => onChange({ ...filters, radius: event.target.value })}>
+          {RADII.map((radius) => (
+            <option key={radius} value={radius}>
+              {t.miles(radius)}
             </option>
           ))}
         </select>
@@ -297,11 +329,13 @@ function RequestFilters({
 
 function RequestCard({
   request,
+  distance,
   language,
   t,
   onApply,
 }: {
   request: PublicRequest;
+  distance: number | null;
   language: Language;
   t: Copy;
   onApply: (request: PublicRequest) => void;
@@ -311,7 +345,10 @@ function RequestCard({
     <article className="cs-pr-card">
       <div className="cs-pr-card-head">
         <div>
-          <p className="cs-pr-area">{request.area || request.postcode}</p>
+          <p className="cs-pr-area">
+            {request.area || request.postcode}
+            {distance != null ? <span className="cs-pr-distance"> · {t.distance(distance)}</span> : null}
+          </p>
           <h3>
             <MapPin size={15} aria-hidden="true" />
             {request.venueName || request.postcode}
@@ -572,15 +609,59 @@ export function PublicPartnerRequests({ language }: { language: Language }) {
     };
   }, []);
 
-  const areas = useMemo(
-    () => [...new Set(requests.map((request) => request.area).filter(Boolean))].sort(),
-    [requests],
-  );
+  const searchPostcode = normalizePostcode(filters.postcode);
+  const typedPostcode = filters.postcode.trim();
+  const [lookup, setLookup] = useState<{ key: string; requests: PublicRequest[]; result: GeoState } | null>(null);
+
+  // Geocode the typed postcode and every request location, debounced while typing.
+  useEffect(() => {
+    if (!searchPostcode) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      geocodePostcodes([searchPostcode, ...requests.map((request) => request.locationPostcode ?? '')])
+        .then((points) => {
+          const origin = points.get(searchPostcode);
+          if (!cancelled) {
+            setLookup({
+              key: searchPostcode,
+              requests,
+              result: origin ? { kind: 'ready', origin, points } : { kind: 'not_found' },
+            });
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setLookup({ key: searchPostcode, requests, result: { kind: 'error' } });
+        });
+    }, 400);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [searchPostcode, requests]);
+
+  const geo = useMemo<GeoState>(() => {
+    if (!typedPostcode) return { kind: 'off' };
+    if (!searchPostcode) return { kind: 'invalid' };
+    return lookup?.key === searchPostcode && lookup.requests === requests ? lookup.result : { kind: 'loading' };
+  }, [typedPostcode, searchPostcode, lookup, requests]);
+
+  const distances = useMemo(() => {
+    const result = new Map<string, number>();
+    if (geo.kind !== 'ready') return result;
+    for (const request of requests) {
+      const point = geo.points.get(normalizePostcode(request.locationPostcode ?? ''));
+      if (point) result.set(request.id, milesBetween(geo.origin, point));
+    }
+    return result;
+  }, [geo, requests]);
 
   const visibleRequests = useMemo(
     () =>
       requests.filter((request) => {
-        if (filters.area && request.area !== filters.area) return false;
+        if (geo.kind === 'ready') {
+          const miles = distances.get(request.id);
+          if (miles == null || miles > Number(filters.radius)) return false;
+        }
         if (filters.slot && !request.preferredSlots.includes(filters.slot)) return false;
         if (filters.date && request.preferredDate !== filters.date) return false;
         if (filters.format && request.preferredFormat !== filters.format) return false;
@@ -588,9 +669,18 @@ export function PublicPartnerRequests({ language }: { language: Language }) {
           return false;
         }
         return true;
-      }).sort((a, b) => a.preferredDate.localeCompare(b.preferredDate)),
-    [filters, requests],
+      }).sort((a, b) =>
+        geo.kind === 'ready'
+          ? (distances.get(a.id) ?? 0) - (distances.get(b.id) ?? 0)
+          : a.preferredDate.localeCompare(b.preferredDate),
+      ),
+    [filters, requests, geo, distances],
   );
+  const geoMessage =
+    geo.kind === 'invalid' && typedPostcode.length >= 3 ? t.postcodeInvalid
+      : geo.kind === 'not_found' ? t.postcodeNotFound
+        : geo.kind === 'error' ? t.postcodeError
+          : null;
 
   function retry() {
     setLoading(true);
@@ -668,7 +758,8 @@ export function PublicPartnerRequests({ language }: { language: Language }) {
         </div>
       </div>
 
-      <RequestFilters language={language} filters={filters} areas={areas} t={t} onChange={setFilters} />
+      <RequestFilters language={language} filters={filters} t={t} onChange={setFilters} />
+      {geoMessage ? <p className="cs-pr-geo-note" role="status">{geoMessage}</p> : null}
 
       {loading ? (
         <div className="cs-empty">{t.loading}</div>
@@ -685,7 +776,14 @@ export function PublicPartnerRequests({ language }: { language: Language }) {
       ) : (
         <div className="cs-pr-grid">
           {visibleRequests.map((request) => (
-            <RequestCard key={request.id} request={request} language={language} t={t} onApply={openApplication} />
+            <RequestCard
+              key={request.id}
+              request={request}
+              distance={distances.get(request.id) ?? null}
+              language={language}
+              t={t}
+              onApply={openApplication}
+            />
           ))}
         </div>
       )}

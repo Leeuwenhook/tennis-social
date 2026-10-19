@@ -33,7 +33,7 @@ export async function GET(request: Request) {
     const levelParam = params.get('level') || '';
     const level = TENNIS_LEVELS.includes(levelParam as never) ? JSON.stringify([levelParam]) : null;
     const rows = await db`
-      SELECT requests.*, venues.area
+      SELECT requests.*, venues.area, venues.postcode AS venue_postcode, venues.address AS venue_address
       FROM reservation_requests AS requests LEFT JOIN venues ON venues.id = requests.venue_id
       WHERE requests.status IN ('pending', 'reviewing')
         AND requests.preferred_date >= ${today}
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
         AND (${level}::text IS NULL OR requests.existing_player_levels_json::jsonb @> ${level}::jsonb OR requests.seeking_levels_json::jsonb @> ${level}::jsonb)
         AND (${slot}::text IS NULL OR requests.preferred_slots_json::jsonb @> ${slot}::jsonb)
       ORDER BY requests.preferred_date NULLS LAST, requests.created_at DESC
-    ` as Array<ReservationRequestRow & { area: string | null }>;
+    ` as Array<ReservationRequestRow & { area: string | null; venue_postcode: string | null; venue_address: string | null }>;
     return Response.json({ requests: rows.map(serializePublicReservationRequest) });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) return Response.json({ error: 'database_not_configured' }, { status: 503 });

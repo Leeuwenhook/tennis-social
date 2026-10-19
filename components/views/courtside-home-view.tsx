@@ -10,14 +10,15 @@ import Timer from 'lucide-react/dist/esm/icons/timer.mjs';
 import Users from 'lucide-react/dist/esm/icons/users.mjs';
 
 import { PublicPartnerRequests } from '@/components/public-partner-requests';
+import { SessionsMap } from '@/components/sessions-map';
 import { VenuePhoto } from '@/components/venue-photo';
 import type { GameFormat, Venue } from '@/lib/demo-data';
 import { formatMoney, formatNames, sessionDurationBadge } from '@/lib/formatters';
-import { availableSpots, displayedBookedSpots, getVenue, sessionMatchPreferences, venueLocationSummary } from '@/lib/tennis-utils';
+import { availableSpots, displayedBookedSpots, getVenue, hasPartnerWaiting, sessionMatchPreferences, venueLocationSummary } from '@/lib/tennis-utils';
 import type { Translations } from '@/lib/translations';
 import type { Booking, Language, Session } from '@/types/tennis';
 
-type FormatFilter = 'all' | GameFormat;
+type FormatFilter = 'all' | GameFormat | 'joined';
 
 const copy = {
   en: {
@@ -37,6 +38,7 @@ const copy = {
     serveTitle: 'Your serve.',
     serveText: 'Got a court in mind, or need partners at your level? Tell us and we will set the match.',
     sessionOne: 'session',
+    joinedFilter: 'Has partner',
   },
   zh: {
     nextUp: '下一场',
@@ -55,6 +57,7 @@ const copy = {
     serveTitle: '轮到你发球。',
     serveText: '有想去的球场，或想找水平相近的球友？告诉我们，我们来安排。',
     sessionOne: '场次',
+    joinedFilter: '已有搭子',
   },
 } as const;
 
@@ -178,7 +181,9 @@ export function CourtsideHomeView({
 
   const groupedSessions = useMemo(() => {
     const filtered = upcomingSessions.filter(
-      (session) => formatFilter === 'all' || session.formats.includes(formatFilter),
+      (session) =>
+        formatFilter === 'all' ||
+        (formatFilter === 'joined' ? hasPartnerWaiting(session) : session.formats.includes(formatFilter)),
     );
     const groups = new Map<string, Session[]>();
     for (const session of filtered) {
@@ -221,6 +226,12 @@ export function CourtsideHomeView({
             <span>{venueLocationSummary(venue, language)}</span>
           </p>
           <div className="cs-row-tags">
+            {hasPartnerWaiting(session) ? (
+              <span className="cs-tag partner">
+                <Users size={12} aria-hidden="true" />
+                {t.partnerWaiting.replace('{count}', String(session.bookedSpots))}
+              </span>
+            ) : null}
             {durationBadge ? (
               <span className="cs-tag duration">
                 <Timer size={12} aria-hidden="true" />
@@ -387,6 +398,10 @@ export function CourtsideHomeView({
         </dl>
       </section>
 
+      {sessionsReady ? (
+        <SessionsMap sessions={upcomingSessions} venueList={venueList} language={language} t={t} onOpenSession={onOpenSession} />
+      ) : null}
+
       <section className="cs-schedule page-width" id="sessions">
         <div className="cs-schedule-head">
           <div>
@@ -398,14 +413,14 @@ export function CourtsideHomeView({
           </div>
           <fieldset className="cs-filter">
             <legend className="sr-only">{t.formats}</legend>
-            {(['all', 'singles', 'doubles'] as const).map((value) => (
+            {(['all', 'singles', 'doubles', 'joined'] as const).map((value) => (
               <button
                 type="button"
                 key={value}
                 aria-pressed={formatFilter === value}
                 onClick={() => setFormatFilter(value)}
               >
-                {value === 'all' ? c.all : formatNames([value], t)}
+                {value === 'all' ? c.all : value === 'joined' ? c.joinedFilter : formatNames([value], t)}
               </button>
             ))}
           </fieldset>

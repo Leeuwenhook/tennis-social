@@ -1,5 +1,5 @@
-import { TennisSocialApp } from '../page';
+import { AdminApp } from '@/components/admin/admin-app';
 
 export default function AdminPage() {
-  return <TennisSocialApp initialView="admin" />;
+  return <AdminApp />;
 }

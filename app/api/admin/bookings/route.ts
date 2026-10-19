@@ -21,10 +21,14 @@ export async function GET(request: Request) {
     await expireStaleReservations(db);
     const params = new URL(request.url).searchParams;
     if (params.has('scope')) return Response.json(await searchAdminBookings(db, params));
+    // Optional lower bound on the session date, matching the admin session list.
+    const fromParam = params.get('from') ?? '';
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(fromParam) ? fromParam : null;
     const rows = await db`
-      SELECT *
-      FROM bookings
-      ORDER BY created_at DESC, id DESC
+      SELECT bookings.*
+      FROM bookings JOIN sessions ON sessions.id = bookings.session_id
+      WHERE ${from}::text IS NULL OR sessions.date >= ${from}
+      ORDER BY bookings.created_at DESC, bookings.id DESC
     ` as BookingRow[];
     return Response.json({ bookings: rows.map(serializeBooking) });
   } catch (error) {

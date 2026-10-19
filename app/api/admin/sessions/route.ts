@@ -63,10 +63,14 @@ export async function GET(request: Request) {
     const db = database();
     await ensureSeeded(db);
     await expireStaleReservations(db);
+    // Optional lower bound so the admin does not load every past session.
+    const fromParam = new URL(request.url).searchParams.get('from') ?? '';
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(fromParam) ? fromParam : null;
     const rows = await db`
       SELECT id, venue_id, date, start_time, end_time, price_pence, capacity,
              booked_spots, marked_full, formats_json, seeking_levels_json, status
       FROM sessions
+      WHERE ${from}::text IS NULL OR date >= ${from}
       ORDER BY date, start_time
     ` as SessionRow[];
     return Response.json({ sessions: rows.map(serializeSession) });

@@ -4410,6 +4410,10 @@
   border-top: 1px solid var(--border);
 }
 
+.admin-session-rows {
+  container-type: inline-size;
+}
+
 .admin-session-row {
   display: grid;
   grid-template-columns: 28px minmax(110px, 0.8fr) minmax(140px, 1.4fr) 110px 120px 250px;
@@ -4728,4 +4732,52 @@
   .admin-filter-bar .native-select {
     flex: 1 1 140px;
   }
+}
+
+/* The session list stacks whenever it is narrow, including beside the editor. */
+@container (max-width: 760px) {
+  .admin-session-row {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-areas: none;
+  }
+
+  .admin-session-row.is-head {
+    display: none;
+  }
+
+  .admin-session-row > .admin-session-status {
+    grid-row: 1;
+    grid-column: 3;
+  }
+
+  .admin-session-row > .admin-session-venue,
+  .admin-session-row > .admin-session-capacity {
+    grid-column: 2 / -1;
+  }
+
+  .admin-session-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .admin-session-roster {
+    grid-column: 1 / -1;
+  }
+
+}
+
+.admin-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.admin-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
 }

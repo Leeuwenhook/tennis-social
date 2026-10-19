@@ -46,6 +46,7 @@ export type SessionInput = {
   formats?: unknown;
   seekingLevels?: unknown;
   status?: unknown;
+  markedFull?: unknown;
 };
 
 export type ValidatedSessionInput = {

@@ -34,7 +34,7 @@ import {
   formatNames,
   requestStatusLabel,
 } from '@/lib/formatters';
-import { emptyDraft, emptyVenueDraft, getVenue, LEVELS, shiftDate, venueLabel } from '@/lib/tennis-utils';
+import { availableSpots, emptyDraft, emptyVenueDraft, getVenue, LEVELS, shiftDate, venueLabel } from '@/lib/tennis-utils';
 import type { Translations } from '@/lib/translations';
 import type {
   AdminTab,
@@ -225,7 +225,7 @@ export function AdminView({
   onStartEditSession,
   onCreateRecurringSessions,
   onDeleteSession,
-  onMarkSessionFull,
+  onSetSessionFull,
   onBulkUpdateSessionStatus,
   onExportSessions,
   onUndoLastOperation,
@@ -298,7 +298,7 @@ export function AdminView({
   onStartEditSession: (session: Session) => void;
   onCreateRecurringSessions: (session: Session) => void;
   onDeleteSession: (session: Session) => void;
-  onMarkSessionFull: (session: Session) => void;
+  onSetSessionFull: (session: Session, markedFull: boolean) => void;
   onBulkUpdateSessionStatus: (status: SessionStatus) => void;
   onExportSessions: () => void;
   onUndoLastOperation: () => void;
@@ -1107,7 +1107,7 @@ export function AdminView({
                       <tbody>
                         {adminSessions.map((session) => {
                           const venue = getVenue(session.venueId, venueList);
-                          const spots = Math.max(0, session.capacity - session.bookedSpots);
+                          const spots = availableSpots(session);
                           return (
                             <tr key={session.id}>
                               <td>
@@ -1139,7 +1139,7 @@ export function AdminView({
                                 </Badge>
                               </td>
                               <td>
-                                {session.bookedSpots}/{session.capacity} · {spots} {t.spotsLeft}
+                                {session.bookedSpots}/{session.capacity} · {session.markedFull ? t.markedFull : `${spots} ${t.spotsLeft}`}
                               </td>
                               {/* oxlint-disable-next-line jsx-a11y/control-has-associated-label -- buttons inside carry visible text */}
                               <td>
@@ -1160,7 +1160,11 @@ export function AdminView({
                                   >
                                     <Repeat2 size={14} /> {t.createNextWeeks}
                                   </Button>
-                                  {session.capacity > session.bookedSpots ? <Button variant="outline" title={t.markFullHint} onClick={() => onMarkSessionFull(session)}>{t.markFull}</Button> : null}
+                                  {session.markedFull ? (
+                                    <Button variant="outline" size="sm" onClick={() => onSetSessionFull(session, false)} disabled={adminBusy}>{t.unmarkFull}</Button>
+                                  ) : spots > 0 ? (
+                                    <Button variant="outline" size="sm" title={t.markFullHint} onClick={() => onSetSessionFull(session, true)} disabled={adminBusy}>{t.markFull}</Button>
+                                  ) : null}
                                   <Button
                                     variant="destructive"
                                     size="sm"

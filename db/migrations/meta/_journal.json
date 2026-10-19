@@ -169,6 +169,13 @@
       "when": 1792395680509,
       "tag": "0023_auto_refunds",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792395926664,
+      "tag": "0024_session_reviews",
+      "breakpoints": true
     }
   ]
 }

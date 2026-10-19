@@ -12,6 +12,7 @@ import {
   type EmailSendResult,
 } from './email';
 import { londonDate, londonSessionEnd } from './london-time';
+import { reviewsEnabled, reviewUrlFor } from './reviews';
 import { signToken } from './signed-token';
 import { getRuntimeEnv } from './runtime';
 
@@ -131,6 +132,7 @@ export async function sendDueBookingFollowups(
         session: booking,
         venue,
         nextSessions: next,
+        reviewUrl: reviewsEnabled() ? reviewUrlFor(booking.id, now) : undefined,
         unsubscribeUrl: `${SITE_ORIGIN}/api/email/unsubscribe?t=${encodeURIComponent(token)}`,
       });
       await db`UPDATE bookings SET followup_email_status = ${result.status === 'sent' ? 'sent' : 'pending'},

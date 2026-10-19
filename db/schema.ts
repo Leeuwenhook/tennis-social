@@ -212,3 +212,48 @@ export const emailSuppressions = pgTable('email_suppressions', {
   email: text('email').primaryKey(),
   createdAt: text('created_at').notNull(),
 });
+
+export const sessionReviews = pgTable('session_reviews', {
+  id: text('id').primaryKey(),
+  bookingId: text('booking_id').notNull().references(() => bookings.id, { onDelete: 'cascade' }),
+  sessionId: text('session_id').notNull().references(() => sessions.id),
+  venueId: text('venue_id').notNull(),
+  displayName: text('display_name').notNull(),
+  rating: integer('rating'),
+  body: text('body').notNull(),
+  language: text('language', { enum: ['en', 'zh'] }).notNull().default('en'),
+  status: text('status', { enum: ['pending', 'approved', 'rejected', 'hidden'] }).notNull().default('pending'),
+  consentPublic: boolean('consent_public').notNull(),
+  consentMedia: boolean('consent_media').notNull().default(false),
+  consentAt: text('consent_at').notNull(),
+  moderationNote: text('moderation_note').notNull().default(''),
+  moderatedAt: text('moderated_at'),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  uniqueIndex('session_reviews_booking_unique').on(table.bookingId),
+  index('idx_session_reviews_venue_status_created').on(table.venueId, table.status, table.createdAt),
+  index('idx_session_reviews_status_created').on(table.status, table.createdAt),
+]);
+
+export const reviewMedia = pgTable('review_media', {
+  id: text('id').primaryKey(),
+  reviewId: text('review_id').references(() => sessionReviews.id, { onDelete: 'cascade' }),
+  bookingId: text('booking_id').notNull(),
+  kind: text('kind', { enum: ['image', 'video'] }).notNull(),
+  blobUrl: text('blob_url').notNull(),
+  blobPathname: text('blob_pathname').notNull(),
+  contentType: text('content_type').notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  width: integer('width'),
+  height: integer('height'),
+  durationSeconds: integer('duration_seconds'),
+  status: text('status', { enum: ['uploaded', 'pending', 'approved', 'rejected'] }).notNull().default('uploaded'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  createdAt: text('created_at').notNull(),
+  updatedAt: text('updated_at').notNull(),
+}, (table) => [
+  uniqueIndex('review_media_blob_pathname_unique').on(table.blobPathname),
+  index('idx_review_media_review').on(table.reviewId, table.sortOrder),
+  index('idx_review_media_booking_status').on(table.bookingId, table.status),
+]);

@@ -415,3 +415,35 @@ export async function sendBookingFollowupEmail(input: BookingFollowupInput): Pro
   });
   return { status: 'sent', messageId: result.messageId };
 }
+
+export type AutoRefundEmailInput = BookingEmailInput & { refunded: boolean };
+export function renderAutoRefundEmail({ booking, session, venue, refunded }: AutoRefundEmailInput): RenderedBookingEmail {
+  const details = `${venue.name} / ${venue.nameZh} · ${session.date} ${session.start_time}–${session.end_time}`;
+  const outcome = refunded
+    ? [`We have refunded ${formatMoney(booking.total_pence)} to your original payment method. It usually arrives within 5–10 working days.`, `已将 ${formatMoney(booking.total_pence)} 全额原路退回，一般 5–10 个工作日到账。`]
+    : ['Your booking has been cancelled. Nothing was charged.', '你的预订已取消，未产生任何费用。'];
+  const lines = [
+    `Hi ${booking.contact_name},`,
+    'No other player joined this session 24 hours before it starts, so it will not go ahead.',
+    '开赛前 24 小时仍没有其他球友报名，这场活动取消。',
+    details, ...outcome,
+    `Booking reference / 预订编号: ${booking.id}`,
+    'See other sessions / 查看其他场次: https://www.tennismatch.space',
+  ];
+  const html = `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:28px;background:#edf2eb;color:#173b2f">${lines.map((line) => `<p>${escapeHtml(line)}</p>`).join('')}</div>`;
+  return { subject: `${refunded ? 'Refunded' : 'Cancelled'}: no partner joined / 未凑齐球友${refunded ? '，已退款' : '，已取消'} · ${venue.name}`, text: lines.join('\n\n'), html };
+}
+export async function sendAutoRefundEmail(input: AutoRefundEmailInput): Promise<EmailSendResult> {
+  const transport = smtpTransport();
+  const { EMAIL_FROM } = getRuntimeEnv();
+  if (!transport || !EMAIL_FROM) return { status: 'skipped' };
+  const result = await transport.sendMail({ from: EMAIL_FROM, to: input.booking.email, ...renderAutoRefundEmail(input) });
+  return { status: 'sent', messageId: result.messageId };
+}
+export function sendAdminAutoRefundSummary(outcomes: Array<{ bookingId: string; sessionId: string; email: string; status: string }>) {
+  const failed = outcomes.filter((item) => item.status === 'failed').length;
+  return sendAdminEmail(renderAdminDetails(
+    `自动退款：${outcomes.length - failed} 笔完成${failed ? `，${failed} 笔失败需手动处理` : ''} · Auto refunds`,
+    Object.fromEntries(outcomes.map((item) => [item.bookingId, `${item.status} · ${item.email} · session ${item.sessionId}`])),
+  ));
+}

@@ -64,6 +64,19 @@ export async function createCheckoutSession(input: {
   }, `checkout-${input.bookingId}`);
 }
 
+/** Full refund to the original payment method; the idempotency key makes retries safe. */
+export function createRefund(input: { paymentIntentId: string; bookingId: string; reason: string }) {
+  const params = new URLSearchParams();
+  params.set('payment_intent', input.paymentIntentId);
+  params.set('metadata[booking_id]', input.bookingId);
+  params.set('metadata[reason]', input.reason);
+  return stripeRequest<{ id: string; status: string }>('/refunds', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params,
+  }, `auto-refund-${input.bookingId}`);
+}
+
 export function retrieveCheckoutSession(id: string) {
   return stripeRequest<StripeCheckoutSession>(`/checkout/sessions/${encodeURIComponent(id)}`);
 }

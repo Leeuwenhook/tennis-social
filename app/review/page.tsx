@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 
 import { ReviewForm } from '@/components/review-form';
+import { SiteAnalytics } from '@/components/site-analytics';
 
 export const metadata: Metadata = {
   title: 'Leave a review | Tennis Match',
@@ -10,5 +11,11 @@ export const metadata: Metadata = {
 };
 
 export default function ReviewPage() {
-  return <ReviewForm />;
+  // A fixed path keeps the signed review token out of analytics.
+  return (
+    <>
+      <ReviewForm />
+      <SiteAnalytics route="/review" path="/review" />
+    </>
+  );
 }

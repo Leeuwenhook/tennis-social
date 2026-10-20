@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type SubmitEvent
 
 import { AppMark } from "@/components/app-mark";
 import { SiteHeader } from "@/components/site-header";
+import { SiteAnalytics } from "@/components/site-analytics";
 import { AccountView } from "@/components/views/account-view";
 import { BookingView } from "@/components/views/booking-view";
 import { ConfirmationView } from "@/components/views/confirmation-view";
@@ -1011,6 +1012,12 @@ export function TennisSocialApp() {
 
   return (
     <div className="app-shell">
+      {/* Views change only the query string, so report each view as its own
+          route; the path never carries query parameters such as checkout ids. */}
+      <SiteAnalytics
+        route={view === "home" ? "/" : `/${view}`}
+        path={view === "home" ? "/" : `/${view}${selectedSessionId && (view === "detail" || view === "booking") ? `/${selectedSessionId}` : ""}`}
+      />
       <SiteHeader
         language={language}
         onLanguageChange={setLanguage}

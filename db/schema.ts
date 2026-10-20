@@ -263,6 +263,8 @@ export const adminLoginAttempts = pgTable('admin_login_attempts', {
   username: text('username').notNull(),
   ipHash: text('ip_hash').notNull(),
   success: boolean('success').notNull(),
+  accountLockedUntil: text('account_locked_until'),
+  ipLockedUntil: text('ip_locked_until'),
   createdAt: text('created_at').notNull(),
 }, (table) => [
   index('idx_admin_login_attempts_ip_created').on(table.ipHash, table.createdAt),
@@ -285,3 +287,14 @@ export const adminAuditLog = pgTable('admin_audit_log', {
   index('idx_admin_audit_log_created').on(table.createdAt),
   index('idx_admin_audit_log_target').on(table.targetType, table.targetId, table.createdAt),
 ]);
+
+// Durable admin cancellation command and cancellation email delivery state.
+export const adminBookingCancellations = pgTable('admin_booking_cancellations', {
+  bookingId: text('booking_id').primaryKey().references(() => bookings.id),
+  refund: boolean('refund').notNull(),
+  actor: text('actor').notNull(),
+  completedAt: text('completed_at'),
+  emailStatus: text('email_status').notNull().default('pending'),
+  emailClaim: text('email_claim'),
+  emailClaimedAt: text('email_claimed_at'),
+});

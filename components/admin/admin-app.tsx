@@ -123,7 +123,7 @@ export function AdminApp() {
     }
   }, [language]);
 
-  // Settings, venues and requests are small and needed across tabs.
+  // Settings and venues are shared metadata; requests load only on their tab.
   useEffect(() => {
     if (!adminAuthenticated) return;
     let cancelled = false;
@@ -146,21 +146,22 @@ export function AdminApp() {
       const next = data?.venues?.map(normalizeVenue).filter((venue): venue is Venue => Boolean(venue)) ?? [];
       if (!cancelled && next.length) setVenueList(next);
     });
-    void get<{ requests?: ReservationRequest[] }>('/api/admin/reservation-requests').then((data) => {
+    if (adminTab === 'requests') void get<{ requests?: ReservationRequest[] }>('/api/admin/reservation-requests').then((data) => {
       if (!cancelled && data?.requests) setReservationRequests(data.requests);
     });
     return () => {
       cancelled = true;
     };
-  }, [adminAuthenticated, dataVersion]);
+  }, [adminAuthenticated, dataVersion, adminTab]);
 
   // Sessions and their bookings: upcoming plus the last 30 days, or everything
   // once the admin asks to see expired sessions.
   useEffect(() => {
     if (!adminAuthenticated) return;
     let cancelled = false;
+    if (adminTab !== 'sessions') return;
     const version = ++sessionLoadVersion.current;
-    const from = showExpiredSessions ? '' : `?from=${shiftDate(dateFromToday(0), -RECENT_DAYS)}`;
+    const from = showExpiredSessions ? '?all=1' : `?from=${shiftDate(dateFromToday(0), -RECENT_DAYS)}`;
     void (async () => {
       try {
         const [sessionResponse, bookingResponse] = await Promise.all([
@@ -185,7 +186,7 @@ export function AdminApp() {
     return () => {
       cancelled = true;
     };
-  }, [adminAuthenticated, showExpiredSessions, dataVersion]);
+  }, [adminAuthenticated, showExpiredSessions, dataVersion, adminTab]);
 
   // Reload when the admin comes back to the tab, unless a save is in flight.
   useEffect(() => {
@@ -857,6 +858,7 @@ export function AdminApp() {
 
   /** Mirrors a booking cancelled or refunded in the admin bookings tab into local state. */
   function applyBookingChange(bookingId: string, status: BookingStatus) {
+    setDataVersion((value) => value + 1);
     const booking = bookings.find((item) => item.id === bookingId);
     if (!booking || booking.status !== 'confirmed') {
       setBookings((current) => current.map((item) => (item.id === bookingId ? { ...item, status } : item)));

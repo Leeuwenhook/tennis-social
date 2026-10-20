@@ -261,8 +261,8 @@ export function serializePublicReview(row: ReviewRow, media: ReviewMediaRow[]): 
 }
 
 /** Deletes a review with its files. Blobs go first so no file outlives its row. */
-export async function deleteReviewCompletely(db: Database, reviewId: string, remove: typeof del = del) {
+export async function deleteReviewCompletely(db: Database, reviewId: string, remove: typeof del = del, deleteRow: (db: Database, id: string) => Promise<unknown> = (db, id) => db`DELETE FROM session_reviews WHERE id = ${id}`) {
   const media = (await db`SELECT blob_url FROM review_media WHERE review_id = ${reviewId}`) as Array<{ blob_url: string }>;
   if (media.length) await remove(media.map((item) => item.blob_url));
-  await db`DELETE FROM session_reviews WHERE id = ${reviewId}`;
+  await deleteRow(db, reviewId);
 }

@@ -1,4 +1,4 @@
-import { recordAdminAction } from '@/lib/server/audit-log';
+import { auditedMutation } from '@/lib/server/audit-log';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { database, DatabaseNotConfiguredError } from '@/lib/server/database';
 
@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 export async function PATCH(request: Request, context: { params: Promise<{ id: string; applicationId: string }> }) {
   const unauthorized = requireAdmin(request); if (unauthorized) return unauthorized;
   let body: { status?: unknown }; try { body = await request.json() as { status?: unknown }; } catch { return Response.json({ error: 'invalid_request' }, { status: 400 }); }
-  if (!['pending', 'accepted', 'rejected'].includes(body.status as string)) return Response.json({ error: 'invalid_status' }, { status: 400 });
+  if (!body || typeof body !== 'object' || !['pending', 'accepted', 'rejected'].includes(body.status as string)) return Response.json({ error: 'invalid_status' }, { status: 400 });
   try {
     const db = database(); const { id: requestId, applicationId } = await context.params; const now = new Date().toISOString();
     if (body.status === 'accepted') {
@@ -25,22 +25,25 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       if (target.accepted_count >= target.seeking_player_count) return Response.json({ error: 'request_full' }, { status: 409 });
     }
     // Accepting re-checks capacity in the same statement so two concurrent accepts cannot overfill the request.
-    const rows = await db`
+    const mutation = auditedMutation(db, request, { action: 'application.status', targetType: 'application', targetId: applicationId, summary: `→ ${String(body.status)}`, after: { status: body.status, requestId } })`
       UPDATE partner_request_applications SET status = ${body.status}, updated_at = ${now}
       WHERE id = ${applicationId} AND request_id = ${requestId}
         AND (${body.status} <> 'accepted' OR (
-          SELECT requests.seeking_player_count FROM reservation_requests AS requests WHERE requests.id = ${requestId}
+          SELECT requests.seeking_player_count FROM reservation_requests AS requests
+          WHERE requests.id = ${requestId} AND requests.status IN ('pending', 'reviewing')
         ) > (
           SELECT COUNT(*) FROM partner_request_applications AS applications
           WHERE applications.request_id = ${requestId} AND applications.status = 'accepted' AND applications.id <> ${applicationId}
         ))
       RETURNING *
-    ` as Array<Record<string, unknown>>;
+    `;
+    // The count runs in a fresh statement snapshot after the per-request lock.
+    const result = await db.transaction([
+      db`SELECT pg_advisory_xact_lock(hashtextextended(${`admin-request:${requestId}`}, 0))`,
+      mutation,
+    ]);
+    const rows = result[1] as Array<Record<string, unknown>>;
     if (!rows[0]) return Response.json({ error: body.status === 'accepted' ? 'request_full' : 'not_found' }, { status: body.status === 'accepted' ? 409 : 404 });
-    await recordAdminAction(db, request, {
-      action: 'application.status', targetType: 'application', targetId: applicationId,
-      summary: `${typeof rows[0].name === 'string' ? rows[0].name : applicationId} → ${String(body.status)}`, after: { status: body.status, requestId },
-    });
     return Response.json({ application: rows[0] });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) return Response.json({ error: 'database_not_configured' }, { status: 503 });

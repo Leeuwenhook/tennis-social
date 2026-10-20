@@ -22,19 +22,20 @@ type AuditEntry = {
   undoable: boolean;
 };
 
-const TARGETS = ['session', 'venue', 'booking', 'request', 'application', 'review', 'settings', 'import'] as const;
+const TARGETS = ['auth', 'session', 'venue', 'booking', 'request', 'application', 'review', 'settings', 'import'] as const;
 
 const copy = {
   en: {
     eyebrow: 'History',
     title: 'Admin activity',
-    intro: 'Every change made in the admin, newest first. Session edits, new sessions and venue edits can be undone if nothing has changed them since. Deletes, refunds and cancellations cannot be undone.',
+    intro: 'Every change made in the admin, newest first. Session edits and venue edits can be undone if nothing has changed them since. Deletes, refunds and cancellations cannot be undone.',
     all: 'Everything',
-    targets: { session: 'Sessions', venue: 'Venues', booking: 'Bookings', request: 'Partner requests', application: 'Applications', review: 'Reviews', settings: 'Settings', import: 'Imports' },
+    targets: { auth: 'Logins', session: 'Sessions', venue: 'Venues', booking: 'Bookings', request: 'Partner requests', application: 'Applications', review: 'Reviews', settings: 'Settings', import: 'Imports' },
     actions: {
+      'auth.login.success': 'Login succeeded', 'auth.login.failed': 'Login failed',
       'session.create': 'Created session', 'session.update': 'Edited session', 'session.delete': 'Deleted session',
       'sessions.import': 'Imported sessions', 'venue.create': 'Added venue', 'venue.update': 'Edited venue', 'venue.delete': 'Deleted venue',
-      'booking.cancel': 'Cancelled booking', 'booking.refund': 'Cancelled and refunded booking', 'request.status': 'Changed request status',
+      'booking.cancel': 'Cancelled booking', 'booking.refund': 'Cancelled and refunded booking', 'request.create': 'Created partner request', 'request.status': 'Changed request status',
       'application.status': 'Changed application status', 'review.moderate': 'Moderated review', 'review.delete': 'Deleted review',
       'settings.update': 'Changed settings', undo: 'Undo',
     } as Record<string, string>,
@@ -56,13 +57,14 @@ const copy = {
   zh: {
     eyebrow: '记录',
     title: '操作记录',
-    intro: '后台的每一次修改，按时间倒序。场次编辑、新建场次和场地编辑，在之后没有再被修改的情况下可以撤销；删除、退款和取消不能撤销。',
+    intro: '后台的每一次修改，按时间倒序。场次编辑和场地编辑，在之后没有再被修改的情况下可以撤销；删除、退款和取消不能撤销。',
     all: '全部',
-    targets: { session: '场次', venue: '场地', booking: '预订', request: '找球友需求', application: '加入申请', review: '评价', settings: '设置', import: '导入' },
+    targets: { auth: '登录', session: '场次', venue: '场地', booking: '预订', request: '找球友需求', application: '加入申请', review: '评价', settings: '设置', import: '导入' },
     actions: {
+      'auth.login.success': '登录成功', 'auth.login.failed': '登录失败',
       'session.create': '新建场次', 'session.update': '修改场次', 'session.delete': '删除场次',
       'sessions.import': '导入场次', 'venue.create': '新增场地', 'venue.update': '修改场地', 'venue.delete': '删除场地',
-      'booking.cancel': '取消预订', 'booking.refund': '取消并退款', 'request.status': '修改需求状态',
+      'booking.cancel': '取消预订', 'booking.refund': '取消并退款', 'request.create': '代建找球友需求', 'request.status': '修改需求状态',
       'application.status': '修改申请状态', 'review.moderate': '审核评价', 'review.delete': '删除评价',
       'settings.update': '修改设置', undo: '撤销',
     } as Record<string, string>,
@@ -99,12 +101,13 @@ function valueLabel(value: unknown) {
 export function AdminAuditLog({ language, onChanged }: { language: Language; onChanged: () => void }) {
   const c = copy[language];
   const [target, setTarget] = useState('');
-  const [entries, setEntries] = useState<{ key: string; list: AuditEntry[]; nextOffset: number | null } | null>(null);
-  const [error, setError] = useState(false);
+  const [entries, setEntries] = useState<{ key: string; list: AuditEntry[]; nextOffset: number | null; nextCursor: string | null } | null>(null);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const key = `${target}|${reloadKey}`;
+  const error = errorKey === key;
 
   useEffect(() => {
     let cancelled = false;
@@ -112,27 +115,32 @@ export function AdminAuditLog({ language, onChanged }: { language: Language; onC
     fetch(`/api/admin/audit?${params.toString()}`, { cache: 'no-store' })
       .then(async (response) => {
         if (!response.ok) throw new Error('unavailable');
-        const body = (await response.json()) as { entries: AuditEntry[]; nextOffset: number | null };
+        const body = (await response.json()) as { entries: AuditEntry[]; nextOffset: number | null; nextCursor: string | null };
         if (!cancelled) {
-          setEntries({ key: `${target}|${reloadKey}`, list: body.entries, nextOffset: body.nextOffset });
-          setError(false);
+          setEntries({ key: `${target}|${reloadKey}`, list: body.entries, nextOffset: body.nextOffset, nextCursor: body.nextCursor });
+          setErrorKey(null);
         }
       })
       .catch(() => {
-        if (!cancelled) setError(true);
+        if (!cancelled) setErrorKey(key);
       });
     return () => {
       cancelled = true;
     };
-  }, [target, reloadKey]);
+  }, [target, reloadKey, key]);
 
   async function loadMore() {
-    if (entries?.nextOffset == null) return;
-    const params = new URLSearchParams({ offset: String(entries.nextOffset), ...(target ? { targetType: target } : {}) });
-    const response = await fetch(`/api/admin/audit?${params.toString()}`, { cache: 'no-store' });
-    if (!response.ok) return;
-    const body = (await response.json()) as { entries: AuditEntry[]; nextOffset: number | null };
-    setEntries({ key, list: [...entries.list, ...body.entries], nextOffset: body.nextOffset });
+    if (entries?.nextOffset == null || entries.key !== key) return;
+    const offset = entries.nextOffset;
+    try {
+      const response = await fetch(`/api/admin/audit?${new URLSearchParams({ offset: String(offset), ...(entries.nextCursor ? { cursor: entries.nextCursor } : {}), ...(target ? { targetType: target } : {}) })}`, { cache: 'no-store' });
+      if (!response.ok) throw new Error('unavailable');
+      const body = (await response.json()) as { entries: AuditEntry[]; nextOffset: number | null; nextCursor: string | null };
+      setEntries((current) => current?.key === key && current.nextOffset === offset
+        ? { key: key, list: [...current.list, ...body.entries], nextOffset: body.nextOffset, nextCursor: body.nextCursor } : current);
+    } catch {
+      setErrorKey(key);
+    }
   }
 
   async function undo(entry: AuditEntry) {
@@ -176,7 +184,7 @@ export function AdminAuditLog({ language, onChanged }: { language: Language; onC
       {error ? <div className="empty-state">{c.error}</div> : null}
       {entries && !entries.list.length ? <div className="empty-state">{c.empty}</div> : null}
       <ol className="admin-audit-list">
-        {entries?.list.map((entry) => (
+        {(entries?.key === key ? entries.list : []).map((entry) => (
           <li key={entry.id} className={entry.undoneAt ? 'is-undone' : ''}>
             <div className="admin-audit-head">
               <strong>{c.actions[entry.action] ?? entry.action}</strong>
@@ -204,7 +212,7 @@ export function AdminAuditLog({ language, onChanged }: { language: Language; onC
           </li>
         ))}
       </ol>
-      {entries?.nextOffset != null ? (
+      {entries?.key === key && entries.nextOffset != null ? (
         <Button size="sm" variant="outline" onClick={() => void loadMore()}>{c.loadMore}</Button>
       ) : null}
     </div>

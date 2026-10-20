@@ -1,4 +1,4 @@
-import { recordAdminAction } from '@/lib/server/audit-log';
+import { auditedMutation, SESSION_FIELDS } from '@/lib/server/audit-log';
 import {
   database,
   DatabaseNotConfiguredError,
@@ -47,14 +47,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       WHERE session_id = ${id} AND status = 'confirmed'
     ` as Array<{ participant_count: number }>;
     const activeBookingCount = bookingRows[0]?.participant_count ?? 0;
-    const locked = activeBookingCount > 0 && (
+    const changesLocked = (
       session.venueId !== existing.venue_id ||
       session.date !== existing.date ||
       session.startTime !== existing.start_time ||
       session.endTime !== existing.end_time ||
       session.pricePence !== existing.price_pence
     );
-    if (locked) return Response.json({ error: 'locked_fields' }, { status: 409 });
+    if (Math.max(activeBookingCount, existing.booked_spots) > 0 && changesLocked) return Response.json({ error: 'locked_fields' }, { status: 409 });
     if (session.capacity < Math.max(activeBookingCount, existing.booked_spots)) {
       return Response.json({ error: 'capacity_too_low' }, { status: 409 });
     }
@@ -63,22 +63,21 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     // time, so an edit racing another admin's "mark full" cannot undo it.
     const markedFull = typeof input?.markedFull === 'boolean' ? input.markedFull : null;
 
+    const expected = JSON.stringify(Object.fromEntries(SESSION_FIELDS.filter((field) => field !== 'marked_full' || markedFull !== null).map((field) => [field, existing[field]])));
     const now = new Date().toISOString();
-    const rows = await db`
+    const rows = await auditedMutation(db, request, { action: 'session.update', targetType: 'session', targetId: id, summary: `${session.date} ${session.startTime}`, before: existing })`
       UPDATE sessions
       SET venue_id = ${session.venueId}, date = ${session.date}, start_time = ${session.startTime},
           end_time = ${session.endTime}, price_pence = ${session.pricePence}, capacity = ${session.capacity},
           marked_full = COALESCE(${markedFull}::boolean, marked_full),
           formats_json = ${JSON.stringify(session.formats)}, seeking_levels_json = ${JSON.stringify(session.seekingLevels)}, status = ${session.status}, updated_at = ${now}
       WHERE id = ${id} AND booked_spots <= ${session.capacity}
+        AND (NOT ${changesLocked} OR booked_spots = 0)
+        AND to_jsonb(sessions) @> ${expected}::jsonb
       RETURNING id, venue_id, date, start_time, end_time, price_pence, capacity,
                 booked_spots, marked_full, formats_json, seeking_levels_json, status
     ` as SessionRow[];
-    if (!rows[0]) return Response.json({ error: 'capacity_too_low' }, { status: 409 });
-    await recordAdminAction(db, request, {
-      action: 'session.update', targetType: 'session', targetId: id,
-      summary: `${rows[0].date} ${rows[0].start_time}`, before: existing, after: rows[0],
-    });
+    if (!rows[0]) return Response.json({ error: 'session_changed' }, { status: 409 });
     return Response.json({ session: serializeSession(rows[0]) });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {
@@ -113,16 +112,13 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
       return Response.json({ error: 'session_has_bookings' }, { status: 409 });
     }
 
-    const deletedRows = await db`
+    const deletedRows = await auditedMutation(db, request, { action: 'session.delete', targetType: 'session', targetId: id, summary: `${existingRows[0].date} ${existingRows[0].start_time}`, before: existingRows[0] })`
       DELETE FROM sessions
       WHERE id = ${id}
+        AND NOT EXISTS (SELECT 1 FROM bookings WHERE session_id = ${id})
       RETURNING id
     ` as Array<{ id: string }>;
     if (!deletedRows[0]) return Response.json({ error: 'session_not_found' }, { status: 404 });
-    await recordAdminAction(db, request, {
-      action: 'session.delete', targetType: 'session', targetId: id,
-      summary: `${existingRows[0].date} ${existingRows[0].start_time}`, before: existingRows[0],
-    });
     return Response.json({ id: deletedRows[0].id });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {

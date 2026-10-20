@@ -26,9 +26,9 @@ const entry = (action: string, b: unknown, a: unknown, undone: string | null = n
   before_json: b ? JSON.stringify(b) : null, after_json: a ? JSON.stringify(a) : null, undone_at: undone, undone_by: null,
 });
 
-void test('only session edits, new sessions and venue edits can be undone, once', () => {
+void test('only session edits and venue edits can be undone, once', () => {
   assert.equal(isUndoable(entry('session.update', before, after)), true);
-  assert.equal(isUndoable(entry('session.create', null, after)), true);
+  assert.equal(isUndoable(entry('session.create', null, after)), false);
   assert.equal(isUndoable(entry('session.delete', before, null)), false);
   assert.equal(isUndoable(entry('booking.refund', { status: 'confirmed' }, { status: 'refunded' })), false);
   assert.equal(isUndoable(entry('session.update', before, after, '2026-10-19')), false);
@@ -46,12 +46,10 @@ void test('venue snapshots leave unchanged photos out', () => {
 
 void test('undoing a session edit restores the earlier values and logs the undo', async () => {
   const script = scripted([
-    { match: /SELECT \* FROM admin_audit_log/, rows: [entry('session.update', before, after)] },
-    { match: /SELECT \* FROM sessions/, rows: [after] },
-    { match: /FROM bookings WHERE session_id/, rows: [{ all_bookings: 1, confirmed: 1 }] },
+    { match: /SELECT \* FROM admin_audit_log/, rows: [entry('session.update', before, { ...before, status: 'draft' })] },
+    { match: /SELECT \* FROM sessions/, rows: [{ ...before, status: 'draft' }] },
     { match: /UPDATE sessions SET venue_id = \?.*booked_spots <= \?/, rows: [{ id: 's1' }] },
-    { match: /UPDATE admin_audit_log SET undone_at/, rows: [] },
-    { match: /INSERT INTO admin_audit_log/, rows: [] },
+
   ]);
   assert.deepEqual(await undoAdminAction(script.db, new Request('https://x'), 'a1'), { status: 'undone' });
   script.done();
@@ -66,26 +64,24 @@ void test('an undo is refused when the session changed again or locked fields wo
   const locked = scripted([
     { match: /admin_audit_log/, rows: [entry('session.update', before, after)] },
     { match: /SELECT \* FROM sessions/, rows: [after] },
-    { match: /FROM bookings/, rows: [{ all_bookings: 1, confirmed: 1 }] },
+
   ]);
   // price differs between before and now, and the session has a confirmed booking
   assert.deepEqual(await undoAdminAction(locked.db, new Request('https://x'), 'a1'), { status: 'locked_fields' });
 });
 
-void test('undoing a new session deletes it only when nobody booked', async () => {
-  const booked = scripted([
-    { match: /admin_audit_log/, rows: [entry('session.create', null, before)] },
-    { match: /SELECT \* FROM sessions/, rows: [before] },
-    { match: /FROM bookings/, rows: [{ all_bookings: 1, confirmed: 0 }] },
+void test('creation cannot be undone through a delete outside the plan', async () => {
+  const script = scripted([{ match: /admin_audit_log/, rows: [entry('session.create', null, before)] }]);
+  assert.deepEqual(await undoAdminAction(script.db, new Request('https://x'), 'a1'), { status: 'not_undoable' });
+  script.done();
+});
+
+void test('a concurrent session change blocks undo, including end time, formats and marked-full', async () => {
+  const script = scripted([
+    { match: /admin_audit_log/, rows: [entry('session.update', before, { ...before, status: 'draft' })] },
+    { match: /SELECT \* FROM sessions/, rows: [{ ...before, status: 'draft' }] },
+    { match: /FOR UPDATE.*to_jsonb\(sessions\) @>.*UPDATE admin_audit_log.*INSERT INTO admin_audit_log/, rows: [] },
   ]);
-  assert.deepEqual(await undoAdminAction(booked.db, new Request('https://x'), 'a1'), { status: 'has_bookings' });
-  const empty = scripted([
-    { match: /admin_audit_log/, rows: [entry('session.create', null, before)] },
-    { match: /SELECT \* FROM sessions/, rows: [before] },
-    { match: /FROM bookings/, rows: [{ all_bookings: 0, confirmed: 0 }] },
-    { match: /DELETE FROM sessions/, rows: [{ id: 's1' }] },
-    { match: /UPDATE admin_audit_log/, rows: [] },
-    { match: /INSERT INTO admin_audit_log/, rows: [] },
-  ]);
-  assert.deepEqual(await undoAdminAction(empty.db, new Request('https://x'), 'a1'), { status: 'undone' });
+  assert.deepEqual(await undoAdminAction(script.db, new Request('https://x'), 'a1'), { status: 'changed_since' });
+  script.done();
 });

@@ -6,7 +6,7 @@ import type { Database } from '../lib/server/database';
 function dbReturning(accountFailures: number, ipFailures: number, seen: unknown[][] = []) {
   return ((parts: TemplateStringsArray, ...params: unknown[]) => {
     seen.push(params);
-    assert.match(parts.join('?'), /NOT success AND created_at > \?/);
+    assert.match(parts.join('?'), /NOT success AND \(created_at > \?/);
     return Promise.resolve([{ account_failures: accountFailures, ip_failures: ipFailures }]);
   }) as unknown as Database;
 }
@@ -20,7 +20,8 @@ void test('logins lock after repeated failures for one account or one IP', async
 void test('the lock window is the last 15 minutes', async () => {
   const seen: unknown[][] = [];
   await isLoginLocked(dbReturning(0, 0, seen), 'admin', 'h', new Date('2026-10-19T12:00:00Z'));
-  assert.deepEqual(seen[0], ['admin', 'h', '2026-10-19T11:45:00.000Z']);
+  assert.ok(seen[0].includes('2026-10-19T11:45:00.000Z'));
+  assert.ok(seen[0].includes('2026-10-19T12:00:00.000Z'));
 });
 
 void test('client IPs come from the proxy header and are hashed', () => {

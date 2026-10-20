@@ -12,6 +12,7 @@ import type { Booking, BookingStatus, Language } from '@/types/tennis';
 
 type AdminBooking = Booking & {
   paid: boolean;
+  cancellationEmailPending: boolean;
   session: { date: string; startTime: string; endTime: string; venueId: string; venueName: string };
 };
 
@@ -35,11 +36,13 @@ const copy = {
     empty: 'No bookings match.',
     error: 'Bookings could not be loaded.',
     cancelTitle: 'Cancel this booking?',
-    cancelBody: 'The places are released and the player gets a cancellation email.',
+    cancelBody: 'The places are released and a cancellation email is queued. Retries resume the first refund choice; changing the checkbox does not change an existing cancellation.',
     refund: 'Also refund {amount} in full to the original payment method',
     notPaid: 'This booking has no card payment, so there is nothing to refund.',
     confirmCancel: 'Cancel booking',
     keep: 'Keep booking',
+    retryEmail: 'Resume cancellation / retry email',
+    emailPending: 'The booking is cancelled. Email delivery is pending; retry to send it.',
     refundFailed: 'The refund failed, so the booking was not cancelled. Try again or refund in Stripe.',
     failed: 'The booking could not be cancelled.',
   },
@@ -58,11 +61,13 @@ const copy = {
     empty: '没有符合条件的预订。',
     error: '预订加载失败。',
     cancelTitle: '取消这个预订？',
-    cancelBody: '名额会释放，球友会收到取消邮件。',
+    cancelBody: '名额会释放，并准备发送取消邮件。重试沿用首次退款选择；再次勾选或取消勾选不会改变已发起的操作。',
     refund: '同时将 {amount} 全额原路退回',
     notPaid: '这个预订没有银行卡付款，无需退款。',
     confirmCancel: '确认取消',
     keep: '保留预订',
+    retryEmail: '继续取消 / 重试邮件',
+    emailPending: '预订已取消，邮件尚未发送。请重试发送。',
     refundFailed: '退款失败，预订没有取消。请重试，或到 Stripe 后台退款。',
     failed: '预订取消失败。',
   },
@@ -90,8 +95,8 @@ export function AdminBookings({
   const [status, setStatus] = useState('');
   const [queryInput, setQueryInput] = useState('');
   const [query, setQuery] = useState('');
-  const [result, setResult] = useState<{ key: string; bookings: AdminBooking[]; nextOffset: number | null } | null>(null);
-  const [error, setError] = useState(false);
+  const [result, setResult] = useState<{ key: string; bookings: AdminBooking[]; nextOffset: number | null; nextCursor: string | null } | null>(null);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [cancelling, setCancelling] = useState<AdminBooking | null>(null);
   const [refund, setRefund] = useState(true);
@@ -99,6 +104,7 @@ export function AdminBookings({
   const [message, setMessage] = useState('');
 
   const filterKey = JSON.stringify({ scope, venue, status, query, reloadKey });
+  const error = errorKey === filterKey;
 
   // Typing waits for a pause before searching.
   useEffect(() => {
@@ -106,8 +112,9 @@ export function AdminBookings({
     return () => window.clearTimeout(timer);
   }, [queryInput]);
 
-  function url(offset: number) {
+  function url(offset: number, cursor?: string | null) {
     const params = new URLSearchParams({ scope, offset: String(offset) });
+    if (cursor) params.set('cursor', cursor);
     if (venue) params.set('venue', venue);
     if (status) params.set('status', status);
     if (query) params.set('q', query);
@@ -119,14 +126,14 @@ export function AdminBookings({
     fetch(url(0), { cache: 'no-store' })
       .then(async (response) => {
         if (!response.ok) throw new Error('unavailable');
-        const body = (await response.json()) as { bookings: AdminBooking[]; nextOffset: number | null };
+        const body = (await response.json()) as { bookings: AdminBooking[]; nextOffset: number | null; nextCursor: string | null };
         if (!cancelled) {
           setResult({ key: filterKey, ...body });
-          setError(false);
+          setErrorKey(null);
         }
       })
       .catch(() => {
-        if (!cancelled) setError(true);
+        if (!cancelled) setErrorKey(filterKey);
       });
     return () => {
       cancelled = true;
@@ -135,11 +142,17 @@ export function AdminBookings({
   }, [filterKey]);
 
   async function loadMore() {
-    if (result?.nextOffset == null) return;
-    const response = await fetch(url(result.nextOffset), { cache: 'no-store' });
-    if (!response.ok) return;
-    const body = (await response.json()) as { bookings: AdminBooking[]; nextOffset: number | null };
-    setResult({ key: filterKey, bookings: [...result.bookings, ...body.bookings], nextOffset: body.nextOffset });
+    if (result?.nextOffset == null || result.key !== filterKey) return;
+    const offset = result.nextOffset;
+    try {
+      const response = await fetch(url(offset, result.nextCursor), { cache: 'no-store' });
+      if (!response.ok) throw new Error('unavailable');
+      const body = (await response.json()) as { bookings: AdminBooking[]; nextOffset: number | null; nextCursor: string | null };
+      setResult((current) => current?.key === filterKey && current.nextOffset === offset
+        ? { key: filterKey, bookings: [...current.bookings, ...body.bookings], nextOffset: body.nextOffset, nextCursor: body.nextCursor } : current);
+    } catch {
+      setErrorKey(filterKey);
+    }
   }
 
   async function confirmCancel() {
@@ -152,10 +165,11 @@ export function AdminBookings({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'cancelled', refund: refund && cancelling.paid }),
       });
-      const body = (await response.json().catch(() => ({}))) as { booking?: Booking; error?: string };
+      const body = (await response.json().catch(() => ({}))) as { booking?: Booking; error?: string; emailPending?: boolean };
       if (response.ok && body.booking) {
         onBookingChanged(cancelling.id, body.booking.status);
-        setCancelling(null);
+        if (body.emailPending) setMessage(c.emailPending);
+        else setCancelling(null);
         setReloadKey((key) => key + 1);
       } else {
         setMessage(body.error === 'refund_failed' ? c.refundFailed : c.failed);
@@ -204,8 +218,8 @@ export function AdminBookings({
       </div>
       {error ? <div className="empty-state">{c.error}</div> : null}
       {loading ? <div className="admin-muted">{c.loading}</div> : null}
-      {!loading && result && !result.bookings.length ? <div className="empty-state">{c.empty}</div> : null}
-      {result?.bookings.length ? (
+      {!loading && result?.key === filterKey && !result.bookings.length ? <div className="empty-state">{c.empty}</div> : null}
+      {result?.key === filterKey && result.bookings.length ? (
         <div className="admin-booking-cards">
           {result.bookings.map((booking) => (
             <article key={booking.id} className="admin-booking-card">
@@ -225,7 +239,7 @@ export function AdminBookings({
               <div className="admin-booking-total">{formatMoney(booking.totalPence, language)}</div>
               <span className={`admin-status status-${booking.status}`}>{c.statuses[booking.status]}</span>
               <div className="admin-booking-actions">
-                {booking.status === 'confirmed' ? (
+                {booking.status === 'confirmed' || booking.cancellationEmailPending ? (
                   <Button
                     size="sm"
                     variant="outline"
@@ -235,7 +249,7 @@ export function AdminBookings({
                       setMessage('');
                     }}
                   >
-                    {c.cancel}
+                    {booking.cancellationEmailPending ? c.retryEmail : c.cancel}
                   </Button>
                 ) : null}
               </div>
@@ -243,7 +257,7 @@ export function AdminBookings({
           ))}
         </div>
       ) : null}
-      {result?.nextOffset != null && !loading ? (
+      {result?.key === filterKey && result.nextOffset != null && !loading ? (
         <Button variant="outline" size="sm" onClick={() => void loadMore()}>{c.loadMore}</Button>
       ) : null}
       <Dialog open={Boolean(cancelling)} onOpenChange={(open) => !open && !busy && setCancelling(null)}>

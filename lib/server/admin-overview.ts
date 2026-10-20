@@ -114,6 +114,7 @@ export async function loadAdminOverview(db: Database, now = new Date()) {
       const paidPlayers = bookings.filter((row) => row.status === 'confirmed').reduce((sum, row) => sum + row.participant_count, 0);
       const decision = autoRefundDecisionAt(session.date, session.start_time);
       const atRisk =
+        (londonSessionEnd(session.date, session.start_time) ?? Infinity) <= nowMs + 48 * HOUR &&
         session.status === 'published' && !session.marked_full && paidPlayers > 0 && players < MIN_PLAYERS && decision !== null && decision.getTime() > nowMs;
       return {
         id: session.id,

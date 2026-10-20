@@ -235,7 +235,7 @@ export function AdminView(props: AdminViewProps) {
           <span aria-hidden="true" />
         </label>
       </div>
-      <div className="admin-stats">
+      {adminTab === 'sessions' ? <div className="admin-stats">
         <div>
           <span>{publishedCount}</span>
           <small>{t.published}</small>
@@ -249,6 +249,7 @@ export function AdminView(props: AdminViewProps) {
           <small>{t.spotsLeft}</small>
         </div>
       </div>
+      : null}
       <div className="admin-workspace">
         <aside className="admin-sidebar">
           <select

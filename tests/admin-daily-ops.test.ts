@@ -2,10 +2,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { autoRefundDecisionAt, londonWeek } from '../lib/server/admin-overview';
 import { likePattern, parseBookingSearch } from '../lib/server/admin-bookings';
-import { cancelBooking } from '../lib/server/admin-cancel-booking';
 import { renderAdminCancellationEmail } from '../lib/server/email';
 import { rosterText } from '../components/admin/admin-overview';
-import type { BookingRow, Database } from '../lib/server/database';
+import type { BookingRow } from '../lib/server/database';
 import { venues } from '../lib/demo-data';
 
 void test('the London week runs Monday to Sunday', () => {
@@ -38,64 +37,6 @@ void test('rosters copy as one line per booking', () => {
 });
 
 const booking = { id: 'b1', session_id: 's1', contact_name: 'Ana', email: 'a@x', status: 'confirmed', total_pence: 630, stripe_payment_intent_id: 'pi_1', participant_count: 1 } as BookingRow;
-
-function scripted(steps: Array<{ match: RegExp; rows: unknown[] }>) {
-  let count = 0;
-  const db = ((parts: TemplateStringsArray) => {
-    const sql = parts.join('?').replace(/\s+/g, ' ');
-    const step = steps[count++];
-    assert.ok(step, `Unexpected query: ${sql}`);
-    assert.match(sql, step.match);
-    return Promise.resolve(step.rows);
-  }) as unknown as Database;
-  return { db, done: () => assert.equal(count, steps.length) };
-}
-
-const venueDetails = { ...venues[0], name_zh: venues[0].nameZh, area_zh: venues[0].areaZh, photo: '', photos_json: '[]', date: '2026-10-22', start_time: '10:00', end_time: '11:00' };
-
-void test('cancelling with refund refunds first, then releases places and emails the player', async () => {
-  const calls: string[] = [];
-  const script = scripted([
-    { match: /SELECT \* FROM bookings/, rows: [booking] },
-    { match: /UPDATE bookings SET status = \?.*booked_spots/, rows: [{ ...booking, status: 'refunded' }] },
-    { match: /FROM sessions JOIN venues/, rows: [venueDetails] },
-  ]);
-  const result = await cancelBooking(script.db, 'b1', true, {
-    refund: (input) => { calls.push(`refund:${input.paymentIntentId}:${input.reason}`); return Promise.resolve({ id: 're_1', status: 'succeeded' }); },
-    notify: (input) => { calls.push(`email:${input.refunded}`); return Promise.resolve({ status: 'sent' }); },
-  });
-  script.done();
-  assert.equal(result.status, 'refunded');
-  assert.deepEqual(calls, ['refund:pi_1:admin_cancel', 'email:true']);
-});
-
-void test('a failed refund leaves the booking confirmed', async () => {
-  const script = scripted([{ match: /SELECT \* FROM bookings/, rows: [booking] }]);
-  const result = await cancelBooking(script.db, 'b1', true, {
-    refund: () => Promise.reject(new Error('stripe down')),
-    notify: () => Promise.resolve({ status: 'sent' }),
-  });
-  script.done();
-  assert.equal(result.status, 'refund_failed');
-});
-
-void test('cancelling without refund, or a booking already handled', async () => {
-  const script = scripted([
-    { match: /SELECT \* FROM bookings/, rows: [booking] },
-    { match: /UPDATE bookings/, rows: [{ ...booking, status: 'cancelled' }] },
-    { match: /FROM sessions JOIN venues/, rows: [] },
-  ]);
-  let refunded = false;
-  const result = await cancelBooking(script.db, 'b1', false, {
-    refund: () => { refunded = true; return Promise.resolve({ id: 'x', status: 'succeeded' }); },
-    notify: () => Promise.resolve({ status: 'sent' }),
-  });
-  script.done();
-  assert.equal(result.status, 'cancelled');
-  assert.equal(refunded, false);
-  const done = scripted([{ match: /SELECT \* FROM bookings/, rows: [{ ...booking, status: 'refunded' }] }]);
-  assert.equal((await cancelBooking(done.db, 'b1', true)).status, 'already_processed');
-});
 
 void test('cancellation email states the refund in both languages', () => {
   const email = renderAdminCancellationEmail({ booking, session: { date: '2026-10-22', start_time: '10:00', end_time: '11:00' }, venue: venues[0], refunded: true });

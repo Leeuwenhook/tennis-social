@@ -117,7 +117,19 @@ export function isAdminAuthenticated(request: Request) {
   return adminUsername(request) !== null;
 }
 
+/** Reject browser writes from another origin, including sibling subdomains. */
+export function requireSameOrigin(request: Request) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return null;
+  const origin = request.headers.get('origin');
+  if ((origin && origin !== new URL(request.url).origin) || request.headers.get('sec-fetch-site') === 'cross-site') {
+    return Response.json({ error: 'invalid_origin' }, { status: 403 });
+  }
+  return null;
+}
+
 export function requireAdmin(request: Request) {
+  const forbidden = requireSameOrigin(request);
+  if (forbidden) return forbidden;
   return isAdminAuthenticated(request)
     ? null
     : Response.json({ error: 'admin_unauthorized' }, { status: 401 });

@@ -1,4 +1,5 @@
-import { recordAdminAction } from '@/lib/server/audit-log';
+import { londonDate } from '@/lib/server/london-time';
+import { auditedMutation } from '@/lib/server/audit-log';
 import {
   database,
   DatabaseNotConfiguredError,
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
     if (!session) return Response.json({ error: 'invalid_session' }, { status: 400 });
     const now = new Date().toISOString();
     const id = `session-${crypto.randomUUID()}`;
-    const rows = await db`
+    const rows = await auditedMutation(db, request, { action: 'session.create', targetType: 'session', targetId: id, summary: `${session.date} ${session.startTime}` })`
       INSERT INTO sessions (
         id, venue_id, date, start_time, end_time, price_pence, capacity,
         booked_spots, formats_json, seeking_levels_json, status, description, description_zh, created_at, updated_at
@@ -46,10 +47,6 @@ export async function POST(request: Request) {
       RETURNING id, venue_id, date, start_time, end_time, price_pence, capacity,
                 booked_spots, marked_full, formats_json, seeking_levels_json, status
     ` as SessionRow[];
-    await recordAdminAction(db, request, {
-      action: 'session.create', targetType: 'session', targetId: id,
-      summary: `${rows[0].date} ${rows[0].start_time}`, after: rows[0],
-    });
     return Response.json({ session: serializeSession(rows[0]) }, { status: 201 });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {
@@ -70,7 +67,8 @@ export async function GET(request: Request) {
     await expireStaleReservations(db);
     // Optional lower bound so the admin does not load every past session.
     const fromParam = new URL(request.url).searchParams.get('from') ?? '';
-    const from = /^\d{4}-\d{2}-\d{2}$/.test(fromParam) ? fromParam : null;
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(fromParam) ? fromParam :
+      new URL(request.url).searchParams.get('all') === '1' ? null : londonDate(new Date(Date.now() - 30 * 86400000));
     const rows = await db`
       SELECT id, venue_id, date, start_time, end_time, price_pence, capacity,
              booked_spots, marked_full, formats_json, seeking_levels_json, status

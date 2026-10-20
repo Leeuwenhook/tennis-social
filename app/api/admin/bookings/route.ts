@@ -1,3 +1,4 @@
+import { londonDate } from '@/lib/server/london-time';
 import {
   database,
   DatabaseNotConfiguredError,
@@ -23,7 +24,8 @@ export async function GET(request: Request) {
     if (params.has('scope')) return Response.json(await searchAdminBookings(db, params));
     // Optional lower bound on the session date, matching the admin session list.
     const fromParam = params.get('from') ?? '';
-    const from = /^\d{4}-\d{2}-\d{2}$/.test(fromParam) ? fromParam : null;
+    const from = /^\d{4}-\d{2}-\d{2}$/.test(fromParam) ? fromParam :
+      new URL(request.url).searchParams.get('all') === '1' ? null : londonDate(new Date(Date.now() - 30 * 86400000));
     const rows = await db`
       SELECT bookings.*
       FROM bookings JOIN sessions ON sessions.id = bookings.session_id

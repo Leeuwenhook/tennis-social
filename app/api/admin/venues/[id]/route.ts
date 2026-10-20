@@ -1,4 +1,4 @@
-import { recordAdminAction, venueSnapshots } from '@/lib/server/audit-log';
+import { auditedMutation } from '@/lib/server/audit-log';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import {
   database,
@@ -39,23 +39,21 @@ export async function PATCH(
       return Response.json({ error: 'invalid_venue' }, { status: 400 });
     const now = new Date().toISOString();
     const beforeRows = (await db`SELECT * FROM venues WHERE id = ${id}`) as VenueRow[];
-    const rows = (await db`
+    if (!beforeRows[0]) return Response.json({ error: 'venue_not_found' }, { status: 404 });
+    const expected = JSON.stringify(beforeRows[0]);
+    const rows = (await auditedMutation(db, request, { action: 'venue.update', targetType: 'venue', targetId: id, summary: venue.name, before: beforeRows[0] })`
       UPDATE venues
       SET name = ${venue.name}, name_zh = ${venue.nameZh}, area = ${venue.area},
           area_zh = ${venue.areaZh}, photo = ${venue.photo}, photos_json = ${JSON.stringify(venue.photos)}, notes = ${venue.notes}, description = ${venue.description}, description_zh = ${venue.descriptionZh},
           address = ${venue.address}, address_zh = ${venue.addressZh}, postcode = ${venue.postcode},
           peak_price_pence = ${venue.peakPricePence},
           off_peak_price_pence = ${venue.offPeakPricePence}, updated_at = ${now}
-      WHERE id = ${id}
+      WHERE id = ${id} AND to_jsonb(venues) @> ${expected}::jsonb
       RETURNING id, name, name_zh, area, area_zh, photo, notes, description, description_zh,
                 peak_price_pence, off_peak_price_pence, photos_json, address, address_zh, postcode, created_at, updated_at
     `) as VenueRow[];
     if (!rows[0])
-      return Response.json({ error: 'venue_not_found' }, { status: 404 });
-    await recordAdminAction(db, request, {
-      action: 'venue.update', targetType: 'venue', targetId: id,
-      summary: rows[0].name, ...venueSnapshots(beforeRows[0], rows[0]),
-    });
+      return Response.json({ error: 'venue_changed' }, { status: 409 });
     return Response.json({ venue: serializeVenue(rows[0]) });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {
@@ -101,16 +99,12 @@ export async function DELETE(
       return Response.json({ error: 'venue_in_use' }, { status: 409 });
     }
 
-    const deletedRows = await db`
+    const deletedRows = await auditedMutation(db, request, { action: 'venue.delete', targetType: 'venue', targetId: id, summary: id, before: existingRows[0] })`
       DELETE FROM venues
       WHERE id = ${id}
       RETURNING *
     ` as Array<VenueRow>;
     if (!deletedRows[0]) return Response.json({ error: 'venue_not_found' }, { status: 404 });
-    await recordAdminAction(db, request, {
-      action: 'venue.delete', targetType: 'venue', targetId: id, summary: deletedRows[0].name,
-      before: venueSnapshots(undefined, deletedRows[0]).after,
-    });
     return Response.json({ id: deletedRows[0].id });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {

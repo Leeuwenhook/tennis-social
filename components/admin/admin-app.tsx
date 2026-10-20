@@ -76,7 +76,6 @@ export function AdminApp() {
   const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([]);
   const [sessionView, setSessionView] = useState<'list' | 'week'>('list');
   const [calendarDate, setCalendarDate] = useState(() => dateFromToday(0));
-  const [undoSessions, setUndoSessions] = useState<Session[] | null>(null);
   const [draft, setDraft] = useState<SessionDraft>(() => emptyDraft(venues));
   const [venueDraft, setVenueDraft] = useState<VenueDraft>(() => emptyVenueDraft(venues));
   const [adminMessage, setAdminMessage] = useState('');
@@ -650,7 +649,6 @@ export function AdminApp() {
   async function bulkUpdateSessionStatus(status: SessionStatus) {
     const targets = sessions.filter((session) => selectedSessionIds.includes(session.id));
     if (!targets.length) return;
-    setUndoSessions(sessions);
     adminBusyRef.current = true;
     ++sessionLoadVersion.current;
     setAdminBusy(true);
@@ -713,7 +711,6 @@ export function AdminApp() {
       }
     }
     if (created.length) {
-      setUndoSessions(sessions);
       setSessions((current) => [...current, ...created]);
       setAdminMessage(t.repeatCreated.replace('{count}', String(created.length)));
     } else {
@@ -744,40 +741,6 @@ export function AdminApp() {
     link.download = `tennis-sessions-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-  }
-
-  async function undoLastOperation() {
-    if (!undoSessions) {
-      setAdminMessage(t.noOperationToUndo);
-      return;
-    }
-    adminBusyRef.current = true;
-    ++sessionLoadVersion.current;
-    setAdminBusy(true);
-    const previousById = new Map(undoSessions.map((session) => [session.id, session]));
-    const currentChanged = sessions.filter((session) => previousById.has(session.id));
-    const createdSinceSnapshot = sessions.filter((session) => !previousById.has(session.id));
-    await Promise.all(currentChanged.map(async (session) => {
-      const previous = previousById.get(session.id);
-      if (!previous) return;
-      try {
-        await fetch(`/api/admin/sessions/${encodeURIComponent(session.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sessionPayload(previous)) });
-      } catch {
-        // Keep the local state in sync with the saved snapshot when offline.
-      }
-    }));
-    await Promise.all(createdSinceSnapshot.map(async (session) => {
-      try {
-        await fetch(`/api/admin/sessions/${encodeURIComponent(session.id)}`, { method: 'DELETE' });
-      } catch {
-        // The local snapshot is still restored if the server is unavailable.
-      }
-    }));
-    setSessions(undoSessions);
-    setUndoSessions(null);
-    setAdminMessage(t.operationUndone);
-    adminBusyRef.current = false;
-    setAdminBusy(false);
   }
 
   async function importSessions(event: ChangeEvent<HTMLInputElement>) {
@@ -1016,7 +979,6 @@ export function AdminApp() {
           setSessionStatusFilter={setSessionStatusFilter}
           selectedSessionIds={selectedSessionIds}
           setSelectedSessionIds={setSelectedSessionIds}
-          undoSessions={undoSessions}
           sessionImportInput={sessionImportInput}
           sessionImportMessage={sessionImportMessage}
           sessionImportFailed={sessionImportFailed}
@@ -1034,7 +996,7 @@ export function AdminApp() {
           onDeleteSession={(session) => void deleteSession(session)}
           onBulkUpdateSessionStatus={(status) => void bulkUpdateSessionStatus(status)}
           onExportSessions={exportSessions}
-          onUndoLastOperation={() => void undoLastOperation()}
+          onDataChanged={() => setDataVersion((value) => value + 1)}
           onImportSessions={(event) => void importSessions(event)}
           onBookingChanged={applyBookingChange}
           onUpdateReservationRequestStatus={(id, status) => void updateReservationRequestStatus(id, status)}

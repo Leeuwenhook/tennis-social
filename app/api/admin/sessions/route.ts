@@ -1,3 +1,4 @@
+import { recordAdminAction } from '@/lib/server/audit-log';
 import {
   database,
   DatabaseNotConfiguredError,
@@ -45,6 +46,10 @@ export async function POST(request: Request) {
       RETURNING id, venue_id, date, start_time, end_time, price_pence, capacity,
                 booked_spots, marked_full, formats_json, seeking_levels_json, status
     ` as SessionRow[];
+    await recordAdminAction(db, request, {
+      action: 'session.create', targetType: 'session', targetId: id,
+      summary: `${rows[0].date} ${rows[0].start_time}`, after: rows[0],
+    });
     return Response.json({ session: serializeSession(rows[0]) }, { status: 201 });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {

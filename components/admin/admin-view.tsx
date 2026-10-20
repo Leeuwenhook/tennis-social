@@ -8,6 +8,7 @@ import TriangleAlert from 'lucide-react/dist/esm/icons/triangle-alert.mjs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { AdminAuditLog } from '@/components/admin/admin-audit-log';
 import { AdminBookings } from '@/components/admin/admin-bookings';
 import { AdminOverview } from '@/components/admin/admin-overview';
 import { AdminRequestsTab } from '@/components/admin/admin-requests-tab';
@@ -75,7 +76,6 @@ export type AdminViewProps = {
   setSessionStatusFilter: (filter: SessionStatus | '') => void;
   selectedSessionIds: string[];
   setSelectedSessionIds: React.Dispatch<React.SetStateAction<string[]>>;
-  undoSessions: Session[] | null;
   sessionImportInput: RefObject<HTMLInputElement | null>;
   sessionImportMessage: string;
   sessionImportFailed: boolean;
@@ -93,7 +93,8 @@ export type AdminViewProps = {
   onSetSessionFull: (session: Session, markedFull: boolean) => void;
   onBulkUpdateSessionStatus: (status: SessionStatus) => void;
   onExportSessions: () => void;
-  onUndoLastOperation: () => void;
+  /** Something changed on the server outside this view (an undo); reload. */
+  onDataChanged: () => void;
   onImportSessions: (e: ChangeEvent<HTMLInputElement>) => void;
   onBookingChanged: (id: string, status: BookingStatus) => void;
   onUpdateReservationRequestStatus: (id: string, status: ReservationRequestStatus) => void;
@@ -104,6 +105,7 @@ export type AdminViewProps = {
 
 export function AdminView(props: AdminViewProps) {
   const {
+    onDataChanged,
   adminAuthChecked,
   adminAuthenticated,
   adminAuthBusy,
@@ -135,6 +137,7 @@ export function AdminView(props: AdminViewProps) {
     { id: 'requests', label: pendingRequests ? `${t.manageRequests} (${pendingRequests})` : t.manageRequests },
     { id: 'reviews', label: language === 'zh' ? '评价审核' : 'Reviews' },
     { id: 'venues', label: t.manageVenues },
+    { id: 'audit', label: language === 'zh' ? '操作记录' : 'Activity' },
   ];
 
   if (!adminAuthChecked || !adminAuthenticated) {
@@ -285,7 +288,7 @@ export function AdminView(props: AdminViewProps) {
           ) : adminTab === 'reviews' ? (
             <AdminReviews language={language} />
           ) : (
-            <AdminVenuesTab {...props} />
+            adminTab === 'audit' ? <AdminAuditLog language={language} onChanged={onDataChanged} /> : <AdminVenuesTab {...props} />
           )}
         </div>
       </div>

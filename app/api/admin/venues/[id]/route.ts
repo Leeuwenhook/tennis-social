@@ -1,3 +1,4 @@
+import { recordAdminAction, venueSnapshots } from '@/lib/server/audit-log';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import {
   database,
@@ -37,6 +38,7 @@ export async function PATCH(
     if (!venue)
       return Response.json({ error: 'invalid_venue' }, { status: 400 });
     const now = new Date().toISOString();
+    const beforeRows = (await db`SELECT * FROM venues WHERE id = ${id}`) as VenueRow[];
     const rows = (await db`
       UPDATE venues
       SET name = ${venue.name}, name_zh = ${venue.nameZh}, area = ${venue.area},
@@ -50,6 +52,10 @@ export async function PATCH(
     `) as VenueRow[];
     if (!rows[0])
       return Response.json({ error: 'venue_not_found' }, { status: 404 });
+    await recordAdminAction(db, request, {
+      action: 'venue.update', targetType: 'venue', targetId: id,
+      summary: rows[0].name, ...venueSnapshots(beforeRows[0], rows[0]),
+    });
     return Response.json({ venue: serializeVenue(rows[0]) });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {
@@ -98,9 +104,13 @@ export async function DELETE(
     const deletedRows = await db`
       DELETE FROM venues
       WHERE id = ${id}
-      RETURNING id
-    ` as Array<{ id: string }>;
+      RETURNING *
+    ` as Array<VenueRow>;
     if (!deletedRows[0]) return Response.json({ error: 'venue_not_found' }, { status: 404 });
+    await recordAdminAction(db, request, {
+      action: 'venue.delete', targetType: 'venue', targetId: id, summary: deletedRows[0].name,
+      before: venueSnapshots(undefined, deletedRows[0]).after,
+    });
     return Response.json({ id: deletedRows[0].id });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {

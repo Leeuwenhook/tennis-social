@@ -25,6 +25,7 @@ import type { AdminViewProps } from '@/components/admin/admin-view';
 
 export function AdminSessionsTab(props: AdminViewProps) {
   const {
+    setAdminTab,
   adminSessions,
   allSessions,
   venueList,
@@ -50,7 +51,6 @@ export function AdminSessionsTab(props: AdminViewProps) {
   setSessionStatusFilter,
   selectedSessionIds,
   setSelectedSessionIds,
-  undoSessions,
   sessionImportInput,
   sessionImportMessage,
   sessionImportFailed,
@@ -64,7 +64,6 @@ export function AdminSessionsTab(props: AdminViewProps) {
   onSetSessionFull,
   onBulkUpdateSessionStatus,
   onExportSessions,
-  onUndoLastOperation,
   onImportSessions,
   } = props;
 
@@ -338,7 +337,6 @@ export function AdminSessionsTab(props: AdminViewProps) {
                     setSessionView={setSessionView}
                     showExpiredSessions={showExpiredSessions}
                     setShowExpiredSessions={setShowExpiredSessions}
-                    canUndo={Boolean(undoSessions)}
                     importInput={sessionImportInput}
                     onAdd={() => {
                       setDraft(emptyDraft(venueList));
@@ -346,7 +344,7 @@ export function AdminSessionsTab(props: AdminViewProps) {
                     }}
                     onImport={onImportSessions}
                     onExport={onExportSessions}
-                    onUndo={onUndoLastOperation}
+                    onOpenAudit={() => setAdminTab('audit')}
                   />
                 </div>
                 <p className="admin-session-import-help">{t.sessionImportHelp}</p>

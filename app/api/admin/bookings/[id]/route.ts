@@ -1,3 +1,4 @@
+import { recordAdminAction } from '@/lib/server/audit-log';
 import { cancelBooking } from '@/lib/server/admin-cancel-booking';
 import { database, DatabaseNotConfiguredError, serializeBooking } from '@/lib/server/database';
 import { requireAdmin } from '@/lib/server/admin-auth';
@@ -17,8 +18,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   }
   if (input.status !== 'cancelled') return Response.json({ error: 'invalid_status' }, { status: 400 });
   try {
-    const result = await cancelBooking(database(), id, input.refund === true);
-    if ('booking' in result) return Response.json({ booking: serializeBooking(result.booking) });
+    const db = database();
+    const result = await cancelBooking(db, id, input.refund === true);
+    if ('booking' in result) {
+      await recordAdminAction(db, request, {
+        action: result.status === 'refunded' ? 'booking.refund' : 'booking.cancel', targetType: 'booking', targetId: id,
+        summary: `${result.booking.contact_name} · £${(result.booking.total_pence / 100).toFixed(2)}`,
+        before: { status: 'confirmed' }, after: { status: result.status },
+      });
+      return Response.json({ booking: serializeBooking(result.booking) });
+    }
     if (result.status === 'not_found') return Response.json({ error: 'booking_not_found' }, { status: 404 });
     if (result.status === 'refund_failed') return Response.json({ error: 'refund_failed' }, { status: 502 });
     return Response.json({ error: 'booking_already_processed' }, { status: 409 });

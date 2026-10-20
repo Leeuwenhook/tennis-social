@@ -1,3 +1,4 @@
+import { recordAdminAction, venueSnapshots } from '@/lib/server/audit-log';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import {
   database,
@@ -70,6 +71,10 @@ export async function POST(request: Request) {
       RETURNING id, name, name_zh, area, area_zh, photo, notes, description, description_zh,
                 peak_price_pence, off_peak_price_pence, photos_json, address, address_zh, postcode, created_at, updated_at
     `) as VenueRow[];
+    await recordAdminAction(db, request, {
+      action: 'venue.create', targetType: 'venue', targetId: id, summary: rows[0].name,
+      after: venueSnapshots(undefined, rows[0]).after,
+    });
     return Response.json({ venue: serializeVenue(rows[0]) }, { status: 201 });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {

@@ -1,3 +1,4 @@
+import { recordAdminAction } from '@/lib/server/audit-log';
 import {
   database,
   DatabaseNotConfiguredError,
@@ -42,6 +43,10 @@ export async function PATCH(request: Request) {
     const db = database();
     await ensureSeeded(db);
     const enabled = await setRacketRentalEnabled(input.racketRentalEnabled, db);
+    await recordAdminAction(db, request, {
+      action: 'settings.update', targetType: 'settings', targetId: 'racket_rental', summary: `racketRentalEnabled = ${enabled}`,
+      after: { racketRentalEnabled: enabled },
+    });
     return Response.json({ racketRentalEnabled: enabled });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {

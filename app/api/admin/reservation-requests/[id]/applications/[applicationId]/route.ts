@@ -1,3 +1,4 @@
+import { recordAdminAction } from '@/lib/server/audit-log';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { database, DatabaseNotConfiguredError } from '@/lib/server/database';
 
@@ -36,6 +37,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       RETURNING *
     ` as Array<Record<string, unknown>>;
     if (!rows[0]) return Response.json({ error: body.status === 'accepted' ? 'request_full' : 'not_found' }, { status: body.status === 'accepted' ? 409 : 404 });
+    await recordAdminAction(db, request, {
+      action: 'application.status', targetType: 'application', targetId: applicationId,
+      summary: `${typeof rows[0].name === 'string' ? rows[0].name : applicationId} → ${String(body.status)}`, after: { status: body.status, requestId },
+    });
     return Response.json({ application: rows[0] });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) return Response.json({ error: 'database_not_configured' }, { status: 503 });

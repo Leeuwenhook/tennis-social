@@ -1,3 +1,4 @@
+import { recordAdminAction } from '@/lib/server/audit-log';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { database, DatabaseNotConfiguredError } from '@/lib/server/database';
 import { deleteReviewCompletely } from '@/lib/server/reviews';
@@ -50,6 +51,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       if (typeof value !== 'string' || !MEDIA_STATUSES.includes(value)) continue;
       await db`UPDATE review_media SET status = ${value}, updated_at = ${now} WHERE id = ${mediaId} AND review_id = ${id}`;
     }
+    await recordAdminAction(db, request, {
+      action: 'review.moderate', targetType: 'review', targetId: id,
+      summary: `→ ${status}${Object.keys(mediaStatus).length ? ` (${Object.keys(mediaStatus).length} file)` : ''}`,
+      after: { status, mediaStatus },
+    });
     return Response.json({ review: { id, status } });
   } catch (error) {
     return failure(error);
@@ -62,7 +68,9 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   if (unauthorized) return unauthorized;
   const { id } = await context.params;
   try {
-    await deleteReviewCompletely(database(), id);
+    const db = database();
+    await deleteReviewCompletely(db, id);
+    await recordAdminAction(db, request, { action: 'review.delete', targetType: 'review', targetId: id, summary: 'Deleted review and files' });
     return new Response(null, { status: 204 });
   } catch (error) {
     return failure(error);

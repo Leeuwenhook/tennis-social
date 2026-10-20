@@ -4781,3 +4781,54 @@
   font-weight: 600;
   text-decoration: none;
 }
+
+/* Admin: activity log */
+.admin-audit-list {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.admin-audit-list > li {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+.admin-audit-list > li.is-undone {
+  opacity: 0.6;
+}
+
+.admin-audit-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  font-size: 14px;
+}
+
+.admin-audit-head small,
+.admin-audit-undone {
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.admin-audit-changes {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+
+.admin-audit-changes code {
+  color: var(--foreground);
+  font-size: 12px;
+}

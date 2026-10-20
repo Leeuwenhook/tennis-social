@@ -1,3 +1,4 @@
+import { recordAdminAction } from '@/lib/server/audit-log';
 import {
   database,
   DatabaseNotConfiguredError,
@@ -74,6 +75,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
                 booked_spots, marked_full, formats_json, seeking_levels_json, status
     ` as SessionRow[];
     if (!rows[0]) return Response.json({ error: 'capacity_too_low' }, { status: 409 });
+    await recordAdminAction(db, request, {
+      action: 'session.update', targetType: 'session', targetId: id,
+      summary: `${rows[0].date} ${rows[0].start_time}`, before: existing, after: rows[0],
+    });
     return Response.json({ session: serializeSession(rows[0]) });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {
@@ -93,10 +98,10 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     const db = database();
     await ensureSeeded(db);
     const existingRows = await db`
-      SELECT id
+      SELECT *
       FROM sessions
       WHERE id = ${id}
-    ` as Array<{ id: string }>;
+    ` as Array<SessionRow & { id: string }>;
     if (!existingRows[0]) return Response.json({ error: 'session_not_found' }, { status: 404 });
 
     const bookingRows = await db`
@@ -114,6 +119,10 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
       RETURNING id
     ` as Array<{ id: string }>;
     if (!deletedRows[0]) return Response.json({ error: 'session_not_found' }, { status: 404 });
+    await recordAdminAction(db, request, {
+      action: 'session.delete', targetType: 'session', targetId: id,
+      summary: `${existingRows[0].date} ${existingRows[0].start_time}`, before: existingRows[0],
+    });
     return Response.json({ id: deletedRows[0].id });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {

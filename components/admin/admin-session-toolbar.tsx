@@ -23,12 +23,11 @@ export function AdminSessionToolbar({
   setSessionView,
   showExpiredSessions,
   setShowExpiredSessions,
-  canUndo,
   importInput,
   onAdd,
   onImport,
   onExport,
-  onUndo,
+  onOpenAudit,
 }: {
   language: Language;
   t: Translations;
@@ -37,12 +36,11 @@ export function AdminSessionToolbar({
   setSessionView: (view: 'list' | 'week') => void;
   showExpiredSessions: boolean;
   setShowExpiredSessions: (show: boolean | ((prev: boolean) => boolean)) => void;
-  canUndo: boolean;
   importInput: RefObject<HTMLInputElement | null>;
   onAdd: () => void;
   onImport: (event: ChangeEvent<HTMLInputElement>) => void;
   onExport: () => void;
-  onUndo: () => void;
+  onOpenAudit: () => void;
 }) {
   const [siteQrOpen, setSiteQrOpen] = useState(false);
   return (
@@ -84,7 +82,7 @@ export function AdminSessionToolbar({
             <DropdownMenuItem onClick={() => window.location.assign('/session-import-template.xlsx')}>{t.downloadSessionTemplate}</DropdownMenuItem>
             <DropdownMenuItem onClick={() => setSiteQrOpen(true)}>{t.siteQrCode}</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled={!canUndo || adminBusy} onClick={onUndo}>{t.undo}</DropdownMenuItem>
+            <DropdownMenuItem onClick={onOpenAudit}>{language === 'zh' ? '操作记录 / 撤销' : 'Activity / undo'}</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

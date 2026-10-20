@@ -88,31 +88,48 @@ export function createAdminSession(username: string) {
   return `${payload}.${signature(payload, config.secret)}`;
 }
 
-export function isAdminAuthenticated(request: Request) {
+/** The signed-in admin's username, or null when the cookie is missing or invalid. */
+export function adminUsername(request: Request): string | null {
   const value = readCookie(request);
   const [payload, providedSignature] = value.split('.');
-  if (!payload || !providedSignature) return false;
+  if (!payload || !providedSignature) return null;
   const config = adminConfig();
-  if (!config) return false;
+  if (!config) return null;
   if (!equal(providedSignature, signature(payload, config.secret)))
-    return false;
+    return null;
   try {
     const parsed = JSON.parse(decode(payload)) as {
       sub?: unknown;
       exp?: unknown;
     };
-    return (
-      typeof parsed.sub === 'string' &&
+    return typeof parsed.sub === 'string' &&
       config.accounts.some((account) => parsed.sub === account.username) &&
       typeof parsed.exp === 'number' &&
       parsed.exp > Math.floor(Date.now() / 1000)
-    );
+      ? parsed.sub
+      : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
+export function isAdminAuthenticated(request: Request) {
+  return adminUsername(request) !== null;
+}
+
+/** Reject browser writes from another origin, including sibling subdomains. */
+export function requireSameOrigin(request: Request) {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(request.method)) return null;
+  const origin = request.headers.get('origin');
+  if ((origin && origin !== new URL(request.url).origin) || request.headers.get('sec-fetch-site') === 'cross-site') {
+    return Response.json({ error: 'invalid_origin' }, { status: 403 });
+  }
+  return null;
+}
+
 export function requireAdmin(request: Request) {
+  const forbidden = requireSameOrigin(request);
+  if (forbidden) return forbidden;
   return isAdminAuthenticated(request)
     ? null
     : Response.json({ error: 'admin_unauthorized' }, { status: 401 });

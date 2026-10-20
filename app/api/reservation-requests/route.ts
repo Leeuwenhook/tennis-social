@@ -1,3 +1,5 @@
+import { auditedMutation } from '@/lib/server/audit-log';
+import { adminUsername, requireSameOrigin } from '@/lib/server/admin-auth';
 import { PREFERRED_SLOTS } from '@/lib/partner-request-slots';
 import { sendAdminRequestNotification } from '@/lib/server/email';
 import {
@@ -55,6 +57,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const admin = adminUsername(request);
+  const forbidden = admin ? requireSameOrigin(request) : null;
+  if (forbidden) return forbidden;
   let input: ReservationRequestInput;
   try {
     input = await request.json() as ReservationRequestInput;
@@ -80,7 +85,8 @@ export async function POST(request: Request) {
 
     const id = `request-${crypto.randomUUID()}`;
     const now = new Date().toISOString();
-    const rows = await db`
+    const write = admin ? auditedMutation(db, request, { action: 'request.create', targetType: 'request', targetId: id, summary: value.contactName }) : db;
+    const rows = await write`
       INSERT INTO reservation_requests (
         id, request_type, venue_id, venue_name, postcode, preferred_date, start_time, end_time, contact_name,
         email, phone, wechat, whatsapp, preferred_contact, preferred_slots_json, expires_on, message, status, created_at, updated_at

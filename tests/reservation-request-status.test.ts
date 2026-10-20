@@ -22,6 +22,7 @@ const savedEnv = Object.fromEntries(
 );
 let savedRow: ReservationRequestRow;
 let databaseCalls = 0;
+let auditCalls = 0;
 
 beforeEach(() => {
   process.env.DATABASE_URL =
@@ -32,6 +33,7 @@ beforeEach(() => {
   delete process.env.ADMIN_USERNAME_2;
   delete process.env.ADMIN_PASSWORD_2;
   databaseCalls = 0;
+  auditCalls = 0;
   savedRow = {
     id: 'request-test',
     request_type: 'known_venue',
@@ -50,22 +52,28 @@ beforeEach(() => {
     updated_at: '2026-10-01T12:00:00.000Z',
   };
   globalThis.fetch = async (_url, init) => {
-    databaseCalls += 1;
     assert.ok(typeof init?.body === 'string');
-    const query = JSON.parse(init.body) as { params: string[] };
-    const [status, updatedAt, id] = query.params;
-    if (id === savedRow.id)
-      savedRow = {
-        ...savedRow,
-        status: status as ReservationRequestRow['status'],
-        updated_at: updatedAt,
+    type Query = { query: string; params: string[] };
+    const payload = JSON.parse(init.body) as Query & { queries?: Query[] };
+    const execute = (query: Query) => {
+      if (query.query.includes('pg_advisory_xact_lock')) return { fields: [], rows: [], rowCount: 1, command: 'SELECT' };
+      assert.match(query.query, /changed AS/);
+      assert.match(query.query, /INSERT INTO admin_audit_log/);
+      assert.ok(query.params.includes('test-admin'));
+      assert.ok(query.params.includes('request.status'));
+      const [status, updatedAt, id] = query.params;
+      databaseCalls++;
+      if (id === savedRow.id) {
+        savedRow = { ...savedRow, status: status as ReservationRequestRow['status'], updated_at: updatedAt };
+        auditCalls++;
+      }
+      return {
+        fields: Object.keys(savedRow).map((name) => ({ name, dataTypeID: 25 })),
+        rows: id === savedRow.id ? [Object.values(savedRow)] : [],
+        rowCount: id === savedRow.id ? 1 : 0, command: 'UPDATE',
       };
-    return Response.json({
-      fields: Object.keys(savedRow).map((name) => ({ name, dataTypeID: 25 })),
-      rows: id === savedRow.id ? [Object.values(savedRow)] : [],
-      rowCount: id === savedRow.id ? 1 : 0,
-      command: 'UPDATE',
-    });
+    };
+    return Response.json(payload.queries ? { results: payload.queries.map(execute) } : execute(payload));
   };
 });
 
@@ -109,6 +117,7 @@ void test('admins can cancel and reopen a request while preserving its details',
     assert.notEqual(savedRow.updated_at, savedRow.created_at);
   }
   assert.equal(databaseCalls, 4);
+  assert.equal(auditCalls, 4);
 });
 
 void test('unauthenticated cancellation is rejected before accessing the database', async () => {

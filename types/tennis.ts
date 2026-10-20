@@ -1,10 +1,10 @@
 import type { GameFormat, PreferredFormat } from '@/lib/demo-data';
 
 export type Language = 'en' | 'zh';
-export type View = 'home' | 'detail' | 'booking' | 'confirmation' | 'account' | 'request' | 'admin';
+export type View = 'home' | 'detail' | 'booking' | 'confirmation' | 'account' | 'request';
 export type BookingStage = 'details' | 'payment';
 export type AuthMode = 'login' | 'register';
-export type AdminTab = 'overview' | 'sessions' | 'bookings' | 'requests' | 'reviews' | 'venues';
+export type AdminTab = 'overview' | 'sessions' | 'bookings' | 'requests' | 'reviews' | 'venues' | 'audit';
 export type SessionStatus = 'published' | 'draft';
 export type BookingStatus = 'pending_payment' | 'confirmed' | 'expired' | 'payment_failed' | 'cancelled' | 'refunded';
 export type ConfirmationEmailStatus = 'sent' | 'skipped' | 'in_progress' | 'failed' | 'not_applicable';

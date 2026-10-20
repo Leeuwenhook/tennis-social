@@ -1,3 +1,4 @@
+import { adminActionQuery } from '@/lib/server/audit-log';
 import {
   database,
   DatabaseNotConfiguredError,
@@ -205,8 +206,10 @@ export async function POST(request: Request) {
                   peak_price_pence, off_peak_price_pence, photos_json, address, address_zh, postcode, created_at, updated_at
       `;
     });
+    const importedIds: string[] = [];
     const sessionInserts = sessions.map(({ session }) => {
       const id = `session-${crypto.randomUUID()}`;
+      importedIds.push(id);
       return db`
         INSERT INTO sessions (
           id, venue_id, date, start_time, end_time, price_pence, capacity,
@@ -220,12 +223,17 @@ export async function POST(request: Request) {
                   booked_spots, marked_full, formats_json, seeking_levels_json, status
       `;
     });
-    const inserted = await db.transaction([...venueInserts, ...sessionInserts]) as unknown as Array<Array<VenueRow | SessionRow>>;
+    const audit = adminActionQuery(db, request, {
+      action: 'sessions.import', targetType: 'import', targetId: importedIds.join(',').slice(0, 2000),
+      summary: `${sessions.length} sessions, ${pendingVenues.length} new venues`,
+      after: { sessionIds: importedIds, venueIds: pendingVenues.map((venue) => venue.id) },
+    });
+    const inserted = await db.transaction([...venueInserts, ...sessionInserts, audit]) as unknown as Array<Array<VenueRow | SessionRow>>;
     const createdVenues = inserted.slice(0, venueInserts.length)
       .map((rows) => rows[0] as VenueRow)
       .filter(Boolean)
       .map(serializeVenue);
-    const imported = inserted.slice(venueInserts.length)
+    const imported = inserted.slice(venueInserts.length, venueInserts.length + sessionInserts.length)
       .map((rows) => rows[0] as SessionRow)
       .filter(Boolean)
       .map(serializeSession);

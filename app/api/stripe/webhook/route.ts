@@ -104,6 +104,7 @@ export async function POST(request: Request) {
             FROM bookings
             WHERE stripe_payment_intent_id = ${object.payment_intent}
               AND status IN ('confirmed', 'cancelled')
+            FOR UPDATE
           ), updated AS (
             UPDATE bookings AS bookings
             SET status = 'refunded', updated_at = ${now}

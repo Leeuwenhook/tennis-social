@@ -2,14 +2,17 @@ import {
   adminSessionCookie,
   areAdminCredentialsValid,
   createAdminSession,
+  requireSameOrigin,
 } from '@/lib/server/admin-auth';
-import { clientIp, hashIp, isLoginLocked, recordLoginAttempt } from '@/lib/server/admin-login-guard';
+import { clientIp, hashIp, checkAndRecordLoginAttempt } from '@/lib/server/admin-login-guard';
 import { database, DatabaseNotConfiguredError, type Database } from '@/lib/server/database';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 export async function POST(request: Request) {
+  const forbidden = requireSameOrigin(request);
+  if (forbidden) return forbidden;
   let input: { username?: unknown; password?: unknown };
   try {
     input = (await request.json()) as {
@@ -35,15 +38,16 @@ export async function POST(request: Request) {
   } catch (error) {
     if (!(error instanceof DatabaseNotConfiguredError)) throw error;
   }
-  if (db && (await isLoginLocked(db, username, ipHash))) {
-    return Response.json({ error: 'too_many_attempts' }, { status: 429 });
-  }
+  if (!db && process.env.NODE_ENV === 'production') return Response.json({ error: 'login_unavailable' }, { status: 503 });
   const valid = areAdminCredentialsValid(username, password);
   if (db) {
     try {
-      await recordLoginAttempt(db, username, ipHash, valid);
+      if (await checkAndRecordLoginAttempt(db, username, ipHash, valid)) {
+        return Response.json({ error: 'too_many_attempts' }, { status: 429 });
+      }
     } catch {
-      console.error('Unable to record admin login attempt');
+      console.error('Unable to apply admin login guard');
+      return Response.json({ error: 'login_unavailable' }, { status: 503 });
     }
   }
   if (!valid) {

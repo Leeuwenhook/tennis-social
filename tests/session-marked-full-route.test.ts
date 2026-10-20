@@ -14,9 +14,12 @@ const sessionFields = [
 // The flag the first SELECT saw, and the flag stored when the UPDATE runs (another admin changed it in between).
 let staleFlag = false;
 let storedFlag = false;
+let reservedSpots = 0;
+let auditUnavailable = false;
+let concurrentEndTime = false;
 
 function sessionRow(markedFull: boolean) {
-  return ['session-1', 'venue-1', '2026-11-01', '16:00', '17:00', '800', '4', '0', markedFull ? 't' : 'f', '["doubles"]', '[]', 'published'];
+  return ['session-1', 'venue-1', '2026-11-01', '16:00', '17:00', '800', '4', String(reservedSpots), markedFull ? 't' : 'f', '["doubles"]', '[]', 'published'];
 }
 
 function result(fields: ReadonlyArray<readonly [string, number]>, rows: string[][]) {
@@ -28,6 +31,7 @@ beforeEach(() => {
   process.env.ADMIN_USERNAME = 'test-admin';
   process.env.ADMIN_PASSWORD = 'test-password';
   process.env.ADMIN_SESSION_SECRET = 'test-session-secret';
+  reservedSpots = 0; auditUnavailable = false; concurrentEndTime = false;
   globalThis.fetch = async (_url, init) => {
     assert.ok(typeof init?.body === 'string');
     const { query, params } = JSON.parse(init.body) as { query: string; params: unknown[] };
@@ -35,6 +39,14 @@ beforeEach(() => {
     if (query.includes('FROM venues')) return result([['id', 25], ['name', 25], ['name_zh', 25]], [['venue-1', 'Park', '公园']]);
     if (query.includes('participant_count')) return result([['participant_count', 23]], [['0']]);
     if (query.trimStart().startsWith('SELECT')) return result(sessionFields, [sessionRow(staleFlag)]);
+    assert.match(query, /prior AS MATERIALIZED/);
+    assert.match(query, /INSERT INTO admin_audit_log/);
+    if (auditUnavailable) throw new Error('relation admin_audit_log does not exist');
+    if (concurrentEndTime) {
+      assert.match(query, /to_jsonb\(sessions\) @>/);
+      assert.ok(params.some((value) => typeof value === 'string' && value.includes('"end_time"')));
+      return result(sessionFields, []);
+    }
     const match = /marked_full = COALESCE\(\$(\d+)::boolean, marked_full\)/.exec(query);
     assert.ok(match, 'UPDATE must keep the stored flag when none is supplied');
     const supplied = params[Number(match[1]) - 1];
@@ -76,4 +88,21 @@ void test('an explicit markedFull marks and reopens the session', async () => {
   storedFlag = false;
   assert.equal((await (await patch({ ...body, markedFull: true })).json()).session.markedFull, true);
   assert.equal((await (await patch({ ...body, markedFull: false })).json()).session.markedFull, false);
+});
+
+void test('pending payment reservations lock the time and price even with zero confirmed bookings', async () => {
+  reservedSpots = 1;
+  assert.equal((await patch({ ...body, pricePence: 900 })).status, 409);
+});
+
+void test('concurrent end-time changes cannot be overwritten with a stale edit', async () => {
+  concurrentEndTime = true;
+  const response = await patch(body);
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).error, 'session_changed');
+});
+
+void test('an audit storage failure cannot report a successful session edit', async () => {
+  auditUnavailable = true;
+  assert.equal((await patch(body)).status, 503);
 });

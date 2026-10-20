@@ -22,18 +22,15 @@ import type {
 
 export const LEVELS = ['1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0'] as const;
 export const PREFERRED_TIMES = ['weekends', 'weekday_evenings', 'anytime', 'mornings', 'afternoons'] as const;
-export const ADMIN_SESSION_STORAGE_KEY = 'tennis-match-admin-sessions-v1';
 export const SESSION_RECOVERY_STORAGE_KEY = 'tennis-match-session-recovery-v1';
 export const SESSION_STORAGE_KEY = 'tennis-social-sessions-v2';
 export const BOOKING_STORAGE_KEY = 'tennis-social-bookings-v2';
 export const VENUE_STORAGE_KEY = 'tennis-social-venues-v1';
 export const LANGUAGE_STORAGE_KEY = 'tennis-social-language-v1';
-export const ROUTE_VIEWS: View[] = ['home', 'detail', 'booking', 'confirmation', 'account', 'request', 'admin'];
+export const ROUTE_VIEWS: View[] = ['home', 'detail', 'booking', 'confirmation', 'account', 'request'];
 
 export function routeStateFromLocation(): { view: View; sessionId: string | null; bookingStage: BookingStage } {
   if (typeof window === 'undefined') return { view: 'home', sessionId: null, bookingStage: 'details' };
-  const path = window.location.pathname.replace(/\/+$/, '') || '/';
-  if (path === '/admin') return { view: 'admin', sessionId: null, bookingStage: 'details' };
   const query = new URLSearchParams(window.location.search);
   if (query.get('checkout') === 'success') {
     return {

@@ -1,3 +1,4 @@
+import { auditedMutation } from '@/lib/server/audit-log';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import { database, DatabaseNotConfiguredError } from '@/lib/server/database';
 import { deleteReviewCompletely } from '@/lib/server/reviews';
@@ -34,22 +35,24 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     const db = database();
     const now = new Date().toISOString();
-    const rows = (await db`
+    const mutation = auditedMutation(db, request, { action: 'review.moderate', targetType: 'review', targetId: id, summary: `→ ${status}`, after: { status, mediaStatus, moderationNote: note } })`
       UPDATE session_reviews
       SET status = ${status}, moderation_note = COALESCE(${note}::text, moderation_note), moderated_at = ${now}, updated_at = ${now}
       WHERE id = ${id}
       RETURNING id
-    `) as Array<{ id: string }>;
-    if (!rows[0]) return Response.json({ error: 'not_found' }, { status: 404 });
+    `;
+    const updates = [mutation];
     if (status === 'approved') {
-      await db`UPDATE review_media SET status = 'approved', updated_at = ${now} WHERE review_id = ${id} AND status = 'pending'`;
+      updates.push(db`UPDATE review_media SET status = 'approved', updated_at = ${now} WHERE review_id = ${id} AND status = 'pending'`);
     } else if (status === 'rejected') {
-      await db`UPDATE review_media SET status = 'rejected', updated_at = ${now} WHERE review_id = ${id}`;
+      updates.push(db`UPDATE review_media SET status = 'rejected', updated_at = ${now} WHERE review_id = ${id}`);
     }
     for (const [mediaId, value] of Object.entries(mediaStatus)) {
       if (typeof value !== 'string' || !MEDIA_STATUSES.includes(value)) continue;
-      await db`UPDATE review_media SET status = ${value}, updated_at = ${now} WHERE id = ${mediaId} AND review_id = ${id}`;
+      updates.push(db`UPDATE review_media SET status = ${value}, updated_at = ${now} WHERE id = ${mediaId} AND review_id = ${id}`);
     }
+    const results = await db.transaction(updates);
+    if (!(results[0] as Array<{ id: string }>)[0]) return Response.json({ error: 'not_found' }, { status: 404 });
     return Response.json({ review: { id, status } });
   } catch (error) {
     return failure(error);
@@ -62,7 +65,12 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
   if (unauthorized) return unauthorized;
   const { id } = await context.params;
   try {
-    await deleteReviewCompletely(database(), id);
+    const db = database();
+    await deleteReviewCompletely(db, id, undefined, (db, reviewId) =>
+      auditedMutation(db, request, { action: 'review.delete', targetType: 'review', targetId: reviewId, summary: 'Deleted review and files' })`
+        DELETE FROM session_reviews WHERE id = ${reviewId} RETURNING id
+      `);
+
     return new Response(null, { status: 204 });
   } catch (error) {
     return failure(error);

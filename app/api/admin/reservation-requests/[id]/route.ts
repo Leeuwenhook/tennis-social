@@ -1,3 +1,4 @@
+import { auditedMutation } from '@/lib/server/audit-log';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import {
   database,
@@ -26,12 +27,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     const db = database();
     const { id } = await context.params;
-    const rows = await db`
+    const mutation = auditedMutation(db, request, { action: 'request.status', targetType: 'request', targetId: id, summary: `→ ${body.status}` })`
       UPDATE reservation_requests
       SET status = ${body.status}, updated_at = ${new Date().toISOString()}
       WHERE id = ${id}
       RETURNING *
-    ` as ReservationRequestRow[];
+    `;
+    const result = await db.transaction([
+      db`SELECT pg_advisory_xact_lock(hashtextextended(${`admin-request:${id}`}, 0))`, mutation,
+    ]);
+    const rows = result[1] as ReservationRequestRow[];
     if (!rows[0]) return Response.json({ error: 'not_found' }, { status: 404 });
     return Response.json({ request: serializeReservationRequest(rows[0]) });
   } catch (error) {

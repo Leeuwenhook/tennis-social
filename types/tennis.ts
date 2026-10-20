@@ -1,4 +1,5 @@
-import type { GameFormat, PreferredFormat } from '@/lib/demo-data';
+import type { GameFormat, PreferredFormat, Venue } from '@/lib/demo-data';
+import type { CourtSetting } from '@/lib/venue-form';
 
 export type Language = 'en' | 'zh';
 export type View = 'home' | 'detail' | 'booking' | 'confirmation' | 'account' | 'request';
@@ -112,6 +113,19 @@ export type VenueDraft = {
   notes: string;
   peakPrice: string;
   offPeakPrice: string;
+  /** Optional details kept as typed; empty means "not known yet". */
+  courtCount: string;
+  courtSetting: '' | CourtSetting;
+  floodlights: '' | 'yes' | 'no';
+  /** The venue version the editor was opened with, sent back to detect a concurrent edit. */
+  updatedAt: string | null;
+};
+
+/** A venue as the admin list sees it, with how much still refers to it. */
+export type AdminVenue = Venue & {
+  sessionCount?: number;
+  futureSessionCount?: number;
+  requestCount?: number;
 };
 
 export type SessionImportIssueCode =

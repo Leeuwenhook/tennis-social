@@ -22,6 +22,10 @@ export const venues = pgTable('venues', {
   photosJson: text('photos_json').notNull().default('[]'),
   peakPricePence: integer('peak_price_pence').notNull(),
   offPeakPricePence: integer('off_peak_price_pence').notNull(),
+  courtCount: integer('court_count'),
+  courtSetting: text('court_setting'),
+  floodlights: boolean('floodlights'),
+  archivedAt: text('archived_at'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),
 });

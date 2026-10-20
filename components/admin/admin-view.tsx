@@ -17,8 +17,10 @@ import { AdminVenuesTab } from '@/components/admin/admin-venues-tab';
 import { AdminReviews } from '@/components/admin/admin-reviews';
 import type { Venue } from '@/lib/demo-data';
 import type { Translations } from '@/lib/translations';
+import type { VenueFieldIssue } from '@/lib/venue-form';
 import type {
   AdminTab,
+  AdminVenue,
   Booking,
   BookingStatus,
   Language,
@@ -42,7 +44,7 @@ export type AdminViewProps = {
   setAdminTab: (tab: AdminTab) => void;
   adminSessions: Session[];
   allSessions: Session[];
-  venueList: Venue[];
+  venueList: AdminVenue[];
   bookings: Booking[];
   activeBookings: Booking[];
   reservationRequests: ReservationRequest[];
@@ -56,11 +58,12 @@ export type AdminViewProps = {
   sessionEditorOpen: boolean;
   setSessionEditorOpen: (open: boolean) => void;
   venueEditorOpen: boolean;
-  setVenueEditorOpen: (open: boolean) => void;
   draft: SessionDraft;
   setDraft: React.Dispatch<React.SetStateAction<SessionDraft>>;
   venueDraft: VenueDraft;
   setVenueDraft: React.Dispatch<React.SetStateAction<VenueDraft>>;
+  /** Field issues from the last venue save attempt that the admin has not fixed yet. */
+  venueFieldIssues: VenueFieldIssue[];
   showExpiredSessions: boolean;
   setShowExpiredSessions: (show: boolean | ((prev: boolean) => boolean)) => void;
   sessionView: 'list' | 'week';
@@ -100,7 +103,11 @@ export type AdminViewProps = {
   onUpdateReservationRequestStatus: (id: string, status: ReservationRequestStatus) => void;
   onReservationRequestCreated: (request: ReservationRequest) => void;
   onStartEditVenue: (venue: Venue) => void;
-  onDeleteVenue: (venue: Venue) => void;
+  onDeleteVenue: (venue: AdminVenue) => void;
+  onArchiveVenue: (venue: AdminVenue, archived: boolean) => void;
+  /** These ask before dropping unsaved venue edits. */
+  onAddVenue: () => void;
+  onCancelVenueEdit: () => void;
 };
 
 export function AdminView(props: AdminViewProps) {

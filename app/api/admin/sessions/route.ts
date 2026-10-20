@@ -30,7 +30,8 @@ export async function POST(request: Request) {
   try {
     const db = database();
     await ensureSeeded(db);
-    const venueRows = await db`SELECT id, name, name_zh FROM venues` as Array<{ id: string; name: string; name_zh: string }>;
+    // Archived venues take no new sessions.
+    const venueRows = await db`SELECT id FROM venues WHERE archived_at IS NULL` as Array<{ id: string }>;
     const session = input ? validateSessionInput(input, venueRows.map((venue) => venue.id)) : null;
     if (!session) return Response.json({ error: 'invalid_session' }, { status: 400 });
     const now = new Date().toISOString();

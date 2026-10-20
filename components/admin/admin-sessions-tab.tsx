@@ -109,11 +109,13 @@ export function AdminSessionsTab(props: AdminViewProps) {
               className="native-select"
               disabled={hasActiveBookings}
             >
-              {venueList.map((venue) => (
-                <option key={venue.id} value={venue.id}>
-                  {venue.name}
-                </option>
-              ))}
+              {venueList
+                .filter((venue) => !venue.archivedAt || venue.id === draft.venueId)
+                .map((venue) => (
+                  <option key={venue.id} value={venue.id}>
+                    {venue.archivedAt ? `${venue.name} ${t.archivedSuffix}` : venue.name}
+                  </option>
+                ))}
             </select>
           </div>
           <div className="field">
@@ -382,7 +384,7 @@ export function AdminSessionsTab(props: AdminViewProps) {
                       <option value="">{t.allVenues}</option>
                       {venueList.map((venue) => (
                         <option key={venue.id} value={venue.id}>
-                          {venue.name}
+                          {venue.archivedAt ? `${venue.name} ${t.archivedSuffix}` : venue.name}
                         </option>
                       ))}
                     </select>

@@ -161,9 +161,10 @@ export function TennisSocialApp() {
   const t = translations[language];
   const requestVenueSuggestions = useMemo(() => {
     const query = normalizeLocation(requestForm.venueName);
+    const pickable = venueList.filter((venue) => !venue.archivedAt);
     const matches = query
-      ? venueList.filter((venue) => venueSearchText(venue).includes(query))
-      : venueList;
+      ? pickable.filter((venue) => venueSearchText(venue).includes(query))
+      : pickable;
     return matches.slice(0, 8);
   }, [requestForm.venueName, venueList]);
   const selectedSession = sessions.find((session) => session.id === selectedSessionId);

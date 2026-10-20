@@ -72,10 +72,11 @@ export async function POST(request: Request) {
     await ensureSeeded(db);
     const venueRows = await db`
       SELECT id, name, name_zh, area, area_zh, photo, notes,
-             peak_price_pence, off_peak_price_pence, photos_json, address, address_zh, postcode, created_at, updated_at
+             peak_price_pence, off_peak_price_pence, photos_json, address, address_zh, postcode, court_count, court_setting, floodlights, archived_at, created_at, updated_at
       FROM venues
     ` as VenueRow[];
-    const validVenueIds = venueRows.map((venue) => venue.id);
+    // Archived venues keep their past sessions but take no new ones.
+    const validVenueIds = venueRows.filter((venue) => !venue.archived_at).map((venue) => venue.id);
     const venuesByName = new Map<string, { id: string; name: string; nameZh: string; photo: string }>();
     for (const venue of venueRows) {
       for (const name of [venue.id, venue.name, venue.name_zh]) {
@@ -203,7 +204,7 @@ export async function POST(request: Request) {
           ${peakPricePence}, ${peakPricePence}, ${JSON.stringify([venue.photo])}, '', '', '', ${now}, ${now}
         )
         RETURNING id, name, name_zh, area, area_zh, photo, notes,
-                  peak_price_pence, off_peak_price_pence, photos_json, address, address_zh, postcode, created_at, updated_at
+                  peak_price_pence, off_peak_price_pence, photos_json, address, address_zh, postcode, court_count, court_setting, floodlights, archived_at, created_at, updated_at
       `;
     });
     const importedIds: string[] = [];

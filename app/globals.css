@@ -3122,6 +3122,70 @@
   font-weight: 800;
 }
 
+.admin-venue-row-main .admin-venue-meta {
+  font-weight: 600;
+}
+
+.admin-venue-row.is-archived img {
+  opacity: .6;
+}
+
+.admin-venue-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 14px 0 4px;
+}
+
+.admin-venue-search svg {
+  position: absolute;
+  left: 10px;
+  color: var(--muted-foreground);
+  pointer-events: none;
+}
+
+.admin-venue-search input {
+  padding-left: 32px;
+}
+
+.admin-venue-empty {
+  margin: 0;
+  padding: 15px 0;
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.admin-venue-archived {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.admin-venue-archived > summary {
+  cursor: pointer;
+  padding: 14px 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.admin-field-error {
+  margin: 6px 0 0;
+  color: var(--destructive);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.native-select[aria-invalid="true"] {
+  border-color: var(--destructive);
+}
+
+.venue-editor .venue-price-note {
+  grid-column: 1 / -1;
+  margin: -4px 0 0;
+}
+
 .venue-image-field {
   margin-top: 18px;
 }

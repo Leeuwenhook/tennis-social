@@ -91,6 +91,12 @@ function timeLabel(iso: string, language: Language) {
   }).format(new Date(iso));
 }
 
+/** An undo's summary is "Undid <action>: <summary>"; show the action by its translated name. */
+function summaryLabel(entry: AuditEntry, actions: Record<string, string>) {
+  const match = entry.action === 'undo' ? /^(?:Undid )?([\w.]+): ([\s\S]*)$/.exec(entry.summary) : null;
+  return match ? `${actions[match[1]] ?? match[1]} · ${match[2]}` : entry.summary;
+}
+
 function valueLabel(value: unknown) {
   if (value === null || value === undefined || value === '') return '—';
   if (typeof value === 'string' && value.startsWith('data:')) return '(image)';
@@ -188,7 +194,7 @@ export function AdminAuditLog({ language, onChanged }: { language: Language; onC
           <li key={entry.id} className={entry.undoneAt ? 'is-undone' : ''}>
             <div className="admin-audit-head">
               <strong>{c.actions[entry.action] ?? entry.action}</strong>
-              <span>{entry.summary}</span>
+              <span>{summaryLabel(entry, c.actions)}</span>
               <small>{entry.actor} · {timeLabel(entry.createdAt, language)}</small>
             </div>
             {entry.changes.length ? (

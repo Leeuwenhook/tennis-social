@@ -41,6 +41,10 @@ const copy = {
     notPaid: 'This booking has no card payment, so there is nothing to refund.',
     confirmCancel: 'Cancel booking',
     keep: 'Keep booking',
+    resendTitle: 'Resend the cancellation email?',
+    resendBody: 'This booking is already cancelled, but the cancellation email has not been sent yet.',
+    resend: 'Resend email',
+    close: 'Close',
     retryEmail: 'Resume cancellation / retry email',
     emailPending: 'The booking is cancelled. Email delivery is pending; retry to send it.',
     refundFailed: 'The refund failed, so the booking was not cancelled. Try again or refund in Stripe.',
@@ -66,6 +70,10 @@ const copy = {
     notPaid: '这个预订没有银行卡付款，无需退款。',
     confirmCancel: '确认取消',
     keep: '保留预订',
+    resendTitle: '重发取消邮件？',
+    resendBody: '这个预订已经取消，但取消邮件还没有发出去。',
+    resend: '重发邮件',
+    close: '关闭',
     retryEmail: '继续取消 / 重试邮件',
     emailPending: '预订已取消，邮件尚未发送。请重试发送。',
     refundFailed: '退款失败，预订没有取消。请重试，或到 Stripe 后台退款。',
@@ -154,6 +162,8 @@ export function AdminBookings({
       setErrorKey(filterKey);
     }
   }
+
+  const resending = Boolean(cancelling && cancelling.status !== 'confirmed' && cancelling.cancellationEmailPending);
 
   async function confirmCancel() {
     if (!cancelling) return;
@@ -260,16 +270,17 @@ export function AdminBookings({
       {result?.key === filterKey && result.nextOffset != null && !loading ? (
         <Button variant="outline" size="sm" onClick={() => void loadMore()}>{c.loadMore}</Button>
       ) : null}
+      {/* An already-cancelled booking with an unsent email only needs the email resent. */}
       <Dialog open={Boolean(cancelling)} onOpenChange={(open) => !open && !busy && setCancelling(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{c.cancelTitle}</DialogTitle>
+            <DialogTitle>{resending ? c.resendTitle : c.cancelTitle}</DialogTitle>
             <DialogDescription>
               {cancelling ? `${cancelling.contactName} · ${cancelling.session.venueName} ${sessionLabel(cancelling, language)}` : ''}
             </DialogDescription>
           </DialogHeader>
-          <p className="admin-muted">{c.cancelBody}</p>
-          {cancelling?.paid ? (
+          <p className="admin-muted">{resending ? c.resendBody : c.cancelBody}</p>
+          {resending ? null : cancelling?.paid ? (
             <label className="admin-check">
               <input type="checkbox" checked={refund} onChange={(event) => setRefund(event.target.checked)} />
               <span>{c.refund.replace('{amount}', formatMoney(cancelling.totalPence, language))}</span>
@@ -279,8 +290,10 @@ export function AdminBookings({
           )}
           {message ? <p className="admin-error" role="alert">{message}</p> : null}
           <div className="admin-row-actions">
-            <Button variant="destructive" size="sm" disabled={busy} onClick={() => void confirmCancel()}>{c.confirmCancel}</Button>
-            <Button variant="outline" size="sm" disabled={busy} onClick={() => setCancelling(null)}>{c.keep}</Button>
+            <Button variant={resending ? 'default' : 'destructive'} size="sm" disabled={busy} onClick={() => void confirmCancel()}>
+              {resending ? c.resend : c.confirmCancel}
+            </Button>
+            <Button variant="outline" size="sm" disabled={busy} onClick={() => setCancelling(null)}>{resending ? c.close : c.keep}</Button>
           </div>
         </DialogContent>
       </Dialog>

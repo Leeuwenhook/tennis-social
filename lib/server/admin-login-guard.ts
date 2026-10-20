@@ -4,10 +4,16 @@ import type { Database } from './database';
 import { getRuntimeEnv } from './runtime';
 
 const WINDOW_MS = 15 * 60000;
-/** Failures allowed for one username across all IPs within the window. */
-export const MAX_FAILURES_PER_ACCOUNT = 5;
+/** Failures allowed for one username from one IP within the window. */
+export const MAX_FAILURES_PER_ACCOUNT_IP = 5;
 /** Failures allowed from one IP across all usernames within the window. */
-export const MAX_FAILURES_PER_IP = 5;
+export const MAX_FAILURES_PER_IP = 20;
+/**
+ * Failures allowed for one username across all IPs. Kept high on purpose: a
+ * low account-wide limit lets anyone who knows a username keep the real admin
+ * locked out, while this still caps a distributed guessing attack.
+ */
+export const MAX_FAILURES_PER_ACCOUNT = 50;
 
 export function clientIp(request: Request) {
   return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('x-real-ip') || 'unknown';
@@ -22,15 +28,22 @@ export function hashIp(ip: string) {
 export async function isLoginLocked(db: Database, username: string, ipHash: string, now = new Date()) {
   const since = new Date(now.getTime() - WINDOW_MS).toISOString();
   const rows = (await db`
-    SELECT COUNT(*) FILTER (WHERE username = ${username} AND created_at > ${since})::integer AS account_failures,
+    SELECT COUNT(*) FILTER (WHERE username = ${username} AND ip_hash = ${ipHash} AND created_at > ${since})::integer AS account_ip_failures,
+           COUNT(*) FILTER (WHERE username = ${username} AND created_at > ${since})::integer AS account_failures,
            COUNT(*) FILTER (WHERE ip_hash = ${ipHash} AND created_at > ${since})::integer AS ip_failures,
            COALESCE(bool_or((username = ${username} AND account_locked_until > ${now.toISOString()})
              OR (ip_hash = ${ipHash} AND ip_locked_until > ${now.toISOString()})), false) AS locked
     FROM admin_login_attempts
     WHERE (username = ${username} OR ip_hash = ${ipHash}) AND NOT success AND (created_at > ${since} OR account_locked_until > ${now.toISOString()} OR ip_locked_until > ${now.toISOString()})
-  `) as Array<{ account_failures: number; ip_failures: number; locked?: boolean }>;
+  `) as Array<{ account_ip_failures: number; account_failures: number; ip_failures: number; locked?: boolean }>;
   const row = rows[0];
-  return Boolean(row && (row.locked || row.account_failures >= MAX_FAILURES_PER_ACCOUNT || row.ip_failures >= MAX_FAILURES_PER_IP));
+  return Boolean(
+    row &&
+      (row.locked ||
+        row.account_ip_failures >= MAX_FAILURES_PER_ACCOUNT_IP ||
+        row.account_failures >= MAX_FAILURES_PER_ACCOUNT ||
+        row.ip_failures >= MAX_FAILURES_PER_IP),
+  );
 }
 
 export async function recordLoginAttempt(db: Database, username: string, ipHash: string, success: boolean, now = new Date()) {
@@ -49,7 +62,8 @@ export async function checkAndRecordLoginAttempt(db: Database, username: string,
     db`SELECT pg_advisory_xact_lock(hashtextextended(${keys[1]}, 0))`,
     db`
       WITH counts AS (
-        SELECT COUNT(*) FILTER (WHERE username = ${username} AND created_at > ${since}) AS account_failures,
+        SELECT COUNT(*) FILTER (WHERE username = ${username} AND ip_hash = ${ipHash} AND created_at > ${since}) AS account_ip_failures,
+               COUNT(*) FILTER (WHERE username = ${username} AND created_at > ${since}) AS account_failures,
                COUNT(*) FILTER (WHERE ip_hash = ${ipHash} AND created_at > ${since}) AS ip_failures,
                COALESCE(bool_or((username = ${username} AND account_locked_until > ${now.toISOString()})
                  OR (ip_hash = ${ipHash} AND ip_locked_until > ${now.toISOString()})), false) AS active_lock
@@ -57,7 +71,10 @@ export async function checkAndRecordLoginAttempt(db: Database, username: string,
         WHERE (username = ${username} OR ip_hash = ${ipHash})
           AND NOT success AND (created_at > ${since} OR account_locked_until > ${now.toISOString()} OR ip_locked_until > ${now.toISOString()})
       ), guard AS (
-        SELECT *, active_lock OR account_failures >= ${MAX_FAILURES_PER_ACCOUNT} OR ip_failures >= ${MAX_FAILURES_PER_IP} AS locked FROM counts
+        -- The username+IP limit uses the rolling window; the account-wide and
+        -- IP-wide limits also persist a lock so it does not lift early.
+        SELECT *, active_lock OR account_ip_failures >= ${MAX_FAILURES_PER_ACCOUNT_IP}
+          OR account_failures >= ${MAX_FAILURES_PER_ACCOUNT} OR ip_failures >= ${MAX_FAILURES_PER_IP} AS locked FROM counts
       ), recorded AS (
         INSERT INTO admin_login_attempts (id, username, ip_hash, success, created_at, account_locked_until, ip_locked_until)
         SELECT ${`login-${crypto.randomUUID()}`}, ${username}, ${ipHash}, ${success}, ${now.toISOString()},

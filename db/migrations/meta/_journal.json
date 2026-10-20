@@ -183,6 +183,13 @@
       "when": 1792449460980,
       "tag": "0025_admin_login_attempts",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792450922743,
+      "tag": "0026_admin_audit_log",
+      "breakpoints": true
     }
   ]
 }

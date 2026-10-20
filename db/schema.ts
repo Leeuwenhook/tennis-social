@@ -268,3 +268,20 @@ export const adminLoginAttempts = pgTable('admin_login_attempts', {
   index('idx_admin_login_attempts_ip_created').on(table.ipHash, table.createdAt),
   index('idx_admin_login_attempts_created').on(table.createdAt),
 ]);
+
+export const adminAuditLog = pgTable('admin_audit_log', {
+  id: text('id').primaryKey(),
+  createdAt: text('created_at').notNull(),
+  actor: text('actor').notNull(),
+  action: text('action').notNull(),
+  targetType: text('target_type').notNull(),
+  targetId: text('target_id').notNull(),
+  summary: text('summary').notNull().default(''),
+  beforeJson: text('before_json'),
+  afterJson: text('after_json'),
+  undoneAt: text('undone_at'),
+  undoneBy: text('undone_by'),
+}, (table) => [
+  index('idx_admin_audit_log_created').on(table.createdAt),
+  index('idx_admin_audit_log_target').on(table.targetType, table.targetId, table.createdAt),
+]);

@@ -88,28 +88,33 @@ export function createAdminSession(username: string) {
   return `${payload}.${signature(payload, config.secret)}`;
 }
 
-export function isAdminAuthenticated(request: Request) {
+/** The signed-in admin's username, or null when the cookie is missing or invalid. */
+export function adminUsername(request: Request): string | null {
   const value = readCookie(request);
   const [payload, providedSignature] = value.split('.');
-  if (!payload || !providedSignature) return false;
+  if (!payload || !providedSignature) return null;
   const config = adminConfig();
-  if (!config) return false;
+  if (!config) return null;
   if (!equal(providedSignature, signature(payload, config.secret)))
-    return false;
+    return null;
   try {
     const parsed = JSON.parse(decode(payload)) as {
       sub?: unknown;
       exp?: unknown;
     };
-    return (
-      typeof parsed.sub === 'string' &&
+    return typeof parsed.sub === 'string' &&
       config.accounts.some((account) => parsed.sub === account.username) &&
       typeof parsed.exp === 'number' &&
       parsed.exp > Math.floor(Date.now() / 1000)
-    );
+      ? parsed.sub
+      : null;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export function isAdminAuthenticated(request: Request) {
+  return adminUsername(request) !== null;
 }
 
 export function requireAdmin(request: Request) {

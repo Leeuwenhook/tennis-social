@@ -1,3 +1,4 @@
+import { recordAdminAction } from '@/lib/server/audit-log';
 import {
   database,
   DatabaseNotConfiguredError,
@@ -229,6 +230,10 @@ export async function POST(request: Request) {
       .map((rows) => rows[0] as SessionRow)
       .filter(Boolean)
       .map(serializeSession);
+    await recordAdminAction(db, request, {
+      action: 'sessions.import', targetType: 'import', targetId: imported.map((session) => session.id).join(',').slice(0, 2000),
+      summary: `${imported.length} sessions, ${createdVenues.length} new venues`,
+    });
     return Response.json({
       sessions: imported,
       importedCount: imported.length,

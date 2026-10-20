@@ -1,3 +1,4 @@
+import { recordAdminAction } from '@/lib/server/audit-log';
 import { requireAdmin } from '@/lib/server/admin-auth';
 import {
   database,
@@ -33,6 +34,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       RETURNING *
     ` as ReservationRequestRow[];
     if (!rows[0]) return Response.json({ error: 'not_found' }, { status: 404 });
+    await recordAdminAction(db, request, {
+      action: 'request.status', targetType: 'request', targetId: id,
+      summary: `${rows[0].venue_name || rows[0].postcode} → ${body.status}`, after: { status: body.status },
+    });
     return Response.json({ request: serializeReservationRequest(rows[0]) });
   } catch (error) {
     if (error instanceof DatabaseNotConfiguredError) {

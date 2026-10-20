@@ -50,9 +50,11 @@ beforeEach(() => {
     updated_at: '2026-10-01T12:00:00.000Z',
   };
   globalThis.fetch = async (_url, init) => {
-    databaseCalls += 1;
     assert.ok(typeof init?.body === 'string');
-    const query = JSON.parse(init.body) as { params: string[] };
+    const query = JSON.parse(init.body) as { query: string; params: string[] };
+    // The admin audit log insert is not part of the status change under test.
+    if (query.query.includes('admin_audit_log')) return Response.json({ fields: [], rows: [], rowCount: 1, command: 'INSERT' });
+    databaseCalls += 1;
     const [status, updatedAt, id] = query.params;
     if (id === savedRow.id)
       savedRow = {

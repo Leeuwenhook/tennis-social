@@ -17,7 +17,6 @@ export type VenueInput = {
   area?: unknown;
   areaZh?: unknown;
   address?: unknown;
-  addressZh?: unknown;
   postcode?: unknown;
   photo?: unknown;
   photos?: unknown;
@@ -37,7 +36,6 @@ export type ValidatedVenueInput = {
   area: string;
   areaZh: string;
   address: string;
-  addressZh: string;
   postcode: string;
   photo: string;
   photos: string[];
@@ -145,7 +143,6 @@ export function validateVenueInput(input: VenueInput): ValidatedVenueInput | nul
     area: cleanString(input.area, 120),
     areaZh: cleanString(input.areaZh, 120),
     address: cleanString(input.address, 300),
-    addressZh: cleanString(input.addressZh, 300),
     postcode: cleanString(input.postcode, 20).toUpperCase(),
     photo: photos[0],
     photos,

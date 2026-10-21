@@ -42,7 +42,7 @@ export async function POST(
       SET archived_at = ${archived ? now : null}, updated_at = ${now}
       WHERE id = ${id}
       RETURNING id, name, name_zh, area, area_zh, photo, notes, description, description_zh,
-                peak_price_pence, off_peak_price_pence, photos_json, address, address_zh, postcode, court_count, court_setting, floodlights, archived_at, created_at, updated_at
+                peak_price_pence, off_peak_price_pence, photos_json, address, postcode, court_count, court_setting, floodlights, archived_at, created_at, updated_at
     `) as VenueRow[];
     if (!rows[0]) return Response.json({ error: 'venue_not_found' }, { status: 404 });
     return Response.json({ venue: serializeVenue(rows[0]) });

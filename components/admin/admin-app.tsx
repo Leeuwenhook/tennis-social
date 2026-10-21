@@ -435,7 +435,6 @@ export function AdminApp() {
       area,
       areaZh: existing?.areaZh.trim() || area,
       address: submittedDraft.address.trim(),
-      addressZh: submittedDraft.addressZh.trim(),
       postcode: submittedDraft.postcode.trim().toUpperCase(),
       photo: photos[0],
       photos,

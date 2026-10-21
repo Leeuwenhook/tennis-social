@@ -10,7 +10,6 @@ export type Venue = {
   areaZh: string;
   /** Street-level location details are optional so older database rows remain valid. */
   address?: string;
-  addressZh?: string;
   postcode?: string;
   notes?: string;
   photo: string;
@@ -72,7 +71,6 @@ export const venues: Venue[] = [
     area: 'Tower Hamlets',
     areaZh: 'Tower Hamlets 区',
     address: 'Victoria Park Tennis Courts, Grove Road, London',
-    addressZh: 'Victoria Park 网球场，Grove Road，伦敦',
     postcode: 'E9 5HT',
     photo: '/venues/victoria-park.jpg',
     photos: ['/venues/victoria-park.jpg', '/venues/victoria-park-original.jpg'],
@@ -86,7 +84,6 @@ export const venues: Venue[] = [
     area: 'Lambeth',
     areaZh: 'Lambeth 区',
     address: 'Vauxhall Park Tennis Courts, Lawn Lane, London',
-    addressZh: 'Vauxhall Park 网球场，Lawn Lane，伦敦',
     postcode: 'SW8 1UD',
     photo: '/venues/vauxhall-park.jpg',
     photos: ['/venues/vauxhall-park.jpg', '/venues/vauxhall-park-original.jpg'],
@@ -100,7 +97,6 @@ export const venues: Venue[] = [
     area: 'East London',
     areaZh: '东伦敦',
     address: 'Bethnal Green Gardens Tennis Courts, Cambridge Heath Road, London',
-    addressZh: 'Bethnal Green Gardens 网球场，Cambridge Heath Road，伦敦',
     postcode: 'E2 0EU',
     photo: '/venues/bethnal-green.jpg',
     photos: ['/venues/bethnal-green.jpg', '/venues/bethnal-green-original.jpg'],
@@ -114,7 +110,6 @@ export const venues: Venue[] = [
     area: 'Poplar',
     areaZh: 'Poplar 区',
     address: 'Poplar Rec Ground Tennis Courts, Hale Street, London',
-    addressZh: 'Poplar Rec Ground 网球场，Hale Street，伦敦',
     postcode: 'E14 0BP',
     photo: '/venues/poplar-rec-ground.jpg',
     photos: ['/venues/poplar-rec-ground.jpg', '/venues/poplar-rec-ground-original.jpg'],
@@ -128,7 +123,6 @@ export const venues: Venue[] = [
     area: 'Shadwell',
     areaZh: 'Shadwell 区',
     address: 'King Edward Memorial Park Tennis Courts, Glamis Road, London',
-    addressZh: 'King Edward Memorial Park 网球场，Glamis Road，伦敦',
     postcode: 'E1W 3TD',
     photo: '/venues/king-edward-memorial-park.jpg',
     photos: ['/venues/king-edward-memorial-park.jpg', '/venues/king-edward-memorial-park-original.jpg'],

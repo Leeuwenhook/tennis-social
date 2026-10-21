@@ -26,7 +26,7 @@ void test('venue fallback uses public location in both languages without session
   assert.ok(generated.description.includes(venue.name));
   assert.ok(generated.description.includes(venue.address!));
   assert.ok(generated.descriptionZh.includes(venue.nameZh));
-  assert.ok(generated.descriptionZh.includes(venue.addressZh!));
+  assert.ok(generated.descriptionZh.includes(venue.address!));
   assert.doesNotMatch(
     JSON.stringify(generated),
     /PRIVATE|players|\d{2}:\d{2}|\d{4}-\d{2}-\d{2}/,
@@ -111,7 +111,7 @@ void test('booking confirmation loads the stored venue description', async () =>
   Object.assign(process.env, env);
   const venueRow: Record<string, unknown> = {
     id: venues[0].id, name: venues[0].name, name_zh: venues[0].nameZh, area: venues[0].area,
-    area_zh: venues[0].areaZh, address: '', address_zh: '', postcode: '', photo: venues[0].photo,
+    area_zh: venues[0].areaZh, address: '', postcode: '', photo: venues[0].photo,
     description: 'Custom venue copy', description_zh: '自定义场地介绍',
     peak_price_pence: 1000, off_peak_price_pence: 800, created_at: '', updated_at: '',
   };

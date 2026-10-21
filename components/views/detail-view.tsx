@@ -44,7 +44,7 @@ export function DetailView({
   const spots = availableSpots(selectedSession);
   const full = spots === 0;
   const descriptions = resolveVenueDescriptions(selectedVenue);
-  const fullLocation = venueFullLocation(selectedVenue, language);
+  const fullLocation = venueFullLocation(selectedVenue);
 
   return (
     <section className="detail-page page-width">

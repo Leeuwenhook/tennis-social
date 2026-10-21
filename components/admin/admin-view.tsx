@@ -226,22 +226,31 @@ export function AdminView(props: AdminViewProps) {
           </Button>
         </div>
       </div>
-      <div className="admin-setting-card">
-        <div>
-          <strong>{t.racketRentalSetting}</strong>
-          <p>{racketRentalEnabled ? t.racketRentalEnabled : t.racketRentalDisabled}</p>
+      <section className="admin-settings-section" aria-labelledby="admin-settings-heading">
+        <div className="admin-settings-heading">
+          <div>
+            <p className="eyebrow"><Settings2 size={14} /> {t.admin}</p>
+            <h2 id="admin-settings-heading">{t.adminSettings}</h2>
+            <p>{t.adminSettingsIntro}</p>
+          </div>
         </div>
-        <label className="toggle-control">
-          <input
-            type="checkbox"
-            checked={racketRentalEnabled}
-            disabled={racketRentalBusy || adminBusy}
-            aria-label={t.updateRacketRental}
-            onChange={(event) => onUpdateRacketRental(event.target.checked)}
-          />
-          <span aria-hidden="true" />
-        </label>
-      </div>
+        <div className="admin-setting-card">
+          <div>
+            <strong>{t.racketRentalSetting}</strong>
+            <p>{racketRentalEnabled ? t.racketRentalEnabled : t.racketRentalDisabled}</p>
+          </div>
+          <label className="toggle-control">
+            <input
+              type="checkbox"
+              checked={racketRentalEnabled}
+              disabled={racketRentalBusy || adminBusy}
+              aria-label={t.updateRacketRental}
+              onChange={(event) => onUpdateRacketRental(event.target.checked)}
+            />
+            <span aria-hidden="true" />
+          </label>
+        </div>
+      </section>
       {adminTab === 'sessions' ? <div className="admin-stats">
         <div>
           <span>{publishedCount}</span>

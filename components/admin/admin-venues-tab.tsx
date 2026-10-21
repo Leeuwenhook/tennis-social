@@ -132,7 +132,8 @@ export function AdminVenuesTab(props: AdminViewProps) {
     const floodlightsIssue = issueFor('floodlights');
     const photosIssue = issueFor('photos');
     return (
-      <form className="admin-editor venue-editor" onSubmit={onSaveVenue} noValidate>
+      // Keyed by venue so switching venues remounts the form and its scroll starts at the top.
+      <form key={venueDraft.id ?? 'new'} className="admin-editor venue-editor" onSubmit={onSaveVenue} noValidate>
         <div className="admin-editor-heading">
           <div>
             <p className="eyebrow muted">{venueDraft.id ? t.editVenue : t.addVenue}</p>

@@ -3054,6 +3054,18 @@
   padding: 22px;
 }
 
+/* Wide screens: the sticky venue editor scrolls on its own, so the wheel
+   scrolls whichever pane the pointer is over (editor vs. page/list). */
+@media (min-width: 1041px) {
+  .admin-venue-layout > .venue-editor {
+    max-height: calc(100vh - 128px);
+    max-height: calc(100dvh - 128px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+}
+
 .admin-venue-row {
   display: grid;
   grid-template-columns: 82px minmax(0, 1fr) auto;

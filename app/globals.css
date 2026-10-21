@@ -3907,6 +3907,27 @@
   }
 }
 
+.admin-settings-section {
+  border: 1px solid var(--line, #d8e1dc);
+  border-radius: 18px;
+  background: var(--card, #fff);
+  margin: 1.5rem 0 2rem;
+  padding: 1.25rem;
+}
+
+.admin-settings-heading h2 {
+  margin: 0.35rem 0 0;
+}
+
+.admin-settings-heading p:last-child {
+  color: var(--muted-foreground);
+  margin: 0.35rem 0 0;
+}
+
+.admin-settings-section .admin-setting-card {
+  margin: 1rem 0 0;
+}
+
 .admin-setting-card {
   align-items: center;
   background: var(--surface-soft, #f4f7f3);

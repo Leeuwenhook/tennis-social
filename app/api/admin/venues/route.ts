@@ -36,7 +36,7 @@ export async function GET(request: Request) {
     const today = londonDate(new Date());
     const rows = (await db`
       SELECT v.id, v.name, v.name_zh, v.area, v.area_zh, v.photo, v.notes, v.description, v.description_zh,
-             v.peak_price_pence, v.off_peak_price_pence, v.photos_json, v.address, v.address_zh, v.postcode,
+             v.peak_price_pence, v.off_peak_price_pence, v.photos_json, v.address, v.postcode,
              v.court_count, v.court_setting, v.floodlights, v.archived_at, v.created_at, v.updated_at,
              COALESCE(s.session_count, 0)::integer AS session_count,
              COALESCE(s.future_session_count, 0)::integer AS future_session_count,
@@ -87,14 +87,14 @@ export async function POST(request: Request) {
     const rows = (await auditedMutation(db, request, { action: 'venue.create', targetType: 'venue', targetId: id, summary: venue.name })`
       INSERT INTO venues (
         id, name, name_zh, area, area_zh, photo, notes, description, description_zh, peak_price_pence,
-        off_peak_price_pence, photos_json, address, address_zh, postcode, court_count, court_setting, floodlights, archived_at, created_at, updated_at
+        off_peak_price_pence, photos_json, address, postcode, court_count, court_setting, floodlights, archived_at, created_at, updated_at
       ) VALUES (
         ${id}, ${venue.name}, ${venue.nameZh}, ${venue.area}, ${venue.areaZh}, ${venue.photo}, ${venue.notes}, ${venue.description}, ${venue.descriptionZh},
-        ${venue.peakPricePence}, ${venue.offPeakPricePence}, ${JSON.stringify(venue.photos)}, ${venue.address}, ${venue.addressZh}, ${venue.postcode},
+        ${venue.peakPricePence}, ${venue.offPeakPricePence}, ${JSON.stringify(venue.photos)}, ${venue.address}, ${venue.postcode},
         ${venue.courtCount}, ${venue.courtSetting}, ${venue.floodlights}, NULL, ${now}, ${now}
       )
       RETURNING id, name, name_zh, area, area_zh, photo, notes, description, description_zh,
-                peak_price_pence, off_peak_price_pence, photos_json, address, address_zh, postcode, court_count, court_setting, floodlights, archived_at, created_at, updated_at
+                peak_price_pence, off_peak_price_pence, photos_json, address, postcode, court_count, court_setting, floodlights, archived_at, created_at, updated_at
     `) as VenueRow[];
     return Response.json({ venue: serializeVenue(rows[0]) }, { status: 201 });
   } catch (error) {

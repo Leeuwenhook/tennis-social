@@ -6,7 +6,7 @@ export function generateVenueDescriptions(venue: Venue) {
     .join(', ');
   const locationZh = [
     venue.areaZh || venue.area,
-    venue.addressZh || venue.address,
+    venue.address,
     venue.postcode,
   ]
     .filter(Boolean)

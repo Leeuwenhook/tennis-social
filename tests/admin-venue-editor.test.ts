@@ -28,7 +28,7 @@ void test('venue input issues name each bad field', () => {
 
 const venueFields = [
   ['id', 25], ['name', 25], ['name_zh', 25], ['area', 25], ['area_zh', 25], ['photo', 25], ['notes', 25], ['description', 25],
-  ['description_zh', 25], ['peak_price_pence', 23], ['off_peak_price_pence', 23], ['photos_json', 25], ['address', 25], ['address_zh', 25],
+  ['description_zh', 25], ['peak_price_pence', 23], ['off_peak_price_pence', 23], ['photos_json', 25], ['address', 25],
   ['postcode', 25], ['court_count', 23], ['court_setting', 25], ['floodlights', 16], ['archived_at', 25], ['created_at', 25], ['updated_at', 25],
 ] as const;
 const STORED_UPDATED_AT = '2026-10-20T09:00:00.000Z';
@@ -39,7 +39,7 @@ let lastMutation: { query: string; params: unknown[] } | null = null;
 function venueRow(overrides: Record<string, string | null> = {}) {
   const row: Record<string, string | null> = {
     id: 'venue-1', name: 'Park', name_zh: '公园', area: 'Hackney', area_zh: '哈克尼', photo: '/a.jpg', notes: '', description: null,
-    description_zh: null, peak_price_pence: '1200', off_peak_price_pence: '800', photos_json: '["/a.jpg"]', address: '', address_zh: '',
+    description_zh: null, peak_price_pence: '1200', off_peak_price_pence: '800', photos_json: '["/a.jpg"]', address: '',
     postcode: '', court_count: '4', court_setting: 'outdoor', floodlights: 't', archived_at: null, created_at: STORED_UPDATED_AT, updated_at: STORED_UPDATED_AT,
     ...overrides,
   };

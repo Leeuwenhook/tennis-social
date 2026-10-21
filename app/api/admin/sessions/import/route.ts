@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     await ensureSeeded(db);
     const venueRows = await db`
       SELECT id, name, name_zh, area, area_zh, photo, notes,
-             peak_price_pence, off_peak_price_pence, photos_json, address, address_zh, postcode, court_count, court_setting, floodlights, archived_at, created_at, updated_at
+             peak_price_pence, off_peak_price_pence, photos_json, address, postcode, court_count, court_setting, floodlights, archived_at, created_at, updated_at
       FROM venues
     ` as VenueRow[];
     // Archived venues keep their past sessions but take no new ones.
@@ -198,13 +198,13 @@ export async function POST(request: Request) {
       return db`
         INSERT INTO venues (
           id, name, name_zh, area, area_zh, photo, notes, peak_price_pence,
-          off_peak_price_pence, photos_json, address, address_zh, postcode, created_at, updated_at
+          off_peak_price_pence, photos_json, address, postcode, created_at, updated_at
         ) VALUES (
           ${venue.id}, ${venue.name}, ${venue.nameZh}, 'London', '伦敦', ${venue.photo}, ${venue.notes},
-          ${peakPricePence}, ${peakPricePence}, ${JSON.stringify([venue.photo])}, '', '', '', ${now}, ${now}
+          ${peakPricePence}, ${peakPricePence}, ${JSON.stringify([venue.photo])}, '', '',${now}, ${now}
         )
         RETURNING id, name, name_zh, area, area_zh, photo, notes,
-                  peak_price_pence, off_peak_price_pence, photos_json, address, address_zh, postcode, court_count, court_setting, floodlights, archived_at, created_at, updated_at
+                  peak_price_pence, off_peak_price_pence, photos_json, address, postcode, court_count, court_setting, floodlights, archived_at, created_at, updated_at
       `;
     });
     const importedIds: string[] = [];

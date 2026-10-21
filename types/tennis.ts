@@ -103,7 +103,6 @@ export type VenueDraft = {
   description: string;
   descriptionZh: string;
   address: string;
-  addressZh: string;
   postcode: string;
   id: string | null;
   name: string;

@@ -10,7 +10,7 @@ export const SESSION_FIELDS = [
 /** Session columns that are locked while a session has confirmed bookings. */
 const LOCKED_SESSION_FIELDS = ['venue_id', 'date', 'start_time', 'end_time', 'price_pence'] as const;
 export const VENUE_FIELDS = [
-  'name', 'name_zh', 'area', 'area_zh', 'address', 'address_zh', 'postcode', 'description',
+  'name', 'name_zh', 'area', 'area_zh', 'address', 'postcode', 'description',
   'description_zh', 'notes', 'photo', 'photos_json', 'peak_price_pence', 'off_peak_price_pence',
   'court_count', 'court_setting', 'floodlights',
 ] as const;
@@ -242,7 +242,7 @@ export async function undoAdminAction(db: Database, request: Request, entryId: s
       ), restored AS (
         UPDATE venues
         SET name = ${before.name as string}, name_zh = ${before.name_zh as string}, area = ${before.area as string},
-            area_zh = ${before.area_zh as string}, address = ${(before.address as string) ?? ''}, address_zh = ${(before.address_zh as string) ?? ''},
+            area_zh = ${before.area_zh as string}, address = ${(before.address as string) ?? ''},
             postcode = ${(before.postcode as string) ?? ''}, description = ${(before.description as string | null) ?? null},
             description_zh = ${(before.description_zh as string | null) ?? null}, notes = ${(before.notes as string) ?? ''},
             photo = COALESCE(${(before.photo as string | undefined) ?? null}::text, photo),

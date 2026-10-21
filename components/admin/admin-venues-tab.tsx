@@ -195,10 +195,6 @@ export function AdminVenuesTab(props: AdminViewProps) {
             <Input id="venue-postcode" value={venueDraft.postcode} onChange={(event) => setField('postcode', event.target.value)} />
           </div>
           <div className="field">
-            <Label htmlFor="venue-address-zh">{language === 'zh' ? '中文地址' : 'Chinese address'}</Label>
-            <Input id="venue-address-zh" value={venueDraft.addressZh} onChange={(event) => setField('addressZh', event.target.value)} />
-          </div>
-          <div className="field">
             <Label htmlFor="venue-peak-price">
               {t.peakPrice} <em>*</em>
             </Label>

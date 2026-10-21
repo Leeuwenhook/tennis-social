@@ -63,13 +63,11 @@ export function venueLabel(venue: Venue) {
 }
 
 export function venueLocationSummary(venue: Venue, language: 'en' | 'zh' = 'en') {
-  const address = language === 'zh' ? venue.addressZh || venue.address : venue.address;
-  return [address, venue.postcode].filter(Boolean).join(' · ') || (language === 'zh' ? venue.areaZh : venue.area);
+  return [venue.address, venue.postcode].filter(Boolean).join(' · ') || (language === 'zh' ? venue.areaZh : venue.area);
 }
 
-export function venueFullLocation(venue: Venue, language: 'en' | 'zh' = 'en') {
-  const address = language === 'zh' ? venue.addressZh || venue.address : venue.address;
-  return [venue.name, address || venue.area, venue.postcode].filter(Boolean).join(', ');
+export function venueFullLocation(venue: Venue) {
+  return [venue.name, venue.address || venue.area, venue.postcode].filter(Boolean).join(', ');
 }
 
 export function venueMapsUrl(venue: Venue) {
@@ -78,7 +76,7 @@ export function venueMapsUrl(venue: Venue) {
 }
 
 export function venueSearchText(venue: Venue) {
-  return [venue.name, venue.nameZh, venue.area, venue.areaZh, venue.address, venue.addressZh, venue.postcode].join(' ').toLocaleLowerCase();
+  return [venue.name, venue.nameZh, venue.area, venue.areaZh, venue.address, venue.postcode].join(' ').toLocaleLowerCase();
 }
 
 export function validFormats(value: unknown): GameFormat[] {
@@ -205,7 +203,6 @@ export function normalizeVenue(value: unknown): Venue | null {
     area: venue.area,
     areaZh: venue.areaZh,
     address: typeof venue.address === 'string' ? venue.address : undefined,
-    addressZh: typeof venue.addressZh === 'string' ? venue.addressZh : undefined,
     postcode: typeof venue.postcode === 'string' ? venue.postcode : undefined,
     photo: venue.photo,
     photos,
@@ -331,7 +328,6 @@ export function emptyVenueDraft(venueList: Venue[] = venues): VenueDraft {
     name: '',
     area: '',
     address: '',
-    addressZh: '',
     postcode: '',
     photo: '',
     photos: [],
@@ -354,7 +350,6 @@ export function venueDraftFromVenue(venue: Venue): VenueDraft {
     name: venue.name,
     area: venue.area,
     address: venue.address ?? '',
-    addressZh: venue.addressZh ?? '',
     postcode: venue.postcode ?? '',
     photo: venue.photo,
     photos: venue.photos?.length ? [...venue.photos] : [venue.photo],

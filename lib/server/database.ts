@@ -34,7 +34,6 @@ export type VenueRow = {
   area: string;
   area_zh: string;
   address?: string;
-  address_zh?: string;
   postcode?: string;
   photo: string;
   photos_json: string;
@@ -218,10 +217,10 @@ function venueInsert(db: Database, venue: ReturnType<typeof createDemoSeed>['ven
   return db`
     INSERT INTO venues (
       id, name, name_zh, area, area_zh, photo, notes, peak_price_pence,
-      off_peak_price_pence, photos_json, address, address_zh, postcode, created_at, updated_at
+      off_peak_price_pence, photos_json, address, postcode, created_at, updated_at
     ) VALUES (
       ${venue.id}, ${venue.name}, ${venue.nameZh}, ${venue.area}, ${venue.areaZh}, ${venue.photo}, ${venue.notes ?? ''},
-      ${venue.peakPricePence}, ${venue.offPeakPricePence}, ${JSON.stringify(venue.photos?.length ? venue.photos : [venue.photo])}, ${venue.address ?? ''}, ${venue.addressZh ?? ''}, ${venue.postcode ?? ''}, ${now}, ${now}
+      ${venue.peakPricePence}, ${venue.offPeakPricePence}, ${JSON.stringify(venue.photos?.length ? venue.photos : [venue.photo])}, ${venue.address ?? ''},${venue.postcode ?? ''}, ${now}, ${now}
     )
     ON CONFLICT (id) DO NOTHING
   `;
@@ -293,7 +292,6 @@ export function serializeVenue(row: VenueRow) {
     area: row.area,
     areaZh: row.area_zh,
     address: row.address?.trim() || demoLocation?.address || '',
-    addressZh: row.address_zh?.trim() || demoLocation?.addressZh || '',
     postcode: row.postcode?.trim() || demoLocation?.postcode || '',
     photo: row.photo,
     photos,

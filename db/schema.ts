@@ -25,6 +25,7 @@ export const venues = pgTable('venues', {
   courtCount: integer('court_count'),
   courtSetting: text('court_setting'),
   floodlights: boolean('floodlights'),
+  freeCancellationHours: integer('free_cancellation_hours'),
   archivedAt: text('archived_at'),
   createdAt: text('created_at').notNull(),
   updatedAt: text('updated_at').notNull(),

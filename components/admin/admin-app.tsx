@@ -31,7 +31,7 @@ import {
   venueUsage,
   weekStart,
 } from '@/lib/tennis-utils';
-import { parseCourtCountInput, parsePriceInput, venueFormIssues, type VenueFieldIssue } from '@/lib/venue-form';
+import { parseCourtCountInput, parseFreeCancellationHoursInput, parsePriceInput, venueFormIssues, type VenueFieldIssue } from '@/lib/venue-form';
 import { translations } from '@/lib/translations';
 import type {
   AdminTab,
@@ -52,6 +52,7 @@ import type {
 const ADMIN_LANGUAGE_STORAGE_KEY = 'tennis-match-admin-language';
 const VENUE_FIELD_ISSUES: readonly VenueFieldIssue[] = [
   'name', 'area', 'photos', 'peakPrice', 'offPeakPrice', 'priceOrder', 'courtCount', 'courtSetting', 'floodlights',
+  'freeCancellationHours',
 ];
 
 /** The draft fields each issue is about; an issue is hidden once one of them changes. */
@@ -65,6 +66,7 @@ const VENUE_ISSUE_FIELDS: Record<VenueFieldIssue, Array<keyof VenueDraft>> = {
   courtCount: ['courtCount'],
   courtSetting: ['courtSetting'],
   floodlights: ['floodlights'],
+  freeCancellationHours: ['freeCancellationHours'],
 };
 
 function sameVenueField(a: VenueDraft, b: VenueDraft, field: keyof VenueDraft) {
@@ -419,7 +421,11 @@ export function AdminApp() {
     const peakPricePence = parsePriceInput(submittedDraft.peakPrice);
     const offPeakPricePence = parsePriceInput(submittedDraft.offPeakPrice);
     const courtCount = parseCourtCountInput(submittedDraft.courtCount);
-    if (issues.length || peakPricePence === null || offPeakPricePence === null || courtCount === undefined) {
+    const freeCancellationHours = parseFreeCancellationHoursInput(submittedDraft.freeCancellationHours);
+    if (
+      issues.length || peakPricePence === null || offPeakPricePence === null
+      || courtCount === undefined || freeCancellationHours === undefined
+    ) {
       setVenueIssues({ issues, draft: submittedDraft });
       setAdminMessage(t.venueFixFields);
       return;
@@ -446,6 +452,7 @@ export function AdminApp() {
       courtCount,
       courtSetting: submittedDraft.courtSetting || null,
       floodlights: submittedDraft.floodlights ? submittedDraft.floodlights === 'yes' : null,
+      freeCancellationHours,
       ...(existing && submittedDraft.updatedAt ? { expectedUpdatedAt: submittedDraft.updatedAt } : {}),
     };
     adminBusyRef.current = true;

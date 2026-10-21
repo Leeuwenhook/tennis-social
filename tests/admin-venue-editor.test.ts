@@ -6,6 +6,7 @@ import { ADMIN_COOKIE_NAME, createAdminSession } from '../lib/server/admin-auth'
 import { venueInputIssues } from '../lib/server/admin-validation';
 import { undoAdminAction, VENUE_FIELDS } from '../lib/server/audit-log';
 import type { Database } from '../lib/server/database';
+import { parseFreeCancellationHoursInput } from '../lib/venue-form';
 
 const valid = { name: 'Park', nameZh: '公园', area: 'Hackney', areaZh: '哈克尼', photos: ['/a.jpg'], peakPricePence: 1200, offPeakPricePence: 800 };
 
@@ -24,12 +25,24 @@ void test('venue input issues name each bad field', () => {
   assert.deepEqual(venueInputIssues({ ...valid, courtCount: 100 }), []);
   assert.deepEqual(venueInputIssues({ ...valid, courtSetting: 'clay' }), ['courtSetting']);
   assert.deepEqual(venueInputIssues({ ...valid, floodlights: 'yes' }), ['floodlights']);
+  for (const freeCancellationHours of [null, 0, 24, 720]) assert.deepEqual(venueInputIssues({ ...valid, freeCancellationHours }), []);
+  for (const freeCancellationHours of [-1, 721, 1.5, '24']) {
+    assert.deepEqual(venueInputIssues({ ...valid, freeCancellationHours }), ['freeCancellationHours']);
+  }
+});
+
+void test('free cancellation hours input accepts whole hours or empty', () => {
+  assert.equal(parseFreeCancellationHoursInput(''), null);
+  assert.equal(parseFreeCancellationHoursInput(' 24 '), 24);
+  assert.equal(parseFreeCancellationHoursInput('0'), 0);
+  assert.equal(parseFreeCancellationHoursInput('720'), 720);
+  for (const value of ['721', '-1', '1.5', 'abc']) assert.equal(parseFreeCancellationHoursInput(value), undefined);
 });
 
 const venueFields = [
   ['id', 25], ['name', 25], ['name_zh', 25], ['area', 25], ['area_zh', 25], ['photo', 25], ['notes', 25], ['description', 25],
   ['description_zh', 25], ['peak_price_pence', 23], ['off_peak_price_pence', 23], ['photos_json', 25], ['address', 25],
-  ['postcode', 25], ['court_count', 23], ['court_setting', 25], ['floodlights', 16], ['archived_at', 25], ['created_at', 25], ['updated_at', 25],
+  ['postcode', 25], ['court_count', 23], ['court_setting', 25], ['floodlights', 16], ['free_cancellation_hours', 23], ['archived_at', 25], ['created_at', 25], ['updated_at', 25],
 ] as const;
 const STORED_UPDATED_AT = '2026-10-20T09:00:00.000Z';
 let venueExists = true;
@@ -40,7 +53,7 @@ function venueRow(overrides: Record<string, string | null> = {}) {
   const row: Record<string, string | null> = {
     id: 'venue-1', name: 'Park', name_zh: '公园', area: 'Hackney', area_zh: '哈克尼', photo: '/a.jpg', notes: '', description: null,
     description_zh: null, peak_price_pence: '1200', off_peak_price_pence: '800', photos_json: '["/a.jpg"]', address: '',
-    postcode: '', court_count: '4', court_setting: 'outdoor', floodlights: 't', archived_at: null, created_at: STORED_UPDATED_AT, updated_at: STORED_UPDATED_AT,
+    postcode: '', court_count: '4', court_setting: 'outdoor', floodlights: 't', free_cancellation_hours: '24', archived_at: null, created_at: STORED_UPDATED_AT, updated_at: STORED_UPDATED_AT,
     ...overrides,
   };
   return venueFields.map(([name]) => row[name]);
@@ -98,14 +111,17 @@ void test('a venue edit from a stale form is refused with the current venue', as
   assert.equal(body.error, 'venue_changed');
   assert.equal(body.venue.updatedAt, STORED_UPDATED_AT);
   assert.equal(body.venue.courtCount, 4);
+  assert.equal(body.venue.freeCancellationHours, 24);
   assert.equal(lastMutation, null);
 });
 
 void test('a venue edit saves court details when the form is current', async () => {
-  const response = await PATCH(adminRequest('/api/admin/venues/venue-1', 'PATCH', { ...valid, courtCount: 6, courtSetting: 'indoor', floodlights: false, expectedUpdatedAt: STORED_UPDATED_AT }), context);
+  const response = await PATCH(adminRequest('/api/admin/venues/venue-1', 'PATCH', { ...valid, courtCount: 6, courtSetting: 'indoor', floodlights: false, freeCancellationHours: 48, expectedUpdatedAt: STORED_UPDATED_AT }), context);
   assert.equal(response.status, 200);
   assert.match(lastMutation!.query, /court_count = \$\d+,\s+court_setting = \$\d+, floodlights = \$\d+/);
+  assert.match(lastMutation!.query, /free_cancellation_hours = \$\d+/);
   const sent = lastMutation!.params.map(String);
+  assert.ok(sent.includes('48'));
   assert.ok(sent.includes('6') && sent.includes('indoor') && sent.includes('false'));
 });
 
@@ -140,7 +156,7 @@ void test('archiving and restoring a venue are logged and validated', async () =
 });
 
 void test('undoing an older venue edit keeps court details its snapshot lacks', async () => {
-  const oldFields = VENUE_FIELDS.filter((field) => !['court_count', 'court_setting', 'floodlights'].includes(field));
+  const oldFields = VENUE_FIELDS.filter((field) => !['court_count', 'court_setting', 'floodlights', 'free_cancellation_hours'].includes(field));
   const base = Object.fromEntries(oldFields.map((field) => [field, field.endsWith('pence') ? 1000 : field]));
   const auditEntry = {
     id: 'a1', created_at: '', actor: 'admin', action: 'venue.update', target_type: 'venue', target_id: 'venue-1', summary: 'x',
@@ -163,6 +179,7 @@ void test('undoing an older venue edit keeps court details its snapshot lacks', 
   assert.equal(flagFor('court_count'), false);
   assert.equal(flagFor('court_setting'), false);
   assert.equal(flagFor('floodlights'), false);
+  assert.equal(flagFor('free_cancellation_hours'), false);
 
   calls.length = 0;
   auditEntry.before_json = JSON.stringify({ ...base, name: 'Old', court_count: 2, court_setting: 'outdoor', floodlights: false });

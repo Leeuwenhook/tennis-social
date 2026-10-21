@@ -12,7 +12,7 @@ const LOCKED_SESSION_FIELDS = ['venue_id', 'date', 'start_time', 'end_time', 'pr
 export const VENUE_FIELDS = [
   'name', 'name_zh', 'area', 'area_zh', 'address', 'postcode', 'description',
   'description_zh', 'notes', 'photo', 'photos_json', 'peak_price_pence', 'off_peak_price_pence',
-  'court_count', 'court_setting', 'floodlights',
+  'court_count', 'court_setting', 'floodlights', 'free_cancellation_hours',
 ] as const;
 
 const PHOTO_FIELDS = ['photo', 'photos_json'];
@@ -251,6 +251,7 @@ export async function undoAdminAction(db: Database, request: Request, entryId: s
             court_count = CASE WHEN ${'court_count' in before}::boolean THEN ${(before.court_count as number | null) ?? null}::integer ELSE court_count END,
             court_setting = CASE WHEN ${'court_setting' in before}::boolean THEN ${(before.court_setting as string | null) ?? null}::text ELSE court_setting END,
             floodlights = CASE WHEN ${'floodlights' in before}::boolean THEN ${(before.floodlights as boolean | null) ?? null}::boolean ELSE floodlights END,
+            free_cancellation_hours = CASE WHEN ${'free_cancellation_hours' in before}::boolean THEN ${(before.free_cancellation_hours as number | null) ?? null}::integer ELSE free_cancellation_hours END,
             updated_at = ${now}
         WHERE id = ${entry.target_id} AND to_jsonb(venues) @> ${expected}::jsonb
           AND EXISTS (SELECT 1 FROM claimed)

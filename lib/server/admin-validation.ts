@@ -1,6 +1,7 @@
 import { GAME_FORMATS, venues, type GameFormat } from '../demo-data';
 import {
   isCourtSetting,
+  isFreeCancellationHours,
   MAX_COURT_COUNT,
   MAX_VENUE_PRICE_PENCE,
   type CourtSetting,
@@ -26,6 +27,7 @@ export type VenueInput = {
   courtCount?: unknown;
   courtSetting?: unknown;
   floodlights?: unknown;
+  freeCancellationHours?: unknown;
 };
 
 export type ValidatedVenueInput = {
@@ -45,6 +47,7 @@ export type ValidatedVenueInput = {
   courtCount: number | null;
   courtSetting: CourtSetting | null;
   floodlights: boolean | null;
+  freeCancellationHours: number | null;
 };
 
 export type SessionInput = {
@@ -129,6 +132,7 @@ export function venueInputIssues(input: VenueInput): VenueFieldIssue[] {
   if (courtCount !== null && (!Number.isInteger(courtCount) || (courtCount as number) < 1 || (courtCount as number) > MAX_COURT_COUNT)) issues.push('courtCount');
   if ((input.courtSetting ?? null) !== null && !isCourtSetting(input.courtSetting)) issues.push('courtSetting');
   if ((input.floodlights ?? null) !== null && typeof input.floodlights !== 'boolean') issues.push('floodlights');
+  if ((input.freeCancellationHours ?? null) !== null && !isFreeCancellationHours(input.freeCancellationHours)) issues.push('freeCancellationHours');
   return issues;
 }
 
@@ -152,6 +156,7 @@ export function validateVenueInput(input: VenueInput): ValidatedVenueInput | nul
     courtCount: (input.courtCount as number | null | undefined) ?? null,
     courtSetting: isCourtSetting(input.courtSetting) ? input.courtSetting : null,
     floodlights: typeof input.floodlights === 'boolean' ? input.floodlights : null,
+    freeCancellationHours: isFreeCancellationHours(input.freeCancellationHours) ? input.freeCancellationHours : null,
   };
 }
 

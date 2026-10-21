@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     await ensureSeeded(db);
     const venueRows = await db`
       SELECT id, name, name_zh, area, area_zh, photo, notes,
-             peak_price_pence, off_peak_price_pence, photos_json, address, postcode, court_count, court_setting, floodlights, archived_at, created_at, updated_at
+             peak_price_pence, off_peak_price_pence, photos_json, address, postcode, court_count, court_setting, floodlights, free_cancellation_hours, archived_at, created_at, updated_at
       FROM venues
     ` as VenueRow[];
     // Archived venues keep their past sessions but take no new ones.
@@ -204,7 +204,7 @@ export async function POST(request: Request) {
           ${peakPricePence}, ${peakPricePence}, ${JSON.stringify([venue.photo])}, '', '',${now}, ${now}
         )
         RETURNING id, name, name_zh, area, area_zh, photo, notes,
-                  peak_price_pence, off_peak_price_pence, photos_json, address, postcode, court_count, court_setting, floodlights, archived_at, created_at, updated_at
+                  peak_price_pence, off_peak_price_pence, photos_json, address, postcode, court_count, court_setting, floodlights, free_cancellation_hours, archived_at, created_at, updated_at
       `;
     });
     const importedIds: string[] = [];

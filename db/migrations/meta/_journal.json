@@ -204,6 +204,13 @@
       "when": 1792536636206,
       "tag": "0028_venue_details_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792586157273,
+      "tag": "0029_venue_free_cancellation",
+      "breakpoints": true
     }
   ]
 }

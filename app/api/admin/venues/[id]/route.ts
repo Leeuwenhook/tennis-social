@@ -54,10 +54,11 @@ export async function PATCH(
           address = ${venue.address}, postcode = ${venue.postcode},
           peak_price_pence = ${venue.peakPricePence},
           off_peak_price_pence = ${venue.offPeakPricePence}, court_count = ${venue.courtCount},
-          court_setting = ${venue.courtSetting}, floodlights = ${venue.floodlights}, updated_at = ${now}
+          court_setting = ${venue.courtSetting}, floodlights = ${venue.floodlights},
+          free_cancellation_hours = ${venue.freeCancellationHours}, updated_at = ${now}
       WHERE id = ${id} AND to_jsonb(venues) @> ${expected}::jsonb
       RETURNING id, name, name_zh, area, area_zh, photo, notes, description, description_zh,
-                peak_price_pence, off_peak_price_pence, photos_json, address, postcode, court_count, court_setting, floodlights, archived_at, created_at, updated_at
+                peak_price_pence, off_peak_price_pence, photos_json, address, postcode, court_count, court_setting, floodlights, free_cancellation_hours, archived_at, created_at, updated_at
     `) as VenueRow[];
     if (!rows[0]) {
       const currentRows = (await db`SELECT * FROM venues WHERE id = ${id}`) as VenueRow[];

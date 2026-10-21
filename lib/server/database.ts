@@ -43,6 +43,7 @@ export type VenueRow = {
   court_count?: number | null;
   court_setting?: string | null;
   floodlights?: boolean | null;
+  free_cancellation_hours?: number | null;
   archived_at?: string | null;
   created_at: string;
   updated_at: string;
@@ -303,6 +304,7 @@ export function serializeVenue(row: VenueRow) {
     courtCount: row.court_count ?? null,
     courtSetting: isCourtSetting(row.court_setting) ? row.court_setting : null,
     floodlights: row.floodlights ?? null,
+    freeCancellationHours: row.free_cancellation_hours ?? null,
     archivedAt: row.archived_at ?? null,
     updatedAt: row.updated_at,
   };

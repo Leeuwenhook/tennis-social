@@ -8,7 +8,7 @@ import {
   type Venue,
 } from '@/lib/demo-data';
 import { parseMinutes } from '@/lib/formatters';
-import { formatPriceInput, isCourtSetting } from '@/lib/venue-form';
+import { formatPriceInput, isCourtSetting, isFreeCancellationHours } from '@/lib/venue-form';
 import type {
   AdminVenue,
   Booking,
@@ -214,6 +214,7 @@ export function normalizeVenue(value: unknown): Venue | null {
     courtCount: typeof venue.courtCount === 'number' && Number.isInteger(venue.courtCount) ? venue.courtCount : null,
     courtSetting: isCourtSetting(venue.courtSetting) ? venue.courtSetting : null,
     floodlights: typeof venue.floodlights === 'boolean' ? venue.floodlights : null,
+    freeCancellationHours: isFreeCancellationHours(venue.freeCancellationHours) ? venue.freeCancellationHours : null,
     archivedAt: typeof venue.archivedAt === 'string' && venue.archivedAt ? venue.archivedAt : null,
     updatedAt: typeof venue.updatedAt === 'string' ? venue.updatedAt : undefined,
   };
@@ -339,6 +340,7 @@ export function emptyVenueDraft(venueList: Venue[] = venues): VenueDraft {
     courtCount: '',
     courtSetting: '',
     floodlights: '',
+    freeCancellationHours: '',
     updatedAt: null,
   };
 }
@@ -361,6 +363,7 @@ export function venueDraftFromVenue(venue: Venue): VenueDraft {
     courtCount: typeof venue.courtCount === 'number' ? String(venue.courtCount) : '',
     courtSetting: venue.courtSetting ?? '',
     floodlights: venue.floodlights === true ? 'yes' : venue.floodlights === false ? 'no' : '',
+    freeCancellationHours: typeof venue.freeCancellationHours === 'number' ? String(venue.freeCancellationHours) : '',
     updatedAt: venue.updatedAt ?? null,
   };
 }

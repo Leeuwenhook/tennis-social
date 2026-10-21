@@ -20,6 +20,8 @@ export type Venue = {
   courtCount?: number | null;
   courtSetting?: CourtSetting | null;
   floodlights?: boolean | null;
+  /** Hours before a slot that the court booking can still be cancelled for free; null means not known yet. */
+  freeCancellationHours?: number | null;
   /** Archived venues stay attached to their sessions but cannot be picked for new ones. */
   archivedAt?: string | null;
   updatedAt?: string;

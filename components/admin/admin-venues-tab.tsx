@@ -39,6 +39,7 @@ function issueMessages(t: Translations): Record<VenueFieldIssue, string> {
     courtCount: t.venueCourtCountInvalid,
     courtSetting: t.venueCourtSettingInvalid,
     floodlights: t.venueFloodlightsInvalid,
+    freeCancellationHours: t.venueFreeCancellationInvalid,
   };
 }
 
@@ -130,6 +131,7 @@ export function AdminVenuesTab(props: AdminViewProps) {
     const courtCountIssue = issueFor('courtCount');
     const courtSettingIssue = issueFor('courtSetting');
     const floodlightsIssue = issueFor('floodlights');
+    const freeCancellationIssue = issueFor('freeCancellationHours');
     const photosIssue = issueFor('photos');
     return (
       // Keyed by venue so switching venues remounts the form and its scroll starts at the top.
@@ -269,6 +271,18 @@ export function AdminVenuesTab(props: AdminViewProps) {
             </select>
             {renderFieldError('venue-floodlights', floodlightsIssue)}
           </div>
+          <div className="field">
+            <Label htmlFor="venue-free-cancellation">{t.freeCancellationHours}</Label>
+            <Input
+              id="venue-free-cancellation"
+              inputMode="numeric"
+              value={venueDraft.freeCancellationHours}
+              onChange={(event) => setField('freeCancellationHours', event.target.value)}
+              {...invalidProps('venue-free-cancellation', freeCancellationIssue)}
+            />
+            {renderFieldError('venue-free-cancellation', freeCancellationIssue)}
+          </div>
+          <p className="admin-field-note venue-wide-note">{t.freeCancellationHoursHelp}</p>
         </div>
         <div className="field venue-image-field">
           <Label htmlFor="venue-photo">
@@ -357,6 +371,13 @@ export function AdminVenuesTab(props: AdminViewProps) {
     );
   }
 
+  function freeCancellationText(venue: AdminVenue) {
+    const hours = venue.freeCancellationHours;
+    if (typeof hours !== 'number') return t.venueFreeCancellationUnknown;
+    if (hours === 0) return t.venueFreeCancellationAnyTime;
+    return t.venueFreeCancellationHours.replace('{hours}', String(hours));
+  }
+
   function renderVenueRow(venue: AdminVenue) {
     const usage = venueUsage(venue);
     const usageText = [
@@ -388,6 +409,7 @@ export function AdminVenuesTab(props: AdminViewProps) {
             {t.peakPrice}: {formatMoney(venue.peakPricePence, language)} · {t.offPeakPrice}:{' '}
             {formatMoney(venue.offPeakPricePence, language)}
           </small>
+          <small className="admin-venue-meta">{freeCancellationText(venue)}</small>
           {meta ? <small className="admin-venue-meta">{meta}</small> : null}
           {usageText ? <small className="admin-venue-meta">{usageText}</small> : null}
           {venue.notes ? <small className="admin-venue-note">{venue.notes}</small> : null}

@@ -116,6 +116,7 @@ export type VenueDraft = {
   courtCount: string;
   courtSetting: '' | CourtSetting;
   floodlights: '' | 'yes' | 'no';
+  freeCancellationHours: string;
   /** The venue version the editor was opened with, sent back to detect a concurrent edit. */
   updatedAt: string | null;
 };

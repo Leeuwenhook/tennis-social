@@ -3193,7 +3193,8 @@
   border-color: var(--destructive);
 }
 
-.venue-editor .venue-price-note {
+.venue-editor .venue-price-note,
+.venue-editor .venue-wide-note {
   grid-column: 1 / -1;
   margin: -4px 0 0;
 }

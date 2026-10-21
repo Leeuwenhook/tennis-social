@@ -4,6 +4,7 @@ import { neon } from '@neondatabase/serverless';
 
 import { GAME_FORMATS, RACKET_PRICE_PENCE, venues, type GameFormat } from '../demo-data';
 import { getRuntimeEnv } from './runtime';
+import { isCourtSetting } from '../venue-form';
 import { createDemoSeed } from './seed';
 
 export type SessionRow = {
@@ -40,6 +41,10 @@ export type VenueRow = {
   notes: string;
   peak_price_pence: number;
   off_peak_price_pence: number;
+  court_count?: number | null;
+  court_setting?: string | null;
+  floodlights?: boolean | null;
+  archived_at?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -297,6 +302,11 @@ export function serializeVenue(row: VenueRow) {
     notes: row.notes ?? '',
     peakPricePence: row.peak_price_pence,
     offPeakPricePence: row.off_peak_price_pence,
+    courtCount: row.court_count ?? null,
+    courtSetting: isCourtSetting(row.court_setting) ? row.court_setting : null,
+    floodlights: row.floodlights ?? null,
+    archivedAt: row.archived_at ?? null,
+    updatedAt: row.updated_at,
   };
 }
 

@@ -20,16 +20,22 @@ import {
   normalizeBooking,
   normalizeFormats,
   normalizeSession,
+  normalizeAdminVenue,
   normalizeVenue,
   sessionPayload,
   sessionSort,
   shiftDate,
+  usageCounts,
   validFormats,
+  venueDraftFromVenue,
+  venueUsage,
   weekStart,
 } from '@/lib/tennis-utils';
+import { parseCourtCountInput, parsePriceInput, venueFormIssues, type VenueFieldIssue } from '@/lib/venue-form';
 import { translations } from '@/lib/translations';
 import type {
   AdminTab,
+  AdminVenue,
   Booking,
   BookingStatus,
   Language,
@@ -44,6 +50,27 @@ import type {
 
 /** The admin keeps its own language choice, separate from the public site. */
 const ADMIN_LANGUAGE_STORAGE_KEY = 'tennis-match-admin-language';
+const VENUE_FIELD_ISSUES: readonly VenueFieldIssue[] = [
+  'name', 'area', 'photos', 'peakPrice', 'offPeakPrice', 'priceOrder', 'courtCount', 'courtSetting', 'floodlights',
+];
+
+/** The draft fields each issue is about; an issue is hidden once one of them changes. */
+const VENUE_ISSUE_FIELDS: Record<VenueFieldIssue, Array<keyof VenueDraft>> = {
+  name: ['name'],
+  area: ['area'],
+  photos: ['photos'],
+  peakPrice: ['peakPrice'],
+  offPeakPrice: ['offPeakPrice'],
+  priceOrder: ['peakPrice', 'offPeakPrice'],
+  courtCount: ['courtCount'],
+  courtSetting: ['courtSetting'],
+  floodlights: ['floodlights'],
+};
+
+function sameVenueField(a: VenueDraft, b: VenueDraft, field: keyof VenueDraft) {
+  return JSON.stringify(a[field]) === JSON.stringify(b[field]);
+}
+
 /** Expired sessions older than this are only loaded when the admin asks for them. */
 const RECENT_DAYS = 30;
 
@@ -62,7 +89,7 @@ function readAdminLanguage(): Language {
  */
 export function AdminApp() {
   const [language, setLanguage] = useState<Language>('en');
-  const [venueList, setVenueList] = useState<Venue[]>(venues);
+  const [venueList, setVenueList] = useState<AdminVenue[]>(venues);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [reservationRequests, setReservationRequests] = useState<ReservationRequest[]>([]);
@@ -78,6 +105,13 @@ export function AdminApp() {
   const [calendarDate, setCalendarDate] = useState(() => dateFromToday(0));
   const [draft, setDraft] = useState<SessionDraft>(() => emptyDraft(venues));
   const [venueDraft, setVenueDraft] = useState<VenueDraft>(() => emptyVenueDraft(venues));
+  /** The draft as the editor was opened, to tell whether anything is unsaved. */
+  const [venueBaseline, setVenueBaseline] = useState<VenueDraft>(() => emptyVenueDraft(venues));
+  /** Issues from the last save attempt, with the draft they were found in. */
+  const [venueIssues, setVenueIssues] = useState<{ issues: VenueFieldIssue[]; draft: VenueDraft }>(() => ({
+    issues: [],
+    draft: emptyVenueDraft(venues),
+  }));
   const [adminMessage, setAdminMessage] = useState('');
   const [sessionImportMessage, setSessionImportMessage] = useState('');
   const [sessionImportFailed, setSessionImportFailed] = useState(false);
@@ -143,7 +177,7 @@ export function AdminApp() {
       if (!cancelled && typeof data?.racketRentalEnabled === 'boolean') setRacketRentalEnabled(data.racketRentalEnabled);
     });
     void get<{ venues?: unknown[] }>('/api/admin/venues').then((data) => {
-      const next = data?.venues?.map(normalizeVenue).filter((venue): venue is Venue => Boolean(venue)) ?? [];
+      const next = data?.venues?.map(normalizeAdminVenue).filter((venue): venue is AdminVenue => Boolean(venue)) ?? [];
       if (!cancelled && next.length) setVenueList(next);
     });
     if (adminTab === 'requests') void get<{ requests?: ReservationRequest[] }>('/api/admin/reservation-requests').then((data) => {
@@ -196,6 +230,22 @@ export function AdminApp() {
     document.addEventListener('visibilitychange', refresh);
     return () => document.removeEventListener('visibilitychange', refresh);
   }, []);
+
+  const venueDirty = venueEditorOpen && JSON.stringify(venueDraft) !== JSON.stringify(venueBaseline);
+  const venueFieldIssues = useMemo(
+    () => venueIssues.issues.filter((issue) =>
+      VENUE_ISSUE_FIELDS[issue].every((field) => sameVenueField(venueDraft, venueIssues.draft, field))),
+    [venueDraft, venueIssues],
+  );
+
+  useEffect(() => {
+    if (!venueDirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [venueDirty]);
 
   const allSessions = useMemo(() => [...sessions].sort(sessionSort), [sessions]);
   const upcomingSessions = useMemo(() => allSessions.filter((session) => session.status === 'published' && !isPast(session)), [allSessions]);
@@ -277,23 +327,42 @@ export function AdminApp() {
     }
   }
 
-  function startEditVenue(venue: Venue) {
+  /** Opens the venue editor on a draft, which becomes the "nothing changed" baseline. */
+  function openVenueEditor(nextDraft: VenueDraft) {
     setVenueEditorOpen(true);
-    setVenueDraft({
-      id: venue.id,
-      name: venue.name,
-      area: venue.area,
-      address: venue.address ?? '',
-      addressZh: venue.addressZh ?? '',
-      postcode: venue.postcode ?? '',
-      photo: venue.photo,
-      photos: venue.photos?.length ? [...venue.photos] : [venue.photo],
-      description: venue.description ?? '',
-      descriptionZh: venue.descriptionZh ?? '',
-      notes: venue.notes ?? '',
-      peakPrice: String(venue.peakPricePence / 100),
-      offPeakPrice: String(venue.offPeakPricePence / 100),
-    });
+    setVenueDraft(nextDraft);
+    setVenueBaseline(nextDraft);
+    setVenueIssues({ issues: [], draft: nextDraft });
+  }
+
+  function closeVenueEditor(list: Venue[] = venueList) {
+    const next = emptyVenueDraft(list);
+    setVenueEditorOpen(false);
+    setVenueDraft(next);
+    setVenueBaseline(next);
+    setVenueIssues({ issues: [], draft: next });
+  }
+
+  /** True when there is nothing unsaved, or the admin agrees to drop it. */
+  function confirmDiscardVenueChanges() {
+    return !venueDirty || window.confirm(t.discardVenueChanges);
+  }
+
+  function startEditVenue(venue: Venue) {
+    if (!confirmDiscardVenueChanges()) return;
+    openVenueEditor(venueDraftFromVenue(venue));
+    setAdminMessage('');
+  }
+
+  function startAddVenue() {
+    if (!confirmDiscardVenueChanges()) return;
+    openVenueEditor(emptyVenueDraft(venueList));
+    setAdminMessage('');
+  }
+
+  function cancelVenueEdit() {
+    if (!confirmDiscardVenueChanges()) return;
+    closeVenueEditor();
     setAdminMessage('');
   }
 
@@ -345,78 +414,85 @@ export function AdminApp() {
 
   async function saveVenue(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    const peakPricePence = Math.round(Number(venueDraft.peakPrice) * 100);
-    const offPeakPricePence = Math.round(Number(venueDraft.offPeakPrice) * 100);
-    if (
-      !venueDraft.name.trim() || !venueDraft.area.trim() || !venueDraft.photos.length || !venueDraft.photos[0].trim() ||
-      !venueDraft.peakPrice.trim() || !venueDraft.offPeakPrice.trim() ||
-      !Number.isInteger(peakPricePence) || peakPricePence < 0 ||
-      !Number.isInteger(offPeakPricePence) || offPeakPricePence < 0 ||
-      peakPricePence < offPeakPricePence
-    ) {
-      setAdminMessage(peakPricePence < offPeakPricePence ? t.priceRule : t.venueSaveFailed);
+    const submittedDraft = venueDraft;
+    const issues = venueFormIssues(submittedDraft);
+    const peakPricePence = parsePriceInput(submittedDraft.peakPrice);
+    const offPeakPricePence = parsePriceInput(submittedDraft.offPeakPrice);
+    const courtCount = parseCourtCountInput(submittedDraft.courtCount);
+    if (issues.length || peakPricePence === null || offPeakPricePence === null || courtCount === undefined) {
+      setVenueIssues({ issues, draft: submittedDraft });
+      setAdminMessage(t.venueFixFields);
       return;
     }
-    const existing = venueDraft.id ? venueList.find((venue) => venue.id === venueDraft.id) : undefined;
-    const name = venueDraft.name.trim();
-    const area = venueDraft.area.trim();
-    const nextVenue: Venue = {
-      id: venueDraft.id ?? `venue-${crypto.randomUUID()}`,
+    setVenueIssues({ issues: [], draft: submittedDraft });
+    const existing = submittedDraft.id ? venueList.find((venue) => venue.id === submittedDraft.id) : undefined;
+    const name = submittedDraft.name.trim();
+    const area = submittedDraft.area.trim();
+    const photos = submittedDraft.photos.map((photo) => photo.trim()).filter(Boolean);
+    const payload = {
       name,
       nameZh: existing?.nameZh.trim() || name,
       area,
       areaZh: existing?.areaZh.trim() || area,
-      address: venueDraft.address.trim(),
-      addressZh: venueDraft.addressZh.trim(),
-      postcode: venueDraft.postcode.trim().toUpperCase(),
-      photo: venueDraft.photos[0].trim(),
-      photos: venueDraft.photos.map((photo) => photo.trim()).filter(Boolean),
-      description: venueDraft.description.trim() || null,
-      descriptionZh: venueDraft.descriptionZh.trim() || null,
-      notes: venueDraft.notes.trim(),
+      address: submittedDraft.address.trim(),
+      addressZh: submittedDraft.addressZh.trim(),
+      postcode: submittedDraft.postcode.trim().toUpperCase(),
+      photo: photos[0],
+      photos,
+      description: submittedDraft.description.trim() || null,
+      descriptionZh: submittedDraft.descriptionZh.trim() || null,
+      notes: submittedDraft.notes.trim(),
       peakPricePence,
       offPeakPricePence,
+      courtCount,
+      courtSetting: submittedDraft.courtSetting || null,
+      floodlights: submittedDraft.floodlights ? submittedDraft.floodlights === 'yes' : null,
+      ...(existing && submittedDraft.updatedAt ? { expectedUpdatedAt: submittedDraft.updatedAt } : {}),
     };
     adminBusyRef.current = true;
     ++sessionLoadVersion.current;
     setAdminBusy(true);
-    let savedOnServer = false;
+    let savedList: AdminVenue[] | null = null;
     try {
       const response = await fetch(
         existing ? `/api/admin/venues/${encodeURIComponent(existing.id)}` : '/api/admin/venues',
         {
           method: existing ? 'PATCH' : 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            name: nextVenue.name,
-            nameZh: nextVenue.nameZh,
-            area: nextVenue.area,
-            areaZh: nextVenue.areaZh,
-            address: nextVenue.address,
-            addressZh: nextVenue.addressZh,
-            postcode: nextVenue.postcode,
-            photo: nextVenue.photo,
-            photos: nextVenue.photos,
-            description: nextVenue.description,
-            descriptionZh: nextVenue.descriptionZh,
-            notes: nextVenue.notes,
-            peakPricePence,
-            offPeakPricePence,
-          }),
+          body: JSON.stringify(payload),
         },
       );
-      const data = await response.json() as { venue?: unknown; error?: string };
+      const data = await response.json() as { venue?: unknown; error?: string; issues?: unknown };
       if (response.status === 401) {
         setAdminAuthenticated(false);
         setAdminMessage(t.invalidCredentials);
       } else if (response.ok) {
-        const savedVenue = normalizeVenue(data.venue);
+        const savedVenue = normalizeAdminVenue(data.venue);
         if (savedVenue) {
-          setVenueList((current) => existing
-            ? current.map((venue) => (venue.id === existing.id ? savedVenue : venue))
-            : [...current, savedVenue]);
-          savedOnServer = true;
+          // Keep the usage counts the list already has; a save does not change them.
+          const merged = existing ? { ...existing, ...savedVenue, ...usageCounts(existing) } : savedVenue;
+          savedList = existing
+            ? venueList.map((venue) => (venue.id === existing.id ? merged : venue))
+            : [...venueList, merged];
+          setVenueList(savedList);
+        } else {
+          setAdminMessage(t.venueSaveFailed);
         }
+      } else if (response.status === 409 && data.error === 'venue_changed') {
+        const latest = normalizeAdminVenue(data.venue);
+        if (latest && existing) {
+          const merged = { ...existing, ...latest, ...usageCounts(existing) };
+          setVenueList((current) => current.map((venue) => (venue.id === merged.id ? merged : venue)));
+          openVenueEditor(venueDraftFromVenue(merged));
+        } else {
+          setDataVersion((value) => value + 1);
+        }
+        setAdminMessage(t.venueChangedReloaded);
+      } else if (response.status === 400 && data.error === 'invalid_venue' && Array.isArray(data.issues)) {
+        const serverIssues = data.issues.filter((issue): issue is VenueFieldIssue =>
+          (VENUE_FIELD_ISSUES as readonly unknown[]).includes(issue));
+        setVenueIssues({ issues: serverIssues, draft: submittedDraft });
+        setAdminMessage(serverIssues.length ? t.venueFixFields : t.venueSaveFailed);
       } else if (response.status >= 500) {
         setAdminMessage(t.adminSaveUnavailable);
       } else {
@@ -425,9 +501,8 @@ export function AdminApp() {
     } catch {
       setAdminMessage(t.adminSaveUnavailable);
     }
-    if (savedOnServer) {
-      setVenueDraft(emptyVenueDraft(venueList));
-      setVenueEditorOpen(false);
+    if (savedList) {
+      closeVenueEditor(savedList);
       setAdminMessage(t.venueSaved);
     }
     adminBusyRef.current = false;
@@ -471,15 +546,12 @@ export function AdminApp() {
     setAdminBusy(false);
   }
 
-  async function deleteVenue(venue: Venue) {
-    if (!window.confirm(t.deleteVenueConfirm)) return;
-    if (
-      sessions.some((session) => session.venueId === venue.id) ||
-      reservationRequests.some((request) => request.venueId === venue.id)
-    ) {
+  async function deleteVenue(venue: AdminVenue) {
+    if (venueUsage(venue) > 0) {
       setAdminMessage(t.venueDeleteBlocked);
       return;
     }
+    if (!window.confirm(t.deleteVenueConfirm)) return;
     adminBusyRef.current = true;
     ++sessionLoadVersion.current;
     setAdminBusy(true);
@@ -494,6 +566,8 @@ export function AdminApp() {
         setAdminMessage(t.invalidCredentials);
       } else if (data.error === 'venue_in_use') {
         setAdminMessage(t.venueDeleteBlocked);
+        // The counts were out of date; reload them so the row offers Archive instead.
+        setDataVersion((value) => value + 1);
       } else if (response.status >= 500) {
         setAdminMessage(t.adminSaveUnavailable);
       } else {
@@ -505,8 +579,46 @@ export function AdminApp() {
     if (deletedOnServer) {
       const remainingVenues = venueList.filter((item) => item.id !== venue.id);
       setVenueList(remainingVenues);
-      setVenueDraft((current) => current.id === venue.id ? emptyVenueDraft(remainingVenues) : current);
+      if (venueDraft.id === venue.id) closeVenueEditor(remainingVenues);
       setAdminMessage(t.venueDeleted);
+    }
+    adminBusyRef.current = false;
+    setAdminBusy(false);
+  }
+
+  async function setVenueArchived(venue: AdminVenue, archived: boolean) {
+    if (archived && !window.confirm(t.archiveVenueConfirm)) return;
+    adminBusyRef.current = true;
+    ++sessionLoadVersion.current;
+    setAdminBusy(true);
+    try {
+      const response = await fetch(`/api/admin/venues/${encodeURIComponent(venue.id)}/archive`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ archived }),
+      });
+      const data = await response.json() as { venue?: unknown; error?: string };
+      const updated = response.ok ? normalizeAdminVenue(data.venue) : null;
+      if (response.status === 401) {
+        setAdminAuthenticated(false);
+        setAdminMessage(t.invalidCredentials);
+      } else if (updated) {
+        const merged = { ...venue, ...updated, ...usageCounts(venue) };
+        setVenueList((current) => current.map((item) => (item.id === merged.id ? merged : item)));
+        // An open editor for this venue now refers to the new version, without losing its edits.
+        if (venueDraft.id === merged.id) {
+          const updatedAt = merged.updatedAt ?? null;
+          setVenueDraft((current) => ({ ...current, updatedAt }));
+          setVenueBaseline((current) => ({ ...current, updatedAt }));
+        }
+        setAdminMessage(archived ? t.venueArchived : t.venueRestored);
+      } else if (response.status >= 500) {
+        setAdminMessage(t.adminSaveUnavailable);
+      } else {
+        setAdminMessage(t.venueArchiveFailed);
+      }
+    } catch {
+      setAdminMessage(t.adminSaveUnavailable);
     }
     adminBusyRef.current = false;
     setAdminBusy(false);
@@ -944,7 +1056,10 @@ export function AdminApp() {
           setAdminLogin={setAdminLogin}
           onSubmitAdminLogin={submitAdminLogin}
           adminTab={adminTab}
-          setAdminTab={setAdminTab}
+          setAdminTab={(tab) => {
+            setAdminTab(tab);
+            setAdminMessage('');
+          }}
           adminSessions={adminSessions}
           allSessions={allSessions}
           venueList={venueList}
@@ -961,7 +1076,6 @@ export function AdminApp() {
           sessionEditorOpen={sessionEditorOpen}
           setSessionEditorOpen={setSessionEditorOpen}
           venueEditorOpen={venueEditorOpen}
-          setVenueEditorOpen={setVenueEditorOpen}
           draft={draft}
           setDraft={setDraft}
           venueDraft={venueDraft}
@@ -1005,6 +1119,10 @@ export function AdminApp() {
           onReservationRequestCreated={(request) => setReservationRequests((current) => [request, ...current])}
           onStartEditVenue={startEditVenue}
           onDeleteVenue={(venue) => void deleteVenue(venue)}
+          onArchiveVenue={(venue, archived) => void setVenueArchived(venue, archived)}
+          onAddVenue={startAddVenue}
+          onCancelVenueEdit={cancelVenueEdit}
+          venueFieldIssues={venueFieldIssues}
         />
       </main>
     </div>

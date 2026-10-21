@@ -8,7 +8,9 @@ import {
   type Venue,
 } from '@/lib/demo-data';
 import { parseMinutes } from '@/lib/formatters';
+import { formatPriceInput, isCourtSetting } from '@/lib/venue-form';
 import type {
+  AdminVenue,
   Booking,
   BookingStage,
   ProfileForm,
@@ -212,7 +214,44 @@ export function normalizeVenue(value: unknown): Venue | null {
     notes: typeof venue.notes === 'string' ? venue.notes : '',
     peakPricePence,
     offPeakPricePence,
+    courtCount: typeof venue.courtCount === 'number' && Number.isInteger(venue.courtCount) ? venue.courtCount : null,
+    courtSetting: isCourtSetting(venue.courtSetting) ? venue.courtSetting : null,
+    floodlights: typeof venue.floodlights === 'boolean' ? venue.floodlights : null,
+    archivedAt: typeof venue.archivedAt === 'string' && venue.archivedAt ? venue.archivedAt : null,
+    updatedAt: typeof venue.updatedAt === 'string' ? venue.updatedAt : undefined,
   };
+}
+
+/** A venue from the admin API, keeping how many sessions and requests use it. */
+export function normalizeAdminVenue(value: unknown): AdminVenue | null {
+  const venue = normalizeVenue(value);
+  if (!venue) return null;
+  const counts = value as Partial<Record<'sessionCount' | 'futureSessionCount' | 'requestCount', unknown>>;
+  const count = (raw: unknown) => (typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 ? raw : undefined);
+  return {
+    ...venue,
+    sessionCount: count(counts.sessionCount),
+    futureSessionCount: count(counts.futureSessionCount),
+    requestCount: count(counts.requestCount),
+  };
+}
+
+export function usageCounts(venue: AdminVenue) {
+  return {
+    sessionCount: venue.sessionCount,
+    futureSessionCount: venue.futureSessionCount,
+    requestCount: venue.requestCount,
+  };
+}
+
+/** Sessions plus court requests that refer to the venue; 0 when the counts are not loaded. */
+export function venueUsage(venue: AdminVenue) {
+  return (venue.sessionCount ?? 0) + (venue.requestCount ?? 0);
+}
+
+/** Venues that can still be chosen for new sessions and requests. */
+export function activeVenues<T extends Venue>(venueList: T[]): T[] {
+  return venueList.filter((venue) => !venue.archivedAt);
 }
 
 /** Places a visitor can still book; a manually marked-full session has none. */
@@ -270,7 +309,7 @@ export function weekStart(value: string) {
 
 export function emptyDraft(venueList: Venue[] = venues): SessionDraft {
   const defaultDate = createDemoSessions()[6]?.date ?? createDemoSessions()[0]?.date ?? '';
-  const venue = getVenue(venueList[0]?.id ?? venues[0].id, venueList);
+  const venue = getVenue(activeVenues(venueList)[0]?.id ?? venueList[0]?.id ?? venues[0].id, venueList);
   return {
     id: null,
     venueId: venue.id,
@@ -286,7 +325,7 @@ export function emptyDraft(venueList: Venue[] = venues): SessionDraft {
 }
 
 export function emptyVenueDraft(venueList: Venue[] = venues): VenueDraft {
-  const venue = venueList[0];
+  const venue = activeVenues(venueList)[0] ?? venueList[0];
   return {
     id: null,
     name: '',
@@ -299,8 +338,35 @@ export function emptyVenueDraft(venueList: Venue[] = venues): VenueDraft {
     description: '',
     descriptionZh: '',
     notes: '',
-    peakPrice: String((venue?.peakPricePence ?? DEFAULT_PEAK_PRICE_PENCE) / 100),
-    offPeakPrice: String((venue?.offPeakPricePence ?? DEFAULT_OFF_PEAK_PRICE_PENCE) / 100),
+    peakPrice: formatPriceInput(venue?.peakPricePence ?? DEFAULT_PEAK_PRICE_PENCE),
+    offPeakPrice: formatPriceInput(venue?.offPeakPricePence ?? DEFAULT_OFF_PEAK_PRICE_PENCE),
+    courtCount: '',
+    courtSetting: '',
+    floodlights: '',
+    updatedAt: null,
+  };
+}
+
+/** The editor draft for an existing venue, with prices shown to two decimals. */
+export function venueDraftFromVenue(venue: Venue): VenueDraft {
+  return {
+    id: venue.id,
+    name: venue.name,
+    area: venue.area,
+    address: venue.address ?? '',
+    addressZh: venue.addressZh ?? '',
+    postcode: venue.postcode ?? '',
+    photo: venue.photo,
+    photos: venue.photos?.length ? [...venue.photos] : [venue.photo],
+    description: venue.description ?? '',
+    descriptionZh: venue.descriptionZh ?? '',
+    notes: venue.notes ?? '',
+    peakPrice: formatPriceInput(venue.peakPricePence),
+    offPeakPrice: formatPriceInput(venue.offPeakPricePence),
+    courtCount: typeof venue.courtCount === 'number' ? String(venue.courtCount) : '',
+    courtSetting: venue.courtSetting ?? '',
+    floodlights: venue.floodlights === true ? 'yes' : venue.floodlights === false ? 'no' : '',
+    updatedAt: venue.updatedAt ?? null,
   };
 }
 

@@ -48,7 +48,7 @@ function formFromText(source: string, venueList: Venue[]): ReservationRequestFor
 
 /** Admin-only tool: turn pasted group-chat posts into partner requests. */
 export function AdminPasteRequests({
-  venueList,
+  venueList: allVenues,
   t,
   onCreated,
 }: {
@@ -56,6 +56,8 @@ export function AdminPasteRequests({
   t: Translations;
   onCreated: (request: ReservationRequest) => void;
 }) {
+  // Archived venues cannot be picked for new requests; a name typed for one stays free text.
+  const venueList = allVenues.filter((venue) => !venue.archivedAt);
   const [open, setOpen] = useState(false);
   const [pasteText, setPasteText] = useState('');
   const [drafts, setDrafts] = useState<ReservationRequestForm[]>([]);

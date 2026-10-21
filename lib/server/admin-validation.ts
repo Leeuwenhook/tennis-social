@@ -1,4 +1,11 @@
 import { GAME_FORMATS, venues, type GameFormat } from '../demo-data';
+import {
+  isCourtSetting,
+  MAX_COURT_COUNT,
+  MAX_VENUE_PRICE_PENCE,
+  type CourtSetting,
+  type VenueFieldIssue,
+} from '../venue-form';
 
 const TENNIS_LEVELS = new Set(['1.0', '1.5', '2.0', '2.5', '3.0', '3.5', '4.0', '4.5', '5.0']);
 
@@ -17,6 +24,9 @@ export type VenueInput = {
   notes?: unknown;
   peakPricePence?: unknown;
   offPeakPricePence?: unknown;
+  courtCount?: unknown;
+  courtSetting?: unknown;
+  floodlights?: unknown;
 };
 
 export type ValidatedVenueInput = {
@@ -34,6 +44,9 @@ export type ValidatedVenueInput = {
   notes: string;
   peakPricePence: number;
   offPeakPricePence: number;
+  courtCount: number | null;
+  courtSetting: CourtSetting | null;
+  floodlights: boolean | null;
 };
 
 export type SessionInput = {
@@ -88,35 +101,61 @@ function minutes(value: string) {
   return hours * 60 + mins;
 }
 
-export function validateVenueInput(input: VenueInput): ValidatedVenueInput | null {
-  const name = cleanString(input.name, 120);
-  const nameZh = cleanString(input.nameZh, 120);
-  const area = cleanString(input.area, 120);
-  const areaZh = cleanString(input.areaZh, 120);
+function pricePence(value: unknown) {
+  const text = typeof value === 'string' ? value.trim() : typeof value === 'number' ? String(value) : '';
+  const pence = Number(text);
+  return text && Number.isInteger(pence) && pence >= 0 && pence <= MAX_VENUE_PRICE_PENCE ? pence : null;
+}
+
+function venuePhotos(input: VenueInput) {
   const rawPhoto = typeof input.photo === 'string' ? input.photo.trim() : '';
   const rawPhotos = Array.isArray(input.photos) ? input.photos.filter((photo): photo is string => typeof photo === 'string' && Boolean(photo.trim())).map((photo) => photo.trim()) : [];
-  const photos = rawPhotos.length ? rawPhotos : rawPhoto ? [rawPhoto] : [];
-  const primaryPhoto = photos[0] ?? '';
-  const notes = cleanString(input.notes, 1000);
-  const address = cleanString(input.address, 300);
-  const addressZh = cleanString(input.addressZh, 300);
-  const postcode = cleanString(input.postcode, 20).toUpperCase();
-  const peakPriceValue = typeof input.peakPricePence === 'string'
-    ? input.peakPricePence.trim()
-    : typeof input.peakPricePence === 'number' ? String(input.peakPricePence) : '';
-  const offPeakPriceValue = typeof input.offPeakPricePence === 'string'
-    ? input.offPeakPricePence.trim()
-    : typeof input.offPeakPricePence === 'number' ? String(input.offPeakPricePence) : '';
-  const peakPricePence = Number(peakPriceValue);
-  const offPeakPricePence = Number(offPeakPriceValue);
-  const isSafePhoto = (photo: string) => photo.startsWith('/') || /^https?:\/\//i.test(photo) || /^data:image\/[a-z0-9.+-]+;base64,/i.test(photo);
-  if (
-    !name || !nameZh || !area || !areaZh || !photos.length || photos.some((photo) => photo.length > 2_500_000 || !isSafePhoto(photo)) || !peakPriceValue || !offPeakPriceValue ||
-    !Number.isInteger(peakPricePence) || peakPricePence < 0 || peakPricePence > 100_000 ||
-    !Number.isInteger(offPeakPricePence) || offPeakPricePence < 0 || offPeakPricePence > 100_000 ||
-    peakPricePence < offPeakPricePence
-  ) return null;
-  return { description: cleanString(input.description, 2000) || null, descriptionZh: cleanString(input.descriptionZh, 2000) || null, name, nameZh, area, areaZh, address, addressZh, postcode, photo: primaryPhoto, photos, notes, peakPricePence, offPeakPricePence };
+  return rawPhotos.length ? rawPhotos : rawPhoto ? [rawPhoto] : [];
+}
+
+const isSafePhoto = (photo: string) => photo.startsWith('/') || /^https?:\/\//i.test(photo) || /^data:image\/[a-z0-9.+-]+;base64,/i.test(photo);
+
+/** Field-level problems with a venue payload; empty when it can be saved. */
+export function venueInputIssues(input: VenueInput): VenueFieldIssue[] {
+  const issues: VenueFieldIssue[] = [];
+  if (!cleanString(input.name, 120) || !cleanString(input.nameZh, 120)) issues.push('name');
+  if (!cleanString(input.area, 120) || !cleanString(input.areaZh, 120)) issues.push('area');
+  const photos = venuePhotos(input);
+  if (!photos.length || photos.some((photo) => photo.length > 2_500_000 || !isSafePhoto(photo))) issues.push('photos');
+  const peak = pricePence(input.peakPricePence);
+  const offPeak = pricePence(input.offPeakPricePence);
+  if (peak === null) issues.push('peakPrice');
+  if (offPeak === null) issues.push('offPeakPrice');
+  if (peak !== null && offPeak !== null && peak < offPeak) issues.push('priceOrder');
+  const courtCount = input.courtCount ?? null;
+  if (courtCount !== null && (!Number.isInteger(courtCount) || (courtCount as number) < 1 || (courtCount as number) > MAX_COURT_COUNT)) issues.push('courtCount');
+  if ((input.courtSetting ?? null) !== null && !isCourtSetting(input.courtSetting)) issues.push('courtSetting');
+  if ((input.floodlights ?? null) !== null && typeof input.floodlights !== 'boolean') issues.push('floodlights');
+  return issues;
+}
+
+export function validateVenueInput(input: VenueInput): ValidatedVenueInput | null {
+  if (venueInputIssues(input).length) return null;
+  const photos = venuePhotos(input);
+  return {
+    description: cleanString(input.description, 2000) || null,
+    descriptionZh: cleanString(input.descriptionZh, 2000) || null,
+    name: cleanString(input.name, 120),
+    nameZh: cleanString(input.nameZh, 120),
+    area: cleanString(input.area, 120),
+    areaZh: cleanString(input.areaZh, 120),
+    address: cleanString(input.address, 300),
+    addressZh: cleanString(input.addressZh, 300),
+    postcode: cleanString(input.postcode, 20).toUpperCase(),
+    photo: photos[0],
+    photos,
+    notes: cleanString(input.notes, 1000),
+    peakPricePence: pricePence(input.peakPricePence) as number,
+    offPeakPricePence: pricePence(input.offPeakPricePence) as number,
+    courtCount: (input.courtCount as number | null | undefined) ?? null,
+    courtSetting: isCourtSetting(input.courtSetting) ? input.courtSetting : null,
+    floodlights: typeof input.floodlights === 'boolean' ? input.floodlights : null,
+  };
 }
 
 export function validateSessionInput(

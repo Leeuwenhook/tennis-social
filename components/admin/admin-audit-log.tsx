@@ -34,7 +34,7 @@ const copy = {
     actions: {
       'auth.login.success': 'Login succeeded', 'auth.login.failed': 'Login failed',
       'session.create': 'Created session', 'session.update': 'Edited session', 'session.delete': 'Deleted session',
-      'sessions.import': 'Imported sessions', 'venue.create': 'Added venue', 'venue.update': 'Edited venue', 'venue.delete': 'Deleted venue',
+      'sessions.import': 'Imported sessions', 'venue.create': 'Added venue', 'venue.update': 'Edited venue', 'venue.delete': 'Deleted venue', 'venue.archive': 'Archived venue', 'venue.restore': 'Restored venue',
       'booking.cancel': 'Cancelled booking', 'booking.refund': 'Cancelled and refunded booking', 'request.create': 'Created partner request', 'request.status': 'Changed request status',
       'application.status': 'Changed application status', 'review.moderate': 'Moderated review', 'review.delete': 'Deleted review',
       'settings.update': 'Changed settings', undo: 'Undo',
@@ -63,7 +63,7 @@ const copy = {
     actions: {
       'auth.login.success': '登录成功', 'auth.login.failed': '登录失败',
       'session.create': '新建场次', 'session.update': '修改场次', 'session.delete': '删除场次',
-      'sessions.import': '导入场次', 'venue.create': '新增场地', 'venue.update': '修改场地', 'venue.delete': '删除场地',
+      'sessions.import': '导入场次', 'venue.create': '新增场地', 'venue.update': '修改场地', 'venue.delete': '删除场地', 'venue.archive': '停用场地', 'venue.restore': '恢复场地',
       'booking.cancel': '取消预订', 'booking.refund': '取消并退款', 'request.create': '代建找球友需求', 'request.status': '修改需求状态',
       'application.status': '修改申请状态', 'review.moderate': '审核评价', 'review.delete': '删除评价',
       'settings.update': '修改设置', undo: '撤销',

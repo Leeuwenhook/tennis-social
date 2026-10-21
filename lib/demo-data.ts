@@ -1,3 +1,5 @@
+import type { CourtSetting } from './venue-form';
+
 export type Venue = {
   description?: string | null;
   descriptionZh?: string | null;
@@ -15,6 +17,13 @@ export type Venue = {
   photos?: string[];
   peakPricePence: number;
   offPeakPricePence: number;
+  /** Optional court details; null means not known yet. */
+  courtCount?: number | null;
+  courtSetting?: CourtSetting | null;
+  floodlights?: boolean | null;
+  /** Archived venues stay attached to their sessions but cannot be picked for new ones. */
+  archivedAt?: string | null;
+  updatedAt?: string;
 };
 
 export const GAME_FORMATS = ['singles', 'doubles'] as const;

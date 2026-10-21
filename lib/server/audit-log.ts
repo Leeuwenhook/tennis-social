@@ -12,6 +12,7 @@ const LOCKED_SESSION_FIELDS = ['venue_id', 'date', 'start_time', 'end_time', 'pr
 export const VENUE_FIELDS = [
   'name', 'name_zh', 'area', 'area_zh', 'address', 'address_zh', 'postcode', 'description',
   'description_zh', 'notes', 'photo', 'photos_json', 'peak_price_pence', 'off_peak_price_pence',
+  'court_count', 'court_setting', 'floodlights',
 ] as const;
 
 const PHOTO_FIELDS = ['photo', 'photos_json'];
@@ -27,7 +28,7 @@ export function venueSnapshots(before: Record<string, unknown> | undefined, afte
   return { before: before ? pick(before, photosChanged) : undefined, after: pick(after, photosChanged) };
 }
 
-/** Actions that can be undone from the log. Deletes, refunds and cancellations cannot. */
+/** Actions that can be undone from the log. Deletes, refunds, cancellations and venue archive/restore cannot. */
 export const UNDOABLE_ACTIONS = ['session.update', 'venue.update'] as const;
 
 export type AuditEntry = {
@@ -181,8 +182,8 @@ function same(row: Record<string, unknown>, snapshot: Record<string, unknown>, f
 /**
  * Reverts one logged change, provided nothing has changed the target since.
  * A session edit is restored to its earlier values (never its booked count);
- * a venue edit is
- * restored. The undo is itself logged.
+ * a venue edit is restored, leaving court details alone when an older
+ * snapshot predates them. The undo is itself logged.
  */
 export async function undoAdminAction(db: Database, request: Request, entryId: string): Promise<UndoResult> {
   const entries = (await db`SELECT * FROM admin_audit_log WHERE id = ${entryId}`) as AuditRow[];
@@ -247,6 +248,9 @@ export async function undoAdminAction(db: Database, request: Request, entryId: s
             photo = COALESCE(${(before.photo as string | undefined) ?? null}::text, photo),
             photos_json = COALESCE(${(before.photos_json as string | undefined) ?? null}::text, photos_json),
             peak_price_pence = ${before.peak_price_pence as number}, off_peak_price_pence = ${before.off_peak_price_pence as number},
+            court_count = CASE WHEN ${'court_count' in before}::boolean THEN ${(before.court_count as number | null) ?? null}::integer ELSE court_count END,
+            court_setting = CASE WHEN ${'court_setting' in before}::boolean THEN ${(before.court_setting as string | null) ?? null}::text ELSE court_setting END,
+            floodlights = CASE WHEN ${'floodlights' in before}::boolean THEN ${(before.floodlights as boolean | null) ?? null}::boolean ELSE floodlights END,
             updated_at = ${now}
         WHERE id = ${entry.target_id} AND to_jsonb(venues) @> ${expected}::jsonb
           AND EXISTS (SELECT 1 FROM claimed)

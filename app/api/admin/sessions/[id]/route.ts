@@ -29,9 +29,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   try {
     const db = database();
     await ensureSeeded(db);
-    const venueRows = await db`SELECT id, name, name_zh FROM venues` as Array<{ id: string; name: string; name_zh: string }>;
-    const session = input ? validateSessionInput(input, venueRows.map((venue) => venue.id)) : null;
-    if (!session) return Response.json({ error: 'invalid_session' }, { status: 400 });
+    if (!input) return Response.json({ error: 'invalid_session' }, { status: 400 });
     const existingRows = await db`
       SELECT id, venue_id, date, start_time, end_time, price_pence, capacity,
              booked_spots, marked_full, formats_json, seeking_levels_json, status
@@ -40,6 +38,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     ` as SessionRow[];
     const existing = existingRows[0];
     if (!existing) return Response.json({ error: 'session_not_found' }, { status: 404 });
+    // A session may stay on its archived venue but cannot move to another archived one.
+    const venueRows = await db`SELECT id FROM venues WHERE archived_at IS NULL OR id = ${existing.venue_id}` as Array<{ id: string }>;
+    const session = validateSessionInput(input, venueRows.map((venue) => venue.id));
+    if (!session) return Response.json({ error: 'invalid_session' }, { status: 400 });
 
     const bookingRows = await db`
       SELECT COALESCE(SUM(participant_count), 0)::integer AS participant_count

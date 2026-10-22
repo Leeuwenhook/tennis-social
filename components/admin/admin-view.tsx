@@ -131,6 +131,7 @@ export function AdminView(props: AdminViewProps) {
   racketRentalBusy,
   onUpdateRacketRental,
   adminBusy,
+  adminMessage,
   language,
   t,
   onLogoutAdmin,
@@ -297,6 +298,7 @@ export function AdminView(props: AdminViewProps) {
                   <span aria-hidden="true" />
                 </label>
               </div>
+              {adminMessage ? <div className="admin-message">{adminMessage}</div> : null}
             </section>
           ) : adminTab === 'overview' ? (
             <AdminOverview language={language} onOpenTab={setAdminTab} />

@@ -145,6 +145,7 @@ export function AdminView(props: AdminViewProps) {
     { id: 'reviews', label: language === 'zh' ? '评价审核' : 'Reviews' },
     { id: 'venues', label: t.manageVenues },
     { id: 'audit', label: language === 'zh' ? '操作记录' : 'Activity' },
+    { id: 'settings', label: t.adminSettings },
   ];
 
   if (!adminAuthChecked || !adminAuthenticated) {
@@ -226,31 +227,6 @@ export function AdminView(props: AdminViewProps) {
           </Button>
         </div>
       </div>
-      <section className="admin-settings-section" aria-labelledby="admin-settings-heading">
-        <div className="admin-settings-heading">
-          <div>
-            <p className="eyebrow"><Settings2 size={14} /> {t.admin}</p>
-            <h2 id="admin-settings-heading">{t.adminSettings}</h2>
-            <p>{t.adminSettingsIntro}</p>
-          </div>
-        </div>
-        <div className="admin-setting-card">
-          <div>
-            <strong>{t.racketRentalSetting}</strong>
-            <p>{racketRentalEnabled ? t.racketRentalEnabled : t.racketRentalDisabled}</p>
-          </div>
-          <label className="toggle-control">
-            <input
-              type="checkbox"
-              checked={racketRentalEnabled}
-              disabled={racketRentalBusy || adminBusy}
-              aria-label={t.updateRacketRental}
-              onChange={(event) => onUpdateRacketRental(event.target.checked)}
-            />
-            <span aria-hidden="true" />
-          </label>
-        </div>
-      </section>
       {adminTab === 'sessions' ? <div className="admin-stats">
         <div>
           <span>{publishedCount}</span>
@@ -296,6 +272,32 @@ export function AdminView(props: AdminViewProps) {
         <div className="admin-main-content">
           {adminTab === 'sessions' ? (
             <AdminSessionsTab {...props} />
+          ) : adminTab === 'settings' ? (
+            <section className="admin-settings-section" aria-labelledby="admin-settings-heading">
+              <div className="admin-settings-heading">
+                <div>
+                  <p className="eyebrow"><Settings2 size={14} /> {t.admin}</p>
+                  <h2 id="admin-settings-heading">{t.adminSettings}</h2>
+                  <p>{t.adminSettingsIntro}</p>
+                </div>
+              </div>
+              <div className="admin-setting-card">
+                <div>
+                  <strong>{t.racketRentalSetting}</strong>
+                  <p>{racketRentalEnabled ? t.racketRentalEnabled : t.racketRentalDisabled}</p>
+                </div>
+                <label className="toggle-control">
+                  <input
+                    type="checkbox"
+                    checked={racketRentalEnabled}
+                    disabled={racketRentalBusy || adminBusy}
+                    aria-label={t.updateRacketRental}
+                    onChange={(event) => onUpdateRacketRental(event.target.checked)}
+                  />
+                  <span aria-hidden="true" />
+                </label>
+              </div>
+            </section>
           ) : adminTab === 'overview' ? (
             <AdminOverview language={language} onOpenTab={setAdminTab} />
           ) : adminTab === 'bookings' ? (

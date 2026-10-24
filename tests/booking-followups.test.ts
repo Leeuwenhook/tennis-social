@@ -305,6 +305,8 @@ void test('follow-up preview hides unavailable reviews, caps recommendations and
   assert.ok(!email.html.includes('Leave a review'));
   assert.ok(email.html.includes('Unsubscribe'));
   assert.equal((email.html.match(/view=detail/g) ?? []).length, 3);
+  assert.match(email.subject, /^Thanks for playing · /);
+  assert.ok(!/[\u4e00-\u9fff]/.test(email.html + email.text + email.subject));
 });
 
 void test('delivery failures release only the owned claim for retry', async () => {
@@ -351,7 +353,7 @@ void test('a session inside the wait period never acquires a delivery claim', as
   }
 });
 
-void test('both daily UTC cron hours gate to the London 21h window throughout BST/GMT', async () => {
+void test('the single 21:00 UTC cron falls inside the London 21h–22h window throughout BST/GMT', async () => {
   const { readFileSync } = await import('node:fs');
   const config = JSON.parse(readFileSync('vercel.json', 'utf8'));
   assert.deepEqual(
@@ -360,12 +362,12 @@ void test('both daily UTC cron hours gate to the London 21h window throughout BS
         (cron: { path: string }) => cron.path === '/api/cron/session-followups',
       )
       .map((cron: { schedule: string }) => cron.schedule),
-    ['0 20 * * *', '0 21 * * *'],
+    ['0 21 * * *'],
   );
   for (const [date, expected20, expected21] of [
-    ['2026-07-01', true, false],
+    ['2026-07-01', true, true],
     ['2026-12-01', false, true],
-    ['2026-03-29', true, false],
+    ['2026-03-29', true, true],
     ['2026-10-25', false, true],
   ] as const) {
     for (const minute of ['00', '59']) {
@@ -408,7 +410,7 @@ void test('cron gates before work and force only bypasses the hour after CRON_SE
       run,
     );
     assert.equal(skipped.status, 200);
-    assert.deepEqual(await skipped.json(), { skipped: 'outside_london_21h' });
+    assert.deepEqual(await skipped.json(), { skipped: 'outside_london_21h_22h' });
     assert.equal(calls, 0);
     assert.equal(
       (await handleBookingFollowupCron(request(true, false), outside, run))

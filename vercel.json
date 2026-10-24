@@ -12,10 +12,6 @@
     },
     {
       "path": "/api/cron/session-followups",
-      "schedule": "0 20 * * *"
-    },
-    {
-      "path": "/api/cron/session-followups",
       "schedule": "0 21 * * *"
     },
     {

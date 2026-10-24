@@ -392,17 +392,17 @@ export type BookingFollowupInput = BookingEmailInput & {
 };
 export function renderBookingFollowupEmail(input: BookingFollowupInput): RenderedBookingEmail {
   const { booking, session, venue, reviewUrl, unsubscribeUrl } = input;
-  const thanks = `Thanks for playing, ${booking.contact_name}! / 感谢参加网球活动！`;
-  const details = `${venue.name} / ${venue.nameZh} · ${session.date} ${session.start_time}–${session.end_time}`;
+  const thanks = `Thanks for playing, ${booking.contact_name}!`;
+  const details = `${venue.name} · ${session.date} ${session.start_time}–${session.end_time}`;
   const next = input.nextSessions.slice(0, 3).map((item) => ({ ...item, url: `https://www.tennismatch.space/?view=detail&session=${encodeURIComponent(item.id)}` }));
-  const text = [thanks, details, 'We hope to see you on court again. / 期待下次在球场相见。',
-    reviewUrl ? `Leave a review / 留下评价: ${reviewUrl}` : '',
-    ...next.map((item) => `${item.name} / ${item.name_zh} · ${item.date} ${item.start_time}–${item.end_time}: ${item.url}`),
-    `Unsubscribe from post-session emails / 退订赛后邮件: ${unsubscribeUrl}`,
-    'Booking confirmations and reminders are unaffected. / 预订确认和赛前提醒不受影响。',
+  const text = [thanks, details, 'We hope to see you on court again.',
+    reviewUrl ? `Leave a review: ${reviewUrl}` : '',
+    ...next.map((item) => `${item.name} · ${item.date} ${item.start_time}–${item.end_time}: ${item.url}`),
+    `Unsubscribe from post-session emails: ${unsubscribeUrl}`,
+    'Booking confirmations and reminders are unaffected.',
   ].filter(Boolean).join('\n\n');
-  const html = `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:28px;background:#edf2eb;color:#173b2f"><h1>${escapeHtml(thanks)}</h1><p>${escapeHtml(details)}</p><p>We hope to see you on court again.<br>期待下次在球场相见。</p>${reviewUrl ? `<p><a href="${escapeHtml(reviewUrl)}">Leave a review / 留下评价</a></p>` : ''}${next.length ? `<h2>Play again / 下次约球</h2><ul>${next.map((item) => `<li><a href="${escapeHtml(item.url)}">${escapeHtml(`${item.name} / ${item.name_zh} · ${item.date} ${item.start_time}–${item.end_time}`)}</a></li>`).join('')}</ul>` : ''}<p><a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe from post-session emails / 退订赛后邮件</a></p><p>Booking confirmations and reminders are unaffected.<br>预订确认和赛前提醒不受影响。</p></div>`;
-  return { subject: `Thanks for playing / 感谢参与 · ${venue.name}`, text, html };
+  const html = `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:28px;background:#edf2eb;color:#173b2f"><h1>${escapeHtml(thanks)}</h1><p>${escapeHtml(details)}</p><p>We hope to see you on court again.</p>${reviewUrl ? `<p><a href="${escapeHtml(reviewUrl)}">Leave a review</a></p>` : ''}${next.length ? `<h2>Play again</h2><ul>${next.map((item) => `<li><a href="${escapeHtml(item.url)}">${escapeHtml(`${item.name} · ${item.date} ${item.start_time}–${item.end_time}`)}</a></li>`).join('')}</ul>` : ''}<p><a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe from post-session emails</a></p><p>Booking confirmations and reminders are unaffected.</p></div>`;
+  return { subject: `Thanks for playing · ${venue.name}`, text, html };
 }
 export async function sendBookingFollowupEmail(input: BookingFollowupInput): Promise<EmailSendResult> {
   const transport = smtpTransport();

@@ -80,8 +80,22 @@ const session = {
   end_time: '20:30',
 };
 const venue = venues.find((item) => item.id === 'victoria-park') ?? venues[0];
+const followupPreview = {
+  session,
+  venue,
+  reviewUrl: 'https://www.tennismatch.space/review?t=preview-only',
+  unsubscribeUrl: 'https://www.tennismatch.space/api/email/unsubscribe?t=preview-only',
+  nextSessions: [{ id: 'session-preview', date, start_time: '18:30', end_time: '20:00', name: venue.name, name_zh: venue.nameZh }],
+};
 const emails = [
-  { id: 'followup', eyebrow: 'After the session', title: '赛后感谢与推荐', timing: '结束一小时后 / At least one hour after play', email: renderBookingFollowupEmail({ booking, session, venue, unsubscribeUrl: 'https://www.tennismatch.space/api/email/unsubscribe?t=preview-only', nextSessions: [{ id: 'session-preview', date, start_time: '18:30', end_time: '20:00', name: venue.name, name_zh: venue.nameZh }] }), to: booking.email },
+  {
+    id: 'followup',
+    eyebrow: 'After the session',
+    title: '赛后感谢与推荐',
+    timing: '结束至少一小时后，当天或次日伦敦时间 21:00（夏令时 22:00）发送；仅英文',
+    email: renderBookingFollowupEmail({ ...followupPreview, booking }),
+    to: booking.email,
+  },
   { id: 'admin', eyebrow: 'After payment', title: '管理员新报名通知', timing: '付款后 / After payment', email: renderAdminBookingNotificationEmail({ booking, session, venue }), to: 'Configured administrators' },
   {
     id: 'confirmation',

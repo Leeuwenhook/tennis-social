@@ -19,7 +19,7 @@ export async function handleBookingFollowupCron(
     new URL(request.url).searchParams.get('force') !== '1' &&
     !isLondonFollowupHour(now)
   )
-    return Response.json({ skipped: 'outside_london_21h' });
+    return Response.json({ skipped: 'outside_london_21h_22h' });
   try {
     const result = await run(now);
     if (result.status !== 'sent')

@@ -26,10 +26,11 @@ type Candidate = BookingRow &
     | 'start_time'
     | 'end_time'
   >;
+// A single Vercel cron runs at 21:00 UTC, which is 21:00 London in winter and 22:00 in summer.
 export function isLondonFollowupHour(now = new Date()) {
-  return new Intl.DateTimeFormat('en-GB', {
+  return ['21', '22'].includes(new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Europe/London', hour: '2-digit', hourCycle: 'h23',
-  }).format(now) === '21';
+  }).format(now));
 }
 
 export function isFollowupDue(

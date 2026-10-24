@@ -392,17 +392,68 @@ export type BookingFollowupInput = BookingEmailInput & {
 };
 export function renderBookingFollowupEmail(input: BookingFollowupInput): RenderedBookingEmail {
   const { booking, session, venue, reviewUrl, unsubscribeUrl } = input;
-  const thanks = `Thanks for playing, ${booking.contact_name}!`;
-  const details = `${venue.name} · ${session.date} ${session.start_time}–${session.end_time}`;
-  const next = input.nextSessions.slice(0, 3).map((item) => ({ ...item, url: `https://www.tennismatch.space/?view=detail&session=${encodeURIComponent(item.id)}` }));
-  const text = [thanks, details, 'We hope to see you on court again.',
-    reviewUrl ? `Leave a review: ${reviewUrl}` : '',
-    ...next.map((item) => `${item.name} · ${item.date} ${item.start_time}–${item.end_time}: ${item.url}`),
+  const date = formatLongDate(session.date);
+  const time = `${session.start_time}–${session.end_time}`;
+  const next = input.nextSessions.slice(0, 3).map((item) => ({
+    label: `${item.name} · ${formatLongDate(item.date)}`,
+    time: `${item.start_time}–${item.end_time}`,
+    url: `https://www.tennismatch.space/?view=detail&session=${encodeURIComponent(item.id)}`,
+  }));
+  const ratingUrl = (stars: number) => `${reviewUrl}&rating=${stars}`;
+  const reviewCard = reviewUrl
+    ? `
+          <div style="margin:24px 0;padding:26px 20px;background:#173b2f;border-radius:14px;text-align:center;color:#ffffff">
+            <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#d5eb85">Your feedback</div>
+            <h2 style="margin:8px 0 6px;font-size:22px;line-height:1.3">How was your session?</h2>
+            <p style="margin:0 0 14px;color:#d8e6dc">Tap a star to rate it. A short review helps other players find the right game.</p>
+            <div style="font-size:0;line-height:1">${[1, 2, 3, 4, 5].map((stars) => `<a href="${escapeHtml(ratingUrl(stars))}" title="${stars} star${stars > 1 ? 's' : ''}" style="display:inline-block;padding:0 4px;font-size:38px;line-height:44px;color:#f2c94c;text-decoration:none">&#9733;</a>`).join('')}</div>
+            <a href="${escapeHtml(ratingUrl(5))}" style="display:inline-block;margin-top:18px;padding:13px 26px;background:#d5eb85;color:#173b2f;border-radius:999px;font-weight:700;text-decoration:none">Leave a review</a>
+            <div style="margin-top:10px;font-size:13px;color:#b9cfc2">Takes less than a minute</div>
+          </div>`
+    : '';
+  const nextBlock = next.length
+    ? `
+          <h2 style="font-size:18px;margin:28px 0 10px">Play again</h2>
+          ${next.map((item) => `<a href="${escapeHtml(item.url)}" style="display:block;margin:0 0 10px;padding:14px 18px;border:1px solid #dce8dc;border-radius:12px;color:#173b2f;text-decoration:none"><span style="display:block;font-weight:700">${escapeHtml(item.label)}</span><span style="display:block;color:#557064">${escapeHtml(item.time)} · <span style="color:#2f7b52;font-weight:700">View session &rarr;</span></span></a>`).join('')}`
+    : '';
+  const html = `
+    <div style="background:#f4f7f2;padding:32px 16px;font-family:Arial,Helvetica,sans-serif;color:#173b2f;line-height:1.6">
+      <span style="display:none!important;visibility:hidden;opacity:0;color:transparent;height:0;width:0;overflow:hidden">How was your session at ${escapeHtml(venue.name)}? Tap a star to rate it.</span>
+      <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #dce8dc;border-radius:16px;overflow:hidden">
+        <div style="padding:28px 32px;background:#173b2f;color:#ffffff">
+          <div style="font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:#d5eb85">Tennis Match</div>
+          <h1 style="margin:8px 0 0;font-size:28px;line-height:1.2">Thanks for playing</h1>
+        </div>
+        <div style="padding:28px 32px">
+          <p>Hi ${escapeHtml(booking.contact_name)}, thanks for joining us on court. We hope you had a great game.</p>
+          <div style="margin:24px 0;padding:18px 20px;background:#f4f7f2;border-radius:12px">
+            <div style="font-size:12px;color:#557064;text-transform:uppercase;letter-spacing:1px">You played</div>
+            <div style="font-size:20px;font-weight:700;margin-top:4px">${escapeHtml(`${venue.name} · ${venue.area}`)}</div>
+            <div style="color:#557064;margin-top:2px">${escapeHtml(`${date} · ${time}`)}</div>
+          </div>${reviewCard}${nextBlock}
+          <p style="margin:24px 0 0;color:#557064">We hope to see you on court again soon.</p>
+        </div>
+      </div>
+      <p style="max-width:640px;margin:18px auto 0;text-align:center;font-size:12px;color:#7a9285">
+        <a href="${escapeHtml(unsubscribeUrl)}" style="color:#7a9285">Unsubscribe from post-session emails</a> · Booking confirmations and reminders are unaffected.
+      </p>
+    </div>
+  `;
+  const text = [
+    'Tennis Match — Thanks for playing',
+    '',
+    `Hi ${booking.contact_name}, thanks for joining us on court. We hope you had a great game.`,
+    '',
+    `You played: ${venue.name} · ${venue.area}, ${date} · ${time}`,
+    ...(reviewUrl ? ['', 'How was your session? Leave a quick review (takes less than a minute):', reviewUrl] : []),
+    ...(next.length ? ['', 'Play again:', ...next.map((item) => `${item.label} · ${item.time}: ${item.url}`)] : []),
+    '',
+    'We hope to see you on court again soon.',
+    '',
     `Unsubscribe from post-session emails: ${unsubscribeUrl}`,
     'Booking confirmations and reminders are unaffected.',
-  ].filter(Boolean).join('\n\n');
-  const html = `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto;padding:28px;background:#edf2eb;color:#173b2f"><h1>${escapeHtml(thanks)}</h1><p>${escapeHtml(details)}</p><p>We hope to see you on court again.</p>${reviewUrl ? `<p><a href="${escapeHtml(reviewUrl)}">Leave a review</a></p>` : ''}${next.length ? `<h2>Play again</h2><ul>${next.map((item) => `<li><a href="${escapeHtml(item.url)}">${escapeHtml(`${item.name} · ${item.date} ${item.start_time}–${item.end_time}`)}</a></li>`).join('')}</ul>` : ''}<p><a href="${escapeHtml(unsubscribeUrl)}">Unsubscribe from post-session emails</a></p><p>Booking confirmations and reminders are unaffected.</p></div>`;
-  return { subject: `Thanks for playing · ${venue.name}`, text, html };
+  ].join('\n');
+  return { subject: `How was your session at ${venue.name}?`, text, html };
 }
 export async function sendBookingFollowupEmail(input: BookingFollowupInput): Promise<EmailSendResult> {
   const transport = smtpTransport();

@@ -305,8 +305,24 @@ void test('follow-up preview hides unavailable reviews, caps recommendations and
   assert.ok(!email.html.includes('Leave a review'));
   assert.ok(email.html.includes('Unsubscribe'));
   assert.equal((email.html.match(/view=detail/g) ?? []).length, 3);
-  assert.match(email.subject, /^Thanks for playing · /);
+  assert.match(email.subject, /^How was your session at /);
+  assert.ok(!email.html.includes('rating='));
   assert.ok(!/[\u4e00-\u9fff]/.test(email.html + email.text + email.subject));
+});
+
+void test('follow-up review card links each star to a preselected rating', () => {
+  const email = renderBookingFollowupEmail({
+    booking,
+    session: booking,
+    venue: venues[0],
+    reviewUrl: 'https://example.com/review?t=test',
+    unsubscribeUrl: 'https://example.com/unsubscribe?t=test',
+    nextSessions: [],
+  });
+  for (const stars of [1, 2, 3, 4, 5]) assert.ok(email.html.includes(`review?t=test&amp;rating=${stars}`));
+  assert.ok(email.html.includes('Leave a review'));
+  assert.ok(email.text.includes('https://example.com/review?t=test'));
+  assert.ok(!email.html.includes('Play again'));
 });
 
 void test('delivery failures release only the owned claim for retry', async () => {

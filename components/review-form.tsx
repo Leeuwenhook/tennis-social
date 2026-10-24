@@ -182,6 +182,8 @@ export function ReviewForm() {
     const params = new URLSearchParams(window.location.search);
     const value = params.get('t') ?? '';
     const initialLanguage: Language = params.get('lang') === 'zh' || navigator.language.toLowerCase().startsWith('zh') ? 'zh' : 'en';
+    // Stars in the follow-up email link here with ?rating=N so the tapped score is preselected.
+    const initialRating = Number(params.get('rating'));
     window.history.replaceState({}, '', '/review');
     let cancelled = false;
     void fetch(`/api/reviews?t=${encodeURIComponent(value)}`, { cache: 'no-store' })
@@ -194,6 +196,7 @@ export function ReviewForm() {
         const data = (await response.json()) as Context;
         setContext(data);
         setDisplayName(data.firstName);
+        if (Number.isInteger(initialRating) && initialRating >= 1 && initialRating <= 5) setRating(initialRating);
         setState('ready');
       })
       .catch(() => {
